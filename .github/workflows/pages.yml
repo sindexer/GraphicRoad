@@ -1,4 +1,4 @@
-name: Deploy static site to GitHub Pages
+name: Enable GitHub Pages
 
 on:
   push:
@@ -8,30 +8,36 @@ on:
 permissions:
   contents: read
   pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: false
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  enable-pages:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Enable Pages from gh-pages branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -e
+          status=$(curl -sS -o /tmp/pages.json -w "%{http_code}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${REPO}/pages")
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
+          if [ "$status" = "200" ]; then
+            echo "GitHub Pages is already enabled."
+            cat /tmp/pages.json
+            exit 0
+          fi
 
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: .
+          create_status=$(curl -sS -o /tmp/create-pages.json -w "%{http_code}" \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${REPO}/pages" \
+            -d '{"source":{"branch":"gh-pages","path":"/"},"build_type":"legacy"}')
 
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          cat /tmp/create-pages.json
+          test "$create_status" = "201" -o "$create_status" = "409"
