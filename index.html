@@ -114,6 +114,7 @@
     <form id="addressSearch" class="address-search">
       <input id="addressInput" type="text" placeholder="주소를 입력하세요" autocomplete="off">
       <button type="submit">검색</button>
+      <button id="toggleAddressMarker" type="button">핀 숨김</button>
     </form>
 
     <div class="buttons">
@@ -174,6 +175,7 @@
     let recreating = false;
     let addressMarker = null;
     let searchedLatLng = null;
+    let addressMarkerVisible = true;
 
     // ====== 행정구역 경계 오버레이 관련 변수 및 함수 ======
     // 각 레이어의 상태와 데이터 캐시를 관리하는 객체입니다.
@@ -308,7 +310,7 @@
           lineLayers[k].overlays.forEach(pl => pl.setMap(map));
         }
       });
-      if (addressMarker && searchedLatLng) {
+      if (addressMarker && searchedLatLng && addressMarkerVisible) {
         addressMarker.setMap(map);
         addressMarker.setPosition(searchedLatLng);
       }
@@ -316,6 +318,8 @@
 
     function setAddressMarker(latlng) {
       searchedLatLng = latlng;
+      addressMarkerVisible = true;
+      updateAddressMarkerToggle();
       if (!addressMarker) {
         addressMarker = new naver.maps.Marker({
           position: latlng,
@@ -326,6 +330,23 @@
       }
       addressMarker.setPosition(latlng);
       addressMarker.setMap(map);
+    }
+
+    function updateAddressMarkerToggle() {
+      const button = document.getElementById('toggleAddressMarker');
+      if (!button) return;
+      button.textContent = addressMarkerVisible ? '핀 숨김' : '핀 표시';
+    }
+
+    function bindAddressMarkerToggle() {
+      const button = document.getElementById('toggleAddressMarker');
+      button?.addEventListener('click', () => {
+        if (!addressMarker) return;
+        addressMarkerVisible = !addressMarkerVisible;
+        addressMarker.setMap(addressMarkerVisible ? map : null);
+        updateAddressMarkerToggle();
+      });
+      updateAddressMarkerToggle();
     }
 
     function moveToAddress(address) {
@@ -445,6 +466,7 @@
 
       bindToggleHandlers();
       bindAddressSearch();
+      bindAddressMarkerToggle();
     }
     window.initMap = initMap;
 
