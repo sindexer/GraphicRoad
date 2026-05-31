@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="referrer" content="origin-when-cross-origin" />
+  <title>Naver Style Map</title>
+  <style>
+    html, body {height:100%; margin:0}
+    #mapWrap {position:relative; width:100%; height:100%}
+    #map {width:100%; height:100%}
+    .address-search{
+      position:absolute;
+      z-index:1000;
+      top:12px;
+      right:12px;
+      display:flex;
+      gap:6px;
+      width:min(360px, calc(100% - 24px));
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    }
+    .address-search input{
+      flex:1;
+      min-width:0;
+      height:34px;
+      padding:0 12px;
+      border:1px solid #cfd6df;
+      border-radius:8px;
+      background:#fff;
+      box-shadow:0 2px 8px rgba(0,0,0,.14);
+      font-size:14px;
+      outline:none;
+    }
+    .address-search input:focus{
+      border-color:#2f87ec;
+      box-shadow:0 0 0 3px rgba(47,135,236,.18), 0 2px 8px rgba(0,0,0,.14);
+    }
+    .address-search button{
+      height:34px;
+      padding:0 12px;
+      border:1px solid #256fca;
+      border-radius:8px;
+      background:#2f87ec;
+      color:#fff;
+      font-size:14px;
+      cursor:pointer;
+      box-shadow:0 2px 8px rgba(0,0,0,.14);
+    }
+    .buttons{
+      position:absolute;
+      z-index:1000;
+      top:12px;
+      left:12px;
+      /* 큰 흰색 박스를 제거하여 컨테이너 배경을 없앰 */
+      background:none;
+      padding:0;
+      border-radius:0;
+      box-shadow:none;
+      display:inline-block;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    }
+    /* group containing theme/type buttons */
+    .primary-controls{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    /* group containing the 시도 및 시군구 토글 */
+    .secondary-controls{
+      display:flex;
+      gap:5px; /* 25% increase from previous 4px gap */
+      flex-wrap:nowrap; /* remove line breaks so all toggles stay on one line */
+      font-size:0.5em; /* 50% of original font size */
+      margin-top:10px; /* increase margin between primary and secondary controls by 25% */
+    }
+    /* ensure each toggle label retains base styles */
+    .secondary-controls .control-btn{
+      font-size:inherit;
+    }
+    /* 기본 토글 버튼 스타일: flex 레이아웃으로 체크박스와 텍스트를 세로 가운데 정렬 */
+    .control-btn{
+      display:flex;
+      align-items:center;
+      border:1px solid #d0d0d0;
+      border-radius:8px;
+      background:#fff;
+      cursor:pointer;
+    }
+    /* 체크박스와 텍스트 사이의 간격 조정 */
+    .control-btn input[type="checkbox"]{
+      margin:0 4px 0 0;
+    }
+    /* 1차 컨트롤(테마/지도 타입) 버튼 크기 */
+    .primary-controls .control-btn{
+      padding:6px 10px;
+    }
+    /* 2차 컨트롤(시도별 시군구 토글) 버튼 크기: 상하좌우 50% 축소 */
+    .secondary-controls .control-btn{
+      padding:4px 6px; /* increase padding by 25% */
+    }
+    .control-on{border-color:#2a7cdd;background:#2f87ec;color:#fff}
+  </style>
+  <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=htcml1d5g3&submodules=gl,geocoder&callback=initMap"></script>
+  <!-- topojson-client library for converting TopoJSON to GeoJSON.  Even though
+       시군구 데이터를 GeoJSON 형식으로 분할하여 사용하지만, 시도 데이터는 TopoJSON
+       그대로 사용하므로 이 라이브러리를 남겨둡니다.  GeoJSON 데이터를 로드할 때는
+       topojson.feature() 호출을 건너뜁니다. -->
+  <script src="https://unpkg.com/topojson-client@3"></script>
+</head>
+<body>
+  <div id="mapWrap">
+    <div id="map"></div>
+
+    <form id="addressSearch" class="address-search">
+      <input id="addressInput" type="text" placeholder="주소를 입력하세요" autocomplete="off">
+      <button type="submit">검색</button>
+    </form>
+
+    <div class="buttons">
+      <div class="primary-controls">
+        <!-- 테마 버튼들 (좌측부터 Blue / Blue(NoSB) / Dark / White) -->
+        <input id="BLUE"      type="button" value="Blue"         class="control-btn">
+        <input id="BLUENOSB"  type="button" value="Blue(NoSB)"   class="control-btn">
+        <input id="DARK"      type="button" value="Dark"         class="control-btn">
+        <input id="WHITE"     type="button" value="White"        class="control-btn">
+        <!-- 기본 타입들 -->
+        <input id="NORMAL"    type="button" value="일반지도"     class="control-btn control-on">
+        <input id="TERRAIN"   type="button" value="지형도"       class="control-btn">
+        <input id="SATELLITE" type="button" value="위성지도"     class="control-btn">
+        <input id="HYBRID"    type="button" value="겹쳐보기"     class="control-btn">
+      </div>
+
+      <div class="secondary-controls">
+        <!-- 추가된 토글: 시도 라인 / 시군구(각 시도별) 라인 -->
+        <label class="control-btn"><input id="TOGGLE_SIDO" type="checkbox"> 시도</label>
+        <!-- 시군구를 17개 시·도 단위로 나눈 토글 -->
+        <label class="control-btn"><input id="TOGGLE_SIGUNGU_11" type="checkbox"> 서울</label>
+        <label class="control-btn"><input id="TOGGLE_SIGUNGU_21" type="checkbox"> 부산</label>
+        <label class="control-btn"><input id="TOGGLE_SIGUNGU_22" type="checkbox"> 대구</label>
+        <label class="control-btn"><input id="TOGGLE_SIGUNGU_23" type="checkbox"> 인천</label>
+        <label class="control-btn"><input id="TOGGLE_SIGUNGU_24" type="checkbox"> 광주</label>
+        <label class="control-btn"><input id="TOGGLE_SIGUNGU_25" type="checkbox"> 대전</label>
+        <label class="control-btn"><input id="TOGGLE_SIGUNGU_26" type="checkbox"> 울산</label>
+        <label class="control-btn"><input id="TOGGLE_SIGUNGU_29" type="checkbox"> 세종</label>
+        <label class="control-btn"><input id="TOGGLE_SIGUNGU_31" type="checkbox"> 경기</label>
+        <label class="control-btn"><input id="TOGGLE_SIGUNGU_32" type="checkbox"> 강원</label>
+        <label class="control-btn"><input id="TOGGLE_SIGUNGU_33" type="checkbox"> 충북</label>
+        <label class="control-btn"><input id="TOGGLE_SIGUNGU_34" type="checkbox"> 충남</label>
+        <label class="control-btn"><input id="TOGGLE_SIGUNGU_35" type="checkbox"> 전북</label>
+        <label class="control-btn"><input id="TOGGLE_SIGUNGU_36" type="checkbox"> 전남</label>
+        <label class="control-btn"><input id="TOGGLE_SIGUNGU_37" type="checkbox"> 경북</label>
+        <label class="control-btn"><input id="TOGGLE_SIGUNGU_38" type="checkbox"> 경남</label>
+        <label class="control-btn"><input id="TOGGLE_SIGUNGU_39" type="checkbox"> 제주</label>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // theme style IDs
+    const STYLE_WHITE      = '7020740f-78b0-448e-804e-0d702f5db72e';
+    const STYLE_DARK       = '2a9d2f05-79b2-4590-92ee-9f30d52af0bc';
+    const STYLE_BLUE       = '13737385-1d14-471f-89a0-7725f38c4a0f';
+    const STYLE_BLUE_NOSB  = '91ec720a-a3e2-4d1e-8b9d-ed094c40d998'; // new
+
+    const BASE_OPTIONS = {
+      gl: true,
+      center: new naver.maps.LatLng(37.5666103, 126.9783882),
+      zoom: 15,
+      // 네이버 지도 API v3는 최소 줌 레벨을 6 이상으로 설정해야 합니다.
+      minZoom: 6, maxZoom: 20, tileSpare: 2
+    };
+
+    let map;
+    let recreating = false;
+    let addressMarker = null;
+    let searchedLatLng = null;
+
+    // ====== 행정구역 경계 오버레이 관련 변수 및 함수 ======
+    // 각 레이어의 상태와 데이터 캐시를 관리하는 객체입니다.
+    const lineLayers = {
+      // 시도 경계: TopoJSON 파일 (Gunwi 편입 후 최적화 버전)
+      sido: {
+        overlays: [],        // Polyline 객체들이 저장됩니다.
+        visible: false,       // 현재 지도에 표시 중인지 여부
+        loaded: false,        // GeoJSON을 읽어 왔는지 여부
+        // WGS84 좌표계의 시도 경계 GeoJSON (Gunwi 편입 후 최적화 버전)
+        url: './data/sido_gunwi_optimized.topojson'
+      },
+      // 시군구 경계: 시도별 TopoJSON 파일 (분할된 경계, Gunwi 편입 반영)
+      // 최적화된 GeoJSON 대신 각 시도별로 생성된 TopoJSON을 사용합니다. 이는 중복된 경계를 하나만 저장해 더 빠른 로딩 속도를 제공합니다.
+      sigungu_11: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_11.geojson' }, // 서울특별시
+      sigungu_21: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_21.geojson' }, // 부산광역시
+      sigungu_22: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_22.geojson' }, // 대구광역시 (군위군 포함)
+      sigungu_23: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_23.geojson' }, // 인천광역시
+      sigungu_24: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_24.geojson' }, // 광주광역시
+      sigungu_25: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_25.geojson' }, // 대전광역시
+      sigungu_26: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_26.geojson' }, // 울산광역시
+      sigungu_29: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_29.geojson' }, // 세종특별자치시
+      sigungu_31: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_31.geojson' }, // 경기도
+      sigungu_32: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_32.geojson' }, // 강원도
+      sigungu_33: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_33.geojson' }, // 충청북도
+      sigungu_34: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_34.geojson' }, // 충청남도
+      sigungu_35: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_35.geojson' }, // 전라북도
+      sigungu_36: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_36.geojson' }, // 전라남도
+      sigungu_37: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_37.geojson' }, // 경상북도
+      sigungu_38: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_38.geojson' }, // 경상남도
+      sigungu_39: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_39.geojson' }  // 제주특별자치도
+    };
+
+    // 선의 스타일 지정 (색상과 굵기)
+    const STYLE_SIDO = {
+      strokeColor: '#2069E0',
+      strokeWeight: 2,
+      strokeOpacity: 0.95
+    };
+    const STYLE_SIGUNGU = {
+      // 시군구 경계의 선 스타일을 시도 경계와 동일하게 설정합니다.
+      // 시도 경계의 색상과 굵기(#2069E0, weight 2, opacity 0.95)를 그대로 사용하여 통일감을 줍니다.
+      strokeColor: '#2069E0',
+      strokeWeight: 2,
+      strokeOpacity: 0.95
+    };
+
+    // GeoJSON 좌표 [lng, lat] 을 naver.maps.LatLng 객체로 변환
+    function coordsToLatLngs(coords) {
+      return new naver.maps.LatLng(coords[1], coords[0]);
+    }
+
+    // Linear ring 배열을 Polyline 경로로 변환
+    function ringToPath(ring) {
+      return ring.map(coordsToLatLngs);
+    }
+
+    // Polyline 생성 유틸
+    function makePolyline(path, style) {
+      return new naver.maps.Polyline({
+        map: null,
+        path,
+        strokeColor: style.strokeColor,
+        strokeWeight: style.strokeWeight,
+        strokeOpacity: style.strokeOpacity,
+        clickable: false,
+        zIndex: 1000
+      });
+    }
+
+    // GeoJSON Polygon 구조에서 Polyline 생성하여 버킷에 추가
+    function addPolylinesFromPolygon(polygonCoords, style, bucket) {
+      polygonCoords.forEach(ring => {
+        const path = ringToPath(ring);
+        const pl = makePolyline(path, style);
+        bucket.push(pl);
+      });
+    }
+
+    // GeoJSON MultiPolygon 구조에서 Polyline 생성하여 버킷에 추가
+    function addPolylinesFromMultiPolygon(multiCoords, style, bucket) {
+      multiCoords.forEach(poly => addPolylinesFromPolygon(poly, style, bucket));
+    }
+
+    // 지정된 종류(k: 'sido'|'sigungu')의 GeoJSON을 최초 1회만 불러와서 Polyline 생성
+    async function loadGeoJSONOnce(kind) {
+      const info = lineLayers[kind];
+      if (info.loaded) return;
+      const res = await fetch(info.url, { cache: 'no-cache' });
+      if (!res.ok) throw new Error('GeoJSON 로드 실패: ' + info.url);
+      // Load the raw JSON. It may be a TopoJSON topology or a GeoJSON FeatureCollection/Feature.
+      const raw = await res.json();
+      // If the data is TopoJSON, convert it to a FeatureCollection using topojson-client.
+      // TopoJSON has a 'type' of 'Topology' and stores its geometries under objects.<name>.
+      let geo;
+      if (raw && raw.type === 'Topology') {
+        // The conversion returns a FeatureCollection when a GeometryCollection is provided.
+        geo = topojson.feature(raw, raw.objects.collection);
+      } else {
+        geo = raw;
+      }
+      const bucket = info.overlays;
+      const style = (kind === 'sido') ? STYLE_SIDO : STYLE_SIGUNGU;
+      // Extract features from the GeoJSON. Handle FeatureCollection, single Feature, or bare geometry.
+      const features = (geo.type === 'FeatureCollection')
+        ? geo.features
+        : (geo.type === 'Feature'
+          ? [geo]
+          : [{ type: 'Feature', geometry: geo }]);
+      features.forEach(f => {
+        if (!f || !f.geometry) return;
+        const g = f.geometry;
+        if (g.type === 'Polygon') {
+          addPolylinesFromPolygon(g.coordinates, style, bucket);
+        } else if (g.type === 'MultiPolygon') {
+          addPolylinesFromMultiPolygon(g.coordinates, style, bucket);
+        }
+      });
+      info.loaded = true;
+    }
+
+    // 현재 visible 상태에 따라 지도에 오버레이를 적용/제거
+    function applyVisibility(kind) {
+      const { overlays, visible } = lineLayers[kind];
+      overlays.forEach(pl => pl.setMap(visible ? map : null));
+    }
+
+    // 새 map 생성 후 기존 오버레이를 복원하는 함수
+    function restoreAllOverlaysOnNewMap() {
+      Object.keys(lineLayers).forEach(k => {
+        if (lineLayers[k].visible) {
+          lineLayers[k].overlays.forEach(pl => pl.setMap(map));
+        }
+      });
+      if (addressMarker && searchedLatLng) {
+        addressMarker.setMap(map);
+        addressMarker.setPosition(searchedLatLng);
+      }
+    }
+
+    function setAddressMarker(latlng) {
+      searchedLatLng = latlng;
+      if (!addressMarker) {
+        addressMarker = new naver.maps.Marker({
+          position: latlng,
+          map,
+          zIndex: 2000
+        });
+        return;
+      }
+      addressMarker.setPosition(latlng);
+      addressMarker.setMap(map);
+    }
+
+    function moveToAddress(address) {
+      if (!window.naver || !naver.maps || !naver.maps.Service || !naver.maps.Service.geocode) {
+        alert('주소 검색 기능을 불러오지 못했습니다. 지도 API 설정을 확인해주세요.');
+        return;
+      }
+
+      naver.maps.Service.geocode({ query: address }, (status, response) => {
+        if (status !== naver.maps.Service.Status.OK) {
+          alert('주소를 찾지 못했습니다. 다시 입력해주세요.');
+          return;
+        }
+
+        const result = response?.v2?.addresses?.[0];
+        if (!result) {
+          alert('주소를 찾지 못했습니다. 더 자세한 주소로 다시 입력해주세요.');
+          return;
+        }
+
+        const latlng = new naver.maps.LatLng(Number(result.y), Number(result.x));
+        setAddressMarker(latlng);
+        map.morph(latlng, 17);
+      });
+    }
+
+    function bindAddressSearch() {
+      const form = document.getElementById('addressSearch');
+      const input = document.getElementById('addressInput');
+      form?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const address = input.value.trim();
+        if (!address) {
+          input.focus();
+          return;
+        }
+        moveToAddress(address);
+      });
+    }
+
+    // recreate 함수는 아래에서 재정의된 후 래핑됩니다. (파일 끝부분을 참고하세요)
+
+    // 체크박스와 오버레이 상태 연결 핸들러
+    function bindToggleHandlers() {
+      const cbSido = document.getElementById('TOGGLE_SIDO');
+      // 시도 토글 이벤트
+      cbSido?.addEventListener('change', async (e) => {
+        const checked = e.target.checked;
+        lineLayers.sido.visible = checked;
+        if (checked && !lineLayers.sido.loaded) {
+          try {
+            await loadGeoJSONOnce('sido');
+          } catch (err) {
+            console.error(err);
+            alert('시도 경계 로드 실패. 파일 경로/형식을 확인하세요.');
+            lineLayers.sido.visible = false;
+            e.target.checked = false;
+            return;
+          }
+        }
+        applyVisibility('sido');
+      });
+
+      // 시군구(시도별) 토글 이벤트를 동적으로 바인딩
+      Object.keys(lineLayers).forEach(key => {
+        if (key.startsWith('sigungu_')) {
+          const checkbox = document.getElementById('TOGGLE_' + key.toUpperCase());
+          checkbox?.addEventListener('change', async (e) => {
+            const checked = e.target.checked;
+            lineLayers[key].visible = checked;
+            if (checked && !lineLayers[key].loaded) {
+              try {
+                await loadGeoJSONOnce(key);
+              } catch (err) {
+                console.error(err);
+                alert('시군구 경계 로드 실패: ' + key);
+                lineLayers[key].visible = false;
+                e.target.checked = false;
+                return;
+              }
+            }
+            applyVisibility(key);
+          });
+        }
+      });
+    }
+
+    function initMap(){
+      createMap({ mapTypeId: naver.maps.MapTypeId.NORMAL, customStyleId: null });
+      // 테마 변경 버튼 핸들러
+      document.getElementById('WHITE').addEventListener('click',     () => switchToTheme(STYLE_WHITE,     'WHITE'));
+      document.getElementById('DARK').addEventListener('click',      () => switchToTheme(STYLE_DARK,      'DARK'));
+      document.getElementById('BLUE').addEventListener('click',      () => switchToTheme(STYLE_BLUE,      'BLUE'));
+      document.getElementById('BLUENOSB').addEventListener('click',  () => switchToTheme(STYLE_BLUE_NOSB, 'BLUENOSB'));
+      // 지도 타입 변경 버튼 핸들러
+      document.getElementById('NORMAL').addEventListener('click',    () => switchToType(naver.maps.MapTypeId.NORMAL,    'NORMAL'));
+      document.getElementById('TERRAIN').addEventListener('click',   () => switchToType(naver.maps.MapTypeId.TERRAIN,   'TERRAIN'));
+      document.getElementById('SATELLITE').addEventListener('click', () => switchToType(naver.maps.MapTypeId.SATELLITE, 'SATELLITE'));
+      document.getElementById('HYBRID').addEventListener('click',    () => switchToType(naver.maps.MapTypeId.HYBRID,    'HYBRID'));
+
+      // 오버레이 토글 체크박스 핸들러 바인딩
+      bindToggleHandlers();
+    }
+
+    initMap = function(){
+      createMap({ mapTypeId: naver.maps.MapTypeId.NORMAL, customStyleId: null });
+
+      document.getElementById('WHITE').addEventListener('click',     () => switchToTheme(STYLE_WHITE,     'WHITE'));
+      document.getElementById('DARK').addEventListener('click',      () => switchToTheme(STYLE_DARK,      'DARK'));
+      document.getElementById('BLUE').addEventListener('click',      () => switchToTheme(STYLE_BLUE,      'BLUE'));
+      document.getElementById('BLUENOSB').addEventListener('click',  () => switchToTheme(STYLE_BLUE_NOSB, 'BLUENOSB'));
+
+      document.getElementById('NORMAL').addEventListener('click',    () => switchToType(naver.maps.MapTypeId.NORMAL,    'NORMAL'));
+      document.getElementById('TERRAIN').addEventListener('click',   () => switchToType(naver.maps.MapTypeId.TERRAIN,   'TERRAIN'));
+      document.getElementById('SATELLITE').addEventListener('click', () => switchToType(naver.maps.MapTypeId.SATELLITE, 'SATELLITE'));
+      document.getElementById('HYBRID').addEventListener('click',    () => switchToType(naver.maps.MapTypeId.HYBRID,    'HYBRID'));
+
+      bindToggleHandlers();
+      bindAddressSearch();
+    };
+
+    function createMap(extraOptions = {}){
+      map = new naver.maps.Map('map', Object.assign({}, BASE_OPTIONS, extraOptions));
+    }
+
+    function recreate(options = {}, doneActiveId = null){
+      if (recreating) return;
+      recreating = true;
+
+      const center = map.getCenter();
+      const zoom   = map.getZoom();
+
+      const wrap = document.getElementById('mapWrap');
+      const old  = document.getElementById('map');
+      const fresh = document.createElement('div');
+      fresh.id = 'map'; fresh.style.width = '100%'; fresh.style.height = '100%';
+      wrap.replaceChild(fresh, old);
+
+      createMap(Object.assign({ center, zoom }, options));
+
+      if (doneActiveId) setActive(doneActiveId);
+      setTimeout(()=>{ recreating = false; }, 80);
+    }
+
+    // recreate 을 오버레이 복원 기능으로 래핑합니다. 이 코드는 recreate 정의 이후에 위치해야 합니다.
+    const __recreateOrig = recreate;
+    recreate = function(options = {}, doneActiveId = null){
+      __recreateOrig(options, doneActiveId);
+      // 새 지도가 준비된 직후, 기존 오버레이를 복원합니다.
+      setTimeout(restoreAllOverlaysOnNewMap, 100);
+    };
+
+    function setActive(id){
+      document.querySelectorAll('.control-btn').forEach(b => b.classList.remove('control-on'));
+      document.getElementById(id).classList.add('control-on');
+    }
+
+    function switchToTheme(styleId, btnId){
+      recreate({ mapTypeId: naver.maps.MapTypeId.NORMAL, customStyleId: styleId }, btnId);
+    }
+
+    function switchToType(typeId, btnId){
+      recreate({ mapTypeId: typeId, customStyleId: null }, btnId);
+    }
+  </script>
+</body>
+</html>
