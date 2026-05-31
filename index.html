@@ -457,6 +457,9 @@
       naver.maps.Event.addListener(map, 'rightclick', (e) => {
         lookupRightClickAddress(e.coord);
       });
+      naver.maps.Event.addListener(map, 'click', () => {
+        rightClickInfoWindow?.close();
+      });
     }
 
     // recreate 함수는 아래에서 재정의된 후 래핑됩니다. (파일 끝부분을 참고하세요)
