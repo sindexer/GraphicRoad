@@ -429,7 +429,7 @@
       bindToggleHandlers();
     }
 
-    initMap = function(){
+    window.initMap = function(){
       createMap({ mapTypeId: naver.maps.MapTypeId.NORMAL, customStyleId: null });
 
       document.getElementById('WHITE').addEventListener('click',     () => switchToTheme(STYLE_WHITE,     'WHITE'));
