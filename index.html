@@ -100,7 +100,6 @@
     }
     .control-on{border-color:#2a7cdd;background:#2f87ec;color:#fff}
   </style>
-  <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=htcml1d5g3&submodules=gl,geocoder&callback=initMap"></script>
   <!-- topojson-client library for converting TopoJSON to GeoJSON.  Even though
        시군구 데이터를 GeoJSON 형식으로 분할하여 사용하지만, 시도 데이터는 TopoJSON
        그대로 사용하므로 이 라이브러리를 남겨둡니다.  GeoJSON 데이터를 로드할 때는
@@ -491,5 +490,6 @@
       recreate({ mapTypeId: typeId, customStyleId: null }, btnId);
     }
   </script>
+  <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=htcml1d5g3&submodules=gl,geocoder&callback=initMap"></script>
 </body>
 </html>
