@@ -176,6 +176,7 @@
     let addressMarker = null;
     let searchedLatLng = null;
     let addressMarkerVisible = true;
+    let rightClickInfoWindow = null;
 
     // ====== 행정구역 경계 오버레이 관련 변수 및 함수 ======
     // 각 레이어의 상태와 데이터 캐시를 관리하는 객체입니다.
@@ -387,6 +388,77 @@
       });
     }
 
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (ch) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[ch]));
+    }
+
+    function getReverseAddress(response) {
+      const address = response?.v2?.address;
+      if (address?.roadAddress) return address.roadAddress;
+      if (address?.jibunAddress) return address.jibunAddress;
+
+      const result = response?.v2?.results?.[0];
+      if (!result) return '';
+      const region = result.region || {};
+      return [region.area1, region.area2, region.area3, region.area4]
+        .map(area => area?.name)
+        .filter(Boolean)
+        .join(' ');
+    }
+
+    function showRightClickInfo(latlng, content) {
+      if (!rightClickInfoWindow) {
+        rightClickInfoWindow = new naver.maps.InfoWindow({
+          borderWidth: 0,
+          disableAnchor: false,
+          backgroundColor: 'transparent',
+          pixelOffset: new naver.maps.Point(0, -8)
+        });
+      }
+      rightClickInfoWindow.setContent(
+        '<div style="padding:9px 12px;border:1px solid #cfd6df;border-radius:8px;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.18);font-size:13px;line-height:1.45;max-width:280px;word-break:keep-all;">' +
+        content +
+        '</div>'
+      );
+      rightClickInfoWindow.open(map, latlng);
+    }
+
+    function lookupRightClickAddress(latlng) {
+      showRightClickInfo(latlng, '주소 확인 중...');
+      if (!window.naver || !naver.maps || !naver.maps.Service || !naver.maps.Service.reverseGeocode) {
+        showRightClickInfo(latlng, '주소 확인 기능을 불러오지 못했습니다.');
+        return;
+      }
+
+      naver.maps.Service.reverseGeocode({
+        coords: latlng,
+        orders: [
+          naver.maps.Service.OrderType.ROAD_ADDR,
+          naver.maps.Service.OrderType.ADDR
+        ].join(',')
+      }, (status, response) => {
+        if (status !== naver.maps.Service.Status.OK) {
+          showRightClickInfo(latlng, '주소를 찾지 못했습니다.');
+          return;
+        }
+
+        const address = getReverseAddress(response);
+        showRightClickInfo(latlng, address ? escapeHtml(address) : '주소를 찾지 못했습니다.');
+      });
+    }
+
+    function bindMapRightClick() {
+      naver.maps.Event.addListener(map, 'rightclick', (e) => {
+        lookupRightClickAddress(e.coord);
+      });
+    }
+
     // recreate 함수는 아래에서 재정의된 후 래핑됩니다. (파일 끝부분을 참고하세요)
 
     // 체크박스와 오버레이 상태 연결 핸들러
@@ -472,6 +544,7 @@
 
     function createMap(extraOptions = {}){
       map = new naver.maps.Map('map', Object.assign({}, BASE_OPTIONS, extraOptions));
+      bindMapRightClick();
     }
 
     function recreate(options = {}, doneActiveId = null){
