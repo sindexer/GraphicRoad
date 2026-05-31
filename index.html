@@ -162,7 +162,6 @@
     const STYLE_BLUE_NOSB  = '91ec720a-a3e2-4d1e-8b9d-ed094c40d998'; // new
 
     const BASE_OPTIONS = {
-      gl: true,
       center: new naver.maps.LatLng(37.5666103, 126.9783882),
       zoom: 15,
       // 네이버 지도 API v3는 최소 줌 레벨을 6 이상으로 설정해야 합니다.
@@ -490,6 +489,6 @@
       recreate({ mapTypeId: typeId, customStyleId: null }, btnId);
     }
   </script>
-  <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=htcml1d5g3&submodules=gl,geocoder&callback=initMap"></script>
+  <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=htcml1d5g3&submodules=geocoder&callback=initMap"></script>
 </body>
 </html>
