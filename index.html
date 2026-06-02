@@ -70,6 +70,9 @@
       display:flex;
       gap:5px; /* 25% increase from previous 4px gap */
       flex-wrap:nowrap; /* remove line breaks so all toggles stay on one line */
+      overflow-x:auto;
+      max-width:calc(100vw - 24px);
+      padding-bottom:2px;
       font-size:0.5em; /* 50% of original font size */
       margin-top:10px; /* increase margin between primary and secondary controls by 25% */
     }
@@ -81,6 +84,7 @@
     .control-btn{
       display:flex;
       align-items:center;
+      gap:4px;
       border:1px solid #d0d0d0;
       border-radius:8px;
       background:#fff;
@@ -97,6 +101,32 @@
     /* 2차 컨트롤(시도별 시군구 토글) 버튼 크기: 상하좌우 50% 축소 */
     .secondary-controls .control-btn{
       padding:4px 6px; /* increase padding by 25% */
+      flex:0 0 auto;
+      white-space:nowrap;
+    }
+    .line-color{
+      width:14px;
+      height:14px;
+      flex:0 0 14px;
+      padding:0;
+      border:1px solid rgba(0,0,0,.22);
+      border-radius:50%;
+      background:transparent;
+      cursor:pointer;
+      overflow:hidden;
+      appearance:none;
+      -webkit-appearance:none;
+    }
+    .line-color::-webkit-color-swatch-wrapper{
+      padding:0;
+    }
+    .line-color::-webkit-color-swatch{
+      border:0;
+      border-radius:50%;
+    }
+    .line-color::-moz-color-swatch{
+      border:0;
+      border-radius:50%;
     }
     .control-on{border-color:#2a7cdd;background:#2f87ec;color:#fff}
   </style>
@@ -133,6 +163,7 @@
 
       <div class="secondary-controls">
         <!-- 추가된 토글: 시도 라인 / 시군구(각 시도별) 라인 -->
+        <label class="control-btn line-color-control">라인색 <input id="COLOR_LINES" class="line-color" type="color" value="#333333" title="전체 라인 색상" aria-label="전체 라인 색상"></label>
         <label class="control-btn"><input id="TOGGLE_SIDO" type="checkbox"> 시도</label>
         <!-- 시군구를 17개 시·도 단위로 나눈 토글 -->
         <label class="control-btn"><input id="TOGGLE_SIGUNGU_11" type="checkbox"> 서울</label>
@@ -179,6 +210,7 @@
     let rightClickInfoWindow = null;
 
     // ====== 행정구역 경계 오버레이 관련 변수 및 함수 ======
+    const DEFAULT_LINE_COLOR = '#333333';
     // 각 레이어의 상태와 데이터 캐시를 관리하는 객체입니다.
     const lineLayers = {
       // 시도 경계: TopoJSON 파일 (Gunwi 편입 후 최적화 버전)
@@ -209,17 +241,20 @@
       sigungu_38: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_38.geojson' }, // 경상남도
       sigungu_39: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_39.geojson' }  // 제주특별자치도
     };
+    Object.values(lineLayers).forEach(info => {
+      info.color = DEFAULT_LINE_COLOR;
+    });
 
     // 선의 스타일 지정 (색상과 굵기)
     const STYLE_SIDO = {
-      strokeColor: '#2069E0',
+      strokeColor: '#333333',
       strokeWeight: 2,
       strokeOpacity: 0.95
     };
     const STYLE_SIGUNGU = {
       // 시군구 경계의 선 스타일을 시도 경계와 동일하게 설정합니다.
-      // 시도 경계의 색상과 굵기(#2069E0, weight 2, opacity 0.95)를 그대로 사용하여 통일감을 줍니다.
-      strokeColor: '#2069E0',
+      // 시도 경계의 색상과 굵기(#333333, weight 2, opacity 0.95)를 그대로 사용하여 통일감을 줍니다.
+      strokeColor: '#333333',
       strokeWeight: 2,
       strokeOpacity: 0.95
     };
@@ -245,6 +280,27 @@
         clickable: false,
         zIndex: 1000
       });
+    }
+
+    function updatePolylineColor(polyline, color) {
+      if (typeof polyline.setOptions === 'function') {
+        polyline.setOptions({ strokeColor: color });
+        return;
+      }
+      if (typeof polyline.set === 'function') {
+        polyline.set('strokeColor', color);
+      }
+    }
+
+    function setLayerColor(kind, color) {
+      const info = lineLayers[kind];
+      if (!info) return;
+      info.color = color || DEFAULT_LINE_COLOR;
+      info.overlays.forEach(polyline => updatePolylineColor(polyline, info.color));
+    }
+
+    function setAllLayerColors(color) {
+      Object.keys(lineLayers).forEach(kind => setLayerColor(kind, color));
     }
 
     // GeoJSON Polygon 구조에서 Polyline 생성하여 버킷에 추가
@@ -279,7 +335,8 @@
         geo = raw;
       }
       const bucket = info.overlays;
-      const style = (kind === 'sido') ? STYLE_SIDO : STYLE_SIGUNGU;
+      const baseStyle = (kind === 'sido') ? STYLE_SIDO : STYLE_SIGUNGU;
+      const style = Object.assign({}, baseStyle, { strokeColor: info.color || DEFAULT_LINE_COLOR });
       // Extract features from the GeoJSON. Handle FeatureCollection, single Feature, or bare geometry.
       const features = (geo.type === 'FeatureCollection')
         ? geo.features
@@ -509,6 +566,21 @@
       });
     }
 
+    function bindColorHandlers() {
+      const input = document.getElementById('COLOR_LINES');
+      if (!input) return;
+      setAllLayerColors(input.value);
+      input.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
+      input.addEventListener('input', (e) => {
+        setAllLayerColors(e.target.value);
+      });
+      input.addEventListener('change', (e) => {
+        setAllLayerColors(e.target.value);
+      });
+    }
+
     function initMap(){
       createMap({ mapTypeId: naver.maps.MapTypeId.NORMAL, customStyleId: null });
       // 테마 변경 버튼 핸들러
@@ -524,6 +596,7 @@
 
       // 오버레이 토글 체크박스 핸들러 바인딩
       bindToggleHandlers();
+      bindColorHandlers();
     }
 
     function initMap(){
@@ -540,6 +613,7 @@
       document.getElementById('HYBRID').addEventListener('click',    () => switchToType(naver.maps.MapTypeId.HYBRID,    'HYBRID'));
 
       bindToggleHandlers();
+      bindColorHandlers();
       bindAddressSearch();
       bindAddressMarkerToggle();
     }
