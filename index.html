@@ -141,8 +141,9 @@
       z-index:1001;
       display:none;
       align-items:center;
-      gap:8px;
-      padding:8px 10px;
+      flex-direction:column;
+      gap:6px;
+      padding:8px 9px 10px;
       border:1px solid #d0d0d0;
       border-radius:8px;
       background:#fff;
@@ -154,12 +155,15 @@
       display:flex;
     }
     .line-weight-panel input[type="range"]{
-      width:110px;
+      width:28px;
+      height:120px;
       accent-color:#2f87ec;
+      writing-mode:vertical-lr;
+      direction:rtl;
     }
     .line-weight-value{
-      min-width:28px;
-      text-align:right;
+      min-width:24px;
+      text-align:center;
       font-variant-numeric:tabular-nums;
     }
     .control-on{border-color:#2a7cdd;background:#2f87ec;color:#fff}
@@ -222,8 +226,8 @@
         <label class="control-btn"><input id="TOGGLE_SIGUNGU_39" type="checkbox"> 제주</label>
       </div>
       <div class="line-weight-panel" id="LINE_WEIGHT_PANEL">
-        <input id="LINE_WEIGHT" type="range" min="1" max="10" step="0.5" value="2" aria-label="전체 라인 굵기">
         <span class="line-weight-value" id="LINE_WEIGHT_VALUE">2</span>
+        <input id="LINE_WEIGHT" type="range" min="1" max="10" step="0.5" value="2" aria-label="전체 라인 굵기">
       </div>
     </div>
   </div>
@@ -666,9 +670,10 @@
       const positionPanel = () => {
         const buttonRect = button.getBoundingClientRect();
         const wrapRect = document.querySelector('.buttons').getBoundingClientRect();
-        const panelWidth = panel.offsetWidth || 156;
+        const panelWidth = panel.offsetWidth || 48;
+        const desiredLeft = buttonRect.left - wrapRect.left + (buttonRect.width - panelWidth) / 2;
         const maxLeft = Math.max(0, window.innerWidth - wrapRect.left - panelWidth - 12);
-        panel.style.left = Math.min(buttonRect.left - wrapRect.left, maxLeft) + 'px';
+        panel.style.left = Math.max(0, Math.min(desiredLeft, maxLeft)) + 'px';
         panel.style.top = (buttonRect.bottom - wrapRect.top + 6) + 'px';
       };
 
