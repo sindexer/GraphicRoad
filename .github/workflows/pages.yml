@@ -1,4 +1,4 @@
-name: Enable GitHub Pages
+name: Configure GitHub Pages
 
 on:
   push:
@@ -10,15 +10,17 @@ permissions:
   pages: write
 
 jobs:
-  enable-pages:
+  configure-pages:
     runs-on: ubuntu-latest
     steps:
-      - name: Enable Pages from gh-pages branch
+      - name: Publish Pages from main branch
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
         run: |
           set -e
+          payload='{"source":{"branch":"main","path":"/"},"build_type":"legacy"}'
+
           status=$(curl -sS -o /tmp/pages.json -w "%{http_code}" \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${GH_TOKEN}" \
@@ -26,8 +28,16 @@ jobs:
             "https://api.github.com/repos/${REPO}/pages")
 
           if [ "$status" = "200" ]; then
-            echo "GitHub Pages is already enabled."
-            cat /tmp/pages.json
+            update_status=$(curl -sS -o /tmp/update-pages.json -w "%{http_code}" \
+              -X PATCH \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${REPO}/pages" \
+              -d "$payload")
+
+            cat /tmp/update-pages.json
+            test "$update_status" = "204"
             exit 0
           fi
 
@@ -37,7 +47,7 @@ jobs:
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${REPO}/pages" \
-            -d '{"source":{"branch":"gh-pages","path":"/"},"build_type":"legacy"}')
+            -d "$payload")
 
           cat /tmp/create-pages.json
           test "$create_status" = "201" -o "$create_status" = "409"
