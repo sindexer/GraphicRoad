@@ -128,9 +128,6 @@
       border:0;
       border-radius:50%;
     }
-    .line-weight-control{
-      position:relative;
-    }
     .line-weight-control > button{
       border:0;
       background:transparent;
@@ -141,8 +138,6 @@
     }
     .line-weight-panel{
       position:absolute;
-      top:calc(100% + 6px);
-      left:0;
       z-index:1001;
       display:none;
       align-items:center;
@@ -155,7 +150,7 @@
       color:#222;
       white-space:nowrap;
     }
-    .line-weight-control.is-open .line-weight-panel{
+    .line-weight-panel.is-open{
       display:flex;
     }
     .line-weight-panel input[type="range"]{
@@ -205,10 +200,6 @@
         <label class="control-btn line-color-control">라인색 <input id="COLOR_LINES" class="line-color" type="color" value="#333333" title="전체 라인 색상" aria-label="전체 라인 색상"></label>
         <div class="control-btn line-weight-control" id="LINE_WEIGHT_CONTROL">
           <button id="TOGGLE_LINE_WEIGHT" type="button" aria-expanded="false" aria-controls="LINE_WEIGHT_PANEL">라인굵기</button>
-          <div class="line-weight-panel" id="LINE_WEIGHT_PANEL">
-            <input id="LINE_WEIGHT" type="range" min="1" max="10" step="0.5" value="2" aria-label="전체 라인 굵기">
-            <span class="line-weight-value" id="LINE_WEIGHT_VALUE">2</span>
-          </div>
         </div>
         <label class="control-btn"><input id="TOGGLE_SIDO" type="checkbox"> 시도</label>
         <!-- 시군구를 17개 시·도 단위로 나눈 토글 -->
@@ -229,6 +220,10 @@
         <label class="control-btn"><input id="TOGGLE_SIGUNGU_37" type="checkbox"> 경북</label>
         <label class="control-btn"><input id="TOGGLE_SIGUNGU_38" type="checkbox"> 경남</label>
         <label class="control-btn"><input id="TOGGLE_SIGUNGU_39" type="checkbox"> 제주</label>
+      </div>
+      <div class="line-weight-panel" id="LINE_WEIGHT_PANEL">
+        <input id="LINE_WEIGHT" type="range" min="1" max="10" step="0.5" value="2" aria-label="전체 라인 굵기">
+        <span class="line-weight-value" id="LINE_WEIGHT_VALUE">2</span>
       </div>
     </div>
   </div>
@@ -657,9 +652,10 @@
     function bindWeightHandlers() {
       const control = document.getElementById('LINE_WEIGHT_CONTROL');
       const button = document.getElementById('TOGGLE_LINE_WEIGHT');
+      const panel = document.getElementById('LINE_WEIGHT_PANEL');
       const slider = document.getElementById('LINE_WEIGHT');
       const value = document.getElementById('LINE_WEIGHT_VALUE');
-      if (!control || !button || !slider || !value) return;
+      if (!control || !button || !panel || !slider || !value) return;
 
       const updateValue = () => {
         const weight = Number(slider.value);
@@ -667,18 +663,32 @@
         setAllLayerWeights(weight);
       };
 
+      const positionPanel = () => {
+        const buttonRect = button.getBoundingClientRect();
+        const wrapRect = document.querySelector('.buttons').getBoundingClientRect();
+        const panelWidth = panel.offsetWidth || 156;
+        const maxLeft = Math.max(0, window.innerWidth - wrapRect.left - panelWidth - 12);
+        panel.style.left = Math.min(buttonRect.left - wrapRect.left, maxLeft) + 'px';
+        panel.style.top = (buttonRect.bottom - wrapRect.top + 6) + 'px';
+      };
+
       updateValue();
       button.addEventListener('click', (e) => {
         e.stopPropagation();
-        const isOpen = control.classList.toggle('is-open');
+        const isOpen = !panel.classList.contains('is-open');
+        panel.classList.toggle('is-open', isOpen);
         button.setAttribute('aria-expanded', String(isOpen));
+        if (isOpen) positionPanel();
       });
-      control.addEventListener('click', (e) => {
+      panel.addEventListener('click', (e) => {
         e.stopPropagation();
       });
       slider.addEventListener('input', updateValue);
+      window.addEventListener('resize', () => {
+        if (panel.classList.contains('is-open')) positionPanel();
+      });
       document.addEventListener('click', () => {
-        control.classList.remove('is-open');
+        panel.classList.remove('is-open');
         button.setAttribute('aria-expanded', 'false');
       });
     }
