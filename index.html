@@ -7,128 +7,6 @@
   <title>Naver Style Map</title>
   <style>
     html, body {height:100%; margin:0}
-    body {
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-      background:#f3f5f8;
-    }
-    .auth-screen{
-      min-height:100%;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      padding:24px;
-      box-sizing:border-box;
-      color:#172033;
-      background:
-        linear-gradient(135deg, rgba(47,135,236,.12), rgba(22,163,74,.10)),
-        #f3f5f8;
-    }
-    .auth-card{
-      width:min(420px, 100%);
-      padding:28px;
-      border:1px solid #dce3ec;
-      border-radius:8px;
-      background:#fff;
-      box-shadow:0 18px 45px rgba(23,32,51,.16);
-      box-sizing:border-box;
-    }
-    .auth-card h1{
-      margin:0 0 8px;
-      font-size:28px;
-      line-height:1.2;
-      letter-spacing:0;
-    }
-    .auth-card p{
-      margin:0 0 22px;
-      color:#647084;
-      font-size:14px;
-      line-height:1.5;
-    }
-    .auth-form{
-      display:flex;
-      flex-direction:column;
-      gap:12px;
-    }
-    .auth-form label{
-      display:flex;
-      flex-direction:column;
-      gap:6px;
-      color:#344154;
-      font-size:13px;
-      font-weight:600;
-    }
-    .auth-form input{
-      height:42px;
-      padding:0 12px;
-      border:1px solid #cfd8e3;
-      border-radius:8px;
-      background:#fff;
-      color:#172033;
-      font-size:15px;
-      outline:none;
-      box-sizing:border-box;
-    }
-    .auth-form input:focus{
-      border-color:#2f87ec;
-      box-shadow:0 0 0 3px rgba(47,135,236,.18);
-    }
-    .auth-actions{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:8px;
-      margin-top:4px;
-    }
-    .auth-button{
-      height:42px;
-      border:1px solid #256fca;
-      border-radius:8px;
-      background:#2f87ec;
-      color:#fff;
-      font-size:14px;
-      font-weight:700;
-      cursor:pointer;
-    }
-    .auth-button.secondary{
-      border-color:#cfd8e3;
-      background:#fff;
-      color:#263448;
-    }
-    .auth-button:disabled{
-      opacity:.65;
-      cursor:wait;
-    }
-    .auth-message{
-      min-height:20px;
-      margin-top:12px;
-      color:#506075;
-      font-size:13px;
-      line-height:1.45;
-      word-break:keep-all;
-    }
-    .auth-message.is-error{
-      color:#c33131;
-    }
-    .auth-footer{
-      margin-top:16px;
-      display:flex;
-      justify-content:flex-end;
-    }
-    .auth-link{
-      border:0;
-      background:transparent;
-      color:#2f6fbd;
-      font:inherit;
-      font-size:13px;
-      cursor:pointer;
-      padding:0;
-    }
-    .app-shell{
-      width:100%;
-      height:100%;
-    }
-    .is-hidden{
-      display:none !important;
-    }
     #mapWrap {position:relative; width:100%; height:100%}
     #map {width:100%; height:100%}
     .address-search{
@@ -341,25 +219,7 @@
       font-variant-numeric:tabular-nums;
     }
     .control-on{border-color:#2a7cdd;background:#2f87ec;color:#fff}
-    .signout-button{
-      margin-top:8px;
-      height:30px;
-      padding:0 10px;
-      border:1px solid #cfd6df;
-      border-radius:8px;
-      background:#fff;
-      color:#243044;
-      font-size:13px;
-      cursor:pointer;
-      box-shadow:0 2px 8px rgba(0,0,0,.14);
-    }
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script>
-    window.initMap = function(){
-      window.__naverMapScriptReady = true;
-    };
-  </script>
   <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=htcml1d5g3&submodules=gl,geocoder&callback=initMap"></script>
   <!-- topojson-client library for converting TopoJSON to GeoJSON.  Even though
        시군구 데이터를 GeoJSON 형식으로 분할하여 사용하지만, 시도 데이터는 TopoJSON
@@ -368,44 +228,18 @@
   <script src="https://unpkg.com/topojson-client@3"></script>
 </head>
 <body>
-  <section id="authScreen" class="auth-screen">
-    <div class="auth-card">
-      <h1>GraphicRoad</h1>
-      <p>Supabase 계정으로 로그인하면 지도 화면으로 이동합니다.</p>
-      <form id="authForm" class="auth-form">
-        <label>
-          이메일
-          <input id="authEmail" type="email" autocomplete="email" required>
-        </label>
-        <label>
-          비밀번호
-          <input id="authPassword" type="password" autocomplete="current-password" minlength="6" required>
-        </label>
-        <div class="auth-actions">
-          <button id="signInButton" class="auth-button" type="submit">로그인</button>
-          <button id="signUpButton" class="auth-button secondary" type="button">회원가입</button>
-        </div>
-      </form>
-      <div id="authMessage" class="auth-message" aria-live="polite"></div>
-      <div class="auth-footer">
-        <button id="resetPasswordButton" class="auth-link" type="button">비밀번호 재설정 메일 보내기</button>
-      </div>
-    </div>
-  </section>
+  <div id="mapWrap">
+    <div id="map"></div>
 
-  <main id="appShell" class="app-shell is-hidden">
-    <div id="mapWrap">
-      <div id="map"></div>
+    <form id="addressSearch" class="address-search">
+      <input id="addressInput" type="text" placeholder="상호, 키워드, 주소를 입력하세요" autocomplete="off">
+      <button type="submit">검색</button>
+      <button id="toggleAddressMarker" type="button">핀 숨김</button>
+      <div id="searchResults" class="search-results" aria-live="polite"></div>
+    </form>
 
-      <form id="addressSearch" class="address-search">
-        <input id="addressInput" type="text" placeholder="상호, 키워드, 주소를 입력하세요" autocomplete="off">
-        <button type="submit">검색</button>
-        <button id="toggleAddressMarker" type="button">핀 숨김</button>
-        <div id="searchResults" class="search-results" aria-live="polite"></div>
-      </form>
-
-      <div class="buttons">
-        <div class="primary-controls">
+    <div class="buttons">
+      <div class="primary-controls">
         <!-- 테마 버튼들 (좌측부터 Blue / Blue(NoSB) / Dark / White) -->
         <input id="BLUE"      type="button" value="Blue"         class="control-btn">
         <input id="BLUENOSB"  type="button" value="Blue(NoSB)"   class="control-btn">
@@ -446,23 +280,14 @@
         <label class="control-btn"><input id="TOGGLE_SIGUNGU_38" type="checkbox"> 경남</label>
         <label class="control-btn"><input id="TOGGLE_SIGUNGU_39" type="checkbox"> 제주</label>
       </div>
-        <button id="signOutButton" class="signout-button" type="button">로그아웃</button>
-        <div class="line-weight-panel" id="LINE_WEIGHT_PANEL">
-          <span class="line-weight-value" id="LINE_WEIGHT_VALUE">2</span>
-          <input id="LINE_WEIGHT" type="range" min="1" max="10" step="0.5" value="2" aria-label="전체 라인 굵기">
-        </div>
+      <div class="line-weight-panel" id="LINE_WEIGHT_PANEL">
+        <span class="line-weight-value" id="LINE_WEIGHT_VALUE">2</span>
+        <input id="LINE_WEIGHT" type="range" min="1" max="10" step="0.5" value="2" aria-label="전체 라인 굵기">
       </div>
     </div>
-  </main>
+  </div>
 
   <script>
-    const SUPABASE_URL = 'https://xrgljqnsqwgbwnihkifg.supabase.co';
-    const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_DPxS2Zp5_QgzM9JF8lO8hA_bkc2WcD8';
-    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
-    let currentSession = null;
-    let mapScriptReady = Boolean(window.__naverMapScriptReady);
-    let mapInitialized = false;
-
     // theme style IDs
     const STYLE_WHITE      = '7020740f-78b0-448e-804e-0d702f5db72e';
     const STYLE_DARK       = '2a9d2f05-79b2-4590-92ee-9f30d52af0bc';
@@ -471,6 +296,7 @@
 
     const BASE_OPTIONS = {
       gl: true,
+      center: new naver.maps.LatLng(37.5666103, 126.9783882),
       zoom: 15,
       // 네이버 지도 API v3는 최소 줌 레벨을 6 이상으로 설정해야 합니다.
       minZoom: 6, maxZoom: 20, tileSpare: 2
@@ -1018,9 +844,25 @@
     }
 
     function initMap(){
-      mapScriptReady = true;
-      if (!currentSession || mapInitialized) return;
-      mapInitialized = true;
+      createMap({ mapTypeId: naver.maps.MapTypeId.NORMAL, customStyleId: null });
+      // 테마 변경 버튼 핸들러
+      document.getElementById('WHITE').addEventListener('click',     () => switchToTheme(STYLE_WHITE,     'WHITE'));
+      document.getElementById('DARK').addEventListener('click',      () => switchToTheme(STYLE_DARK,      'DARK'));
+      document.getElementById('BLUE').addEventListener('click',      () => switchToTheme(STYLE_BLUE,      'BLUE'));
+      document.getElementById('BLUENOSB').addEventListener('click',  () => switchToTheme(STYLE_BLUE_NOSB, 'BLUENOSB'));
+      // 지도 타입 변경 버튼 핸들러
+      document.getElementById('NORMAL').addEventListener('click',    () => switchToType(naver.maps.MapTypeId.NORMAL,    'NORMAL'));
+      document.getElementById('TERRAIN').addEventListener('click',   () => switchToType(naver.maps.MapTypeId.TERRAIN,   'TERRAIN'));
+      document.getElementById('SATELLITE').addEventListener('click', () => switchToType(naver.maps.MapTypeId.SATELLITE, 'SATELLITE'));
+      document.getElementById('HYBRID').addEventListener('click',    () => switchToType(naver.maps.MapTypeId.HYBRID,    'HYBRID'));
+
+      // 오버레이 토글 체크박스 핸들러 바인딩
+      bindToggleHandlers();
+      bindColorHandlers();
+      bindWeightHandlers();
+    }
+
+    function initMap(){
       createMap({ mapTypeId: naver.maps.MapTypeId.NORMAL, customStyleId: null });
 
       document.getElementById('WHITE').addEventListener('click',     () => switchToTheme(STYLE_WHITE,     'WHITE'));
@@ -1038,127 +880,11 @@
       bindWeightHandlers();
       bindAddressSearch();
       bindAddressMarkerToggle();
-      bindSignOut();
     }
     window.initMap = initMap;
 
-    function setAuthLoading(isLoading) {
-      document.querySelectorAll('#authForm button, #resetPasswordButton').forEach(button => {
-        button.disabled = isLoading;
-      });
-    }
-
-    function showAuthMessage(message, isError = false) {
-      const element = document.getElementById('authMessage');
-      if (!element) return;
-      element.textContent = message || '';
-      element.classList.toggle('is-error', Boolean(isError));
-    }
-
-    function showLoginScreen(message = '') {
-      document.getElementById('authScreen')?.classList.remove('is-hidden');
-      document.getElementById('appShell')?.classList.add('is-hidden');
-      showAuthMessage(message);
-    }
-
-    function showAppScreen(session) {
-      currentSession = session;
-      document.getElementById('authScreen')?.classList.add('is-hidden');
-      document.getElementById('appShell')?.classList.remove('is-hidden');
-      if (mapScriptReady) initMap();
-    }
-
-    async function handleSession(session) {
-      currentSession = session;
-      if (session?.user) {
-        showAppScreen(session);
-      } else {
-        showLoginScreen();
-      }
-    }
-
-    async function initializeAuth() {
-      bindAuthHandlers();
-      const { data, error } = await supabaseClient.auth.getSession();
-      if (error) {
-        showLoginScreen('세션 확인 중 오류가 발생했습니다. 다시 로그인해주세요.');
-        return;
-      }
-      await handleSession(data.session);
-      supabaseClient.auth.onAuthStateChange((_event, session) => {
-        handleSession(session);
-      });
-    }
-
-    function bindAuthHandlers() {
-      const form = document.getElementById('authForm');
-      const signUpButton = document.getElementById('signUpButton');
-      const resetButton = document.getElementById('resetPasswordButton');
-      const emailInput = document.getElementById('authEmail');
-      const passwordInput = document.getElementById('authPassword');
-
-      form?.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        setAuthLoading(true);
-        showAuthMessage('로그인 중...');
-        const { error } = await supabaseClient.auth.signInWithPassword({
-          email: emailInput.value.trim(),
-          password: passwordInput.value
-        });
-        setAuthLoading(false);
-        if (error) {
-          showAuthMessage(error.message || '로그인에 실패했습니다.', true);
-        }
-      });
-
-      signUpButton?.addEventListener('click', async () => {
-        setAuthLoading(true);
-        showAuthMessage('회원가입 처리 중...');
-        const { data, error } = await supabaseClient.auth.signUp({
-          email: emailInput.value.trim(),
-          password: passwordInput.value
-        });
-        setAuthLoading(false);
-        if (error) {
-          showAuthMessage(error.message || '회원가입에 실패했습니다.', true);
-          return;
-        }
-        if (data.session) {
-          showAppScreen(data.session);
-        } else {
-          showAuthMessage('가입 확인 메일을 보냈습니다. 이메일 인증 후 로그인해주세요.');
-        }
-      });
-
-      resetButton?.addEventListener('click', async () => {
-        const email = emailInput.value.trim();
-        if (!email) {
-          showAuthMessage('비밀번호 재설정 메일을 받을 이메일을 입력해주세요.', true);
-          emailInput.focus();
-          return;
-        }
-        setAuthLoading(true);
-        showAuthMessage('재설정 메일을 보내는 중...');
-        const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-          redirectTo: window.location.href
-        });
-        setAuthLoading(false);
-        showAuthMessage(error ? (error.message || '재설정 메일 발송에 실패했습니다.') : '비밀번호 재설정 메일을 보냈습니다.', Boolean(error));
-      });
-    }
-
-    function bindSignOut() {
-      document.getElementById('signOutButton')?.addEventListener('click', async () => {
-        await supabaseClient.auth.signOut();
-        showLoginScreen('로그아웃되었습니다.');
-      });
-    }
-
     function createMap(extraOptions = {}){
-      const options = Object.assign({
-        center: new naver.maps.LatLng(37.5666103, 126.9783882)
-      }, BASE_OPTIONS, extraOptions);
-      map = new naver.maps.Map('map', options);
+      map = new naver.maps.Map('map', Object.assign({}, BASE_OPTIONS, extraOptions));
       bindMapRightClick();
     }
 
@@ -1201,8 +927,6 @@
     function switchToType(typeId, btnId){
       recreate({ mapTypeId: typeId, customStyleId: null }, btnId);
     }
-
-    document.addEventListener('DOMContentLoaded', initializeAuth);
   </script>
 </body>
 </html>
