@@ -1,932 +1,989 @@
 <!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="referrer" content="origin-when-cross-origin" />
-  <title>Naver Style Map</title>
-  <style>
-    html, body {height:100%; margin:0}
-    #mapWrap {position:relative; width:100%; height:100%}
-    #map {width:100%; height:100%}
-    .address-search{
-      position:absolute;
-      z-index:1000;
-      top:12px;
-      right:12px;
-      display:flex;
-      flex-wrap:wrap;
-      align-items:flex-start;
-      gap:6px;
-      width:min(420px, calc(100% - 24px));
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-    }
-    .address-search input{
-      flex:1;
-      min-width:0;
-      height:34px;
-      padding:0 12px;
-      border:1px solid #cfd6df;
-      border-radius:8px;
-      background:#fff;
-      box-shadow:0 2px 8px rgba(0,0,0,.14);
-      font-size:14px;
-      outline:none;
-    }
-    .address-search input:focus{
-      border-color:#2f87ec;
-      box-shadow:0 0 0 3px rgba(47,135,236,.18), 0 2px 8px rgba(0,0,0,.14);
-    }
-    .address-search button{
-      flex:0 0 auto;
-      height:34px;
-      padding:0 12px;
-      border:1px solid #256fca;
-      border-radius:8px;
-      background:#2f87ec;
-      color:#fff;
-      font-size:14px;
-      cursor:pointer;
-      box-shadow:0 2px 8px rgba(0,0,0,.14);
-    }
-    .search-results{
-      display:none;
-      flex:1 0 100%;
-      max-height:280px;
-      overflow:auto;
-      border:1px solid #cfd6df;
-      border-radius:8px;
-      background:#fff;
-      box-shadow:0 2px 10px rgba(0,0,0,.18);
-    }
-    .search-results.is-open{
-      display:block;
-    }
-    .address-search .search-result{
-      display:block;
-      width:100%;
-      height:auto;
-      padding:9px 11px;
-      border:0;
-      border-bottom:1px solid #eef1f5;
-      border-radius:0;
-      background:#fff;
-      color:#222;
-      box-shadow:none;
-      text-align:left;
-      line-height:1.35;
-    }
-    .address-search .search-result:last-child{
-      border-bottom:0;
-    }
-    .address-search .search-result:hover,
-    .address-search .search-result.is-selected{
-      background:#eef6ff;
-    }
-    .search-result strong{
-      display:block;
-      margin-bottom:3px;
-      font-size:13px;
-    }
-    .search-result span,
-    .search-empty{
-      display:block;
-      color:#5d6673;
-      font-size:12px;
-      word-break:keep-all;
-    }
-    .search-empty{
-      padding:10px 12px;
-    }
-    .buttons{
-      position:absolute;
-      z-index:1000;
-      top:12px;
-      left:12px;
-      /* 큰 흰색 박스를 제거하여 컨테이너 배경을 없앰 */
-      background:none;
-      padding:0;
-      border-radius:0;
-      box-shadow:none;
-      display:inline-block;
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-    }
-    /* group containing theme/type buttons */
-    .primary-controls{
-      display:flex;
-      gap:8px;
-      flex-wrap:wrap;
-    }
-    /* group containing the 시도 및 시군구 토글 */
-    .secondary-controls{
-      display:flex;
-      gap:5px; /* 25% increase from previous 4px gap */
-      flex-wrap:nowrap; /* remove line breaks so all toggles stay on one line */
-      overflow-x:auto;
-      max-width:calc(100vw - 24px);
-      padding-bottom:2px;
-      font-size:0.5em; /* 50% of original font size */
-      margin-top:10px; /* increase margin between primary and secondary controls by 25% */
-    }
-    /* ensure each toggle label retains base styles */
-    .secondary-controls .control-btn{
-      font-size:inherit;
-    }
-    /* 기본 토글 버튼 스타일: flex 레이아웃으로 체크박스와 텍스트를 세로 가운데 정렬 */
-    .control-btn{
-      display:flex;
-      align-items:center;
-      gap:4px;
-      border:1px solid #d0d0d0;
-      border-radius:8px;
-      background:#fff;
-      cursor:pointer;
-    }
-    /* 체크박스와 텍스트 사이의 간격 조정 */
-    .control-btn input[type="checkbox"]{
-      margin:0 4px 0 0;
-    }
-    /* 1차 컨트롤(테마/지도 타입) 버튼 크기 */
-    .primary-controls .control-btn{
-      padding:6px 10px;
-    }
-    /* 2차 컨트롤(시도별 시군구 토글) 버튼 크기: 상하좌우 50% 축소 */
-    .secondary-controls .control-btn{
-      padding:4px 6px; /* increase padding by 25% */
-      flex:0 0 auto;
-      white-space:nowrap;
-    }
-    .line-color{
-      width:14px;
-      height:14px;
-      flex:0 0 14px;
-      padding:0;
-      border:1px solid rgba(0,0,0,.22);
-      border-radius:50%;
-      background:transparent;
-      cursor:pointer;
-      overflow:hidden;
-      appearance:none;
-      -webkit-appearance:none;
-    }
-    .line-color::-webkit-color-swatch-wrapper{
-      padding:0;
-    }
-    .line-color::-webkit-color-swatch{
-      border:0;
-      border-radius:50%;
-    }
-    .line-color::-moz-color-swatch{
-      border:0;
-      border-radius:50%;
-    }
-    .line-weight-control > button{
-      border:0;
-      background:transparent;
-      color:inherit;
-      font:inherit;
-      padding:0;
-      cursor:pointer;
-    }
-    .line-weight-panel{
-      position:absolute;
-      z-index:1001;
-      display:none;
-      align-items:center;
-      flex-direction:column;
-      gap:6px;
-      padding:8px 9px 10px;
-      border:1px solid #d0d0d0;
-      border-radius:8px;
-      background:#fff;
-      box-shadow:0 2px 10px rgba(0,0,0,.18);
-      color:#222;
-      white-space:nowrap;
-    }
-    .line-weight-panel.is-open{
-      display:flex;
-    }
-    .line-weight-panel input[type="range"]{
-      width:28px;
-      height:120px;
-      accent-color:#2f87ec;
-      writing-mode:vertical-lr;
-      direction:rtl;
-    }
-    .line-weight-value{
-      min-width:24px;
-      text-align:center;
-      font-variant-numeric:tabular-nums;
-    }
-    .control-on{border-color:#2a7cdd;background:#2f87ec;color:#fff}
-  </style>
-  <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=htcml1d5g3&submodules=gl,geocoder&callback=initMap"></script>
-  <!-- topojson-client library for converting TopoJSON to GeoJSON.  Even though
-       시군구 데이터를 GeoJSON 형식으로 분할하여 사용하지만, 시도 데이터는 TopoJSON
-       그대로 사용하므로 이 라이브러리를 남겨둡니다.  GeoJSON 데이터를 로드할 때는
-       topojson.feature() 호출을 건너뜁니다. -->
-  <script src="https://unpkg.com/topojson-client@3"></script>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="referrer" content="origin-when-cross-origin" />
+<title>Naver Style Map</title>
+
+<!-- Wanted Design System tokens — inlined so the page is fully self-contained
+     (works standalone on GitHub Pages with no external _ds/ folder). -->
+<style>
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-jp.min.css");
+:root{
+  --font-primary:"Pretendard JP",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --font-mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
+  --primary-normal:rgb(51,102,255);
+  --primary-strong:rgb(44,90,232);
+  --static-white:rgb(255,255,255);
+  --label-normal:rgb(23,23,23);
+  --label-neutral:rgba(46,47,51,0.88);
+  --label-alternative:rgba(55,56,60,0.61);
+  --line-normal-neutral:rgba(112,115,124,0.16);
+  --line-normal-normal:rgba(112,115,124,0.22);
+  --line-normal-strong:rgba(112,115,124,0.52);
+  --background-normal-normal:#fff;
+  --background-normal-alternative:rgb(248,248,249);
+  --radius-xs:8px; --radius-sm:12px; --radius-md:16px;
+  --shadow-popover:0 4px 16px rgba(23,23,23,0.10),0 1px 4px rgba(23,23,23,0.07);
+  --type-tracking-normal:0.006em;
+}
+</style>
+
+<style>
+html, body {height:100%; margin:0}
+#mapWrap {position:relative; width:100%; height:100%}
+#map {width:100%; height:100%}
+
+/* ============ Wanted Design System — control chrome ============ */
+.address-search{
+  position:absolute;
+  z-index:1000;
+  top:16px;
+  right:16px;
+  display:flex;
+  flex-wrap:wrap;
+  align-items:flex-start;
+  gap:8px;
+  width:min(440px, calc(100% - 32px));
+  font-family:var(--font-primary);
+}
+.address-search input{
+  flex:1;
+  min-width:0;
+  height:44px;
+  padding:0 16px;
+  border:1px solid var(--line-normal-normal, rgba(112,115,124,0.22));
+  border-radius:var(--radius-sm, 12px);
+  background:var(--background-normal-normal, #fff);
+  box-shadow:var(--shadow-popover, 0 4px 16px rgba(23,23,23,.10));
+  font-family:var(--font-primary);
+  font-size:15px;
+  font-weight:500;
+  letter-spacing:var(--type-tracking-normal, 0.006em);
+  color:var(--label-normal, rgb(23,23,23));
+  outline:none;
+  transition:border-color .12s ease, box-shadow .12s ease;
+}
+.address-search input::placeholder{
+  color:var(--label-alternative, rgba(55,56,60,0.61));
+}
+.address-search input:focus{
+  border-color:var(--primary-normal, rgb(51,102,255));
+  box-shadow:0 0 0 3px rgba(51,102,255,.16), var(--shadow-popover, 0 4px 16px rgba(23,23,23,.10));
+}
+.address-search button{
+  flex:0 0 auto;
+  height:44px;
+  padding:0 18px;
+  border:1px solid var(--primary-normal, rgb(51,102,255));
+  border-radius:var(--radius-sm, 12px);
+  background:var(--primary-normal, rgb(51,102,255));
+  color:var(--static-white, #fff);
+  font-family:var(--font-primary);
+  font-size:15px;
+  font-weight:600;
+  letter-spacing:var(--type-tracking-normal, 0.006em);
+  cursor:pointer;
+  box-shadow:var(--shadow-popover, 0 4px 16px rgba(23,23,23,.10));
+  transition:background .12s ease, border-color .12s ease;
+}
+.address-search button:hover{
+  background:var(--primary-strong, rgb(44,90,232));
+  border-color:var(--primary-strong, rgb(44,90,232));
+}
+/* the 핀 숨김/표시 secondary button */
+.address-search #toggleAddressMarker{
+  background:var(--background-normal-normal, #fff);
+  color:var(--label-neutral, rgba(46,47,51,0.88));
+  border:1px solid var(--line-normal-normal, rgba(112,115,124,0.22));
+}
+.address-search #toggleAddressMarker:hover{
+  background:var(--background-normal-alternative, rgb(248,248,249));
+  border-color:var(--line-normal-strong, rgba(112,115,124,0.52));
+}
+
+.search-results{
+  display:none;
+  flex:1 0 100%;
+  max-height:300px;
+  overflow:auto;
+  border:1px solid var(--line-normal-normal, rgba(112,115,124,0.22));
+  border-radius:var(--radius-md, 16px);
+  background:var(--background-normal-normal, #fff);
+  box-shadow:var(--shadow-popover, 0 4px 16px rgba(23,23,23,.10));
+}
+.search-results.is-open{
+  display:block;
+}
+.address-search .search-result{
+  display:block;
+  width:100%;
+  height:auto;
+  padding:12px 14px;
+  border:0;
+  border-bottom:1px solid var(--line-normal-neutral, rgba(112,115,124,0.16));
+  border-radius:0;
+  background:var(--background-normal-normal, #fff);
+  color:var(--label-normal, rgb(23,23,23));
+  box-shadow:none;
+  text-align:left;
+  line-height:1.4;
+  cursor:pointer;
+  transition:background .1s ease;
+}
+.address-search .search-result:last-child{
+  border-bottom:0;
+}
+.address-search .search-result:hover,
+.address-search .search-result.is-selected{
+  background:rgba(51,102,255,.08);
+}
+.search-result strong{
+  display:block;
+  margin-bottom:4px;
+  font-size:14px;
+  font-weight:600;
+  color:var(--label-normal, rgb(23,23,23));
+}
+.search-result span,
+.search-empty{
+  display:block;
+  color:var(--label-alternative, rgba(55,56,60,0.61));
+  font-size:13px;
+  font-weight:500;
+  word-break:keep-all;
+}
+.search-empty{
+  padding:14px 16px;
+  font-family:var(--font-primary);
+}
+
+.buttons{
+  position:absolute;
+  z-index:1000;
+  top:16px;
+  left:16px;
+  background:none;
+  padding:0;
+  border-radius:0;
+  box-shadow:none;
+  display:inline-block;
+  font-family:var(--font-primary);
+}
+/* group containing theme/type buttons */
+.primary-controls{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+/* group containing the 시도 및 시군구 토글 */
+.secondary-controls{
+  display:flex;
+  gap:6px;
+  flex-wrap:nowrap;
+  overflow-x:auto;
+  max-width:calc(100vw - 32px);
+  padding-bottom:2px;
+  font-size:0.6em;
+  margin-top:10px;
+}
+.secondary-controls .control-btn{
+  font-size:inherit;
+}
+
+/* base toggle button — Wanted pill/chip look */
+.control-btn{
+  display:flex;
+  align-items:center;
+  gap:5px;
+  border:1px solid var(--line-normal-normal, rgba(112,115,124,0.22));
+  border-radius:var(--radius-sm, 12px);
+  background:var(--background-normal-normal, #fff);
+  color:var(--label-neutral, rgba(46,47,51,0.88));
+  font-family:var(--font-primary);
+  font-weight:600;
+  letter-spacing:var(--type-tracking-normal, 0.006em);
+  cursor:pointer;
+  box-shadow:var(--shadow-popover, 0 4px 16px rgba(23,23,23,.10));
+  transition:background .12s ease, border-color .12s ease, color .12s ease;
+}
+.control-btn:hover{
+  background:var(--background-normal-alternative, rgb(248,248,249));
+  border-color:var(--line-normal-strong, rgba(112,115,124,0.52));
+}
+.control-btn input[type="checkbox"]{
+  margin:0 3px 0 0;
+  accent-color:var(--primary-normal, rgb(51,102,255));
+}
+/* primary controls (theme / map type) */
+.primary-controls .control-btn{
+  padding:9px 14px;
+  font-size:14px;
+}
+/* secondary controls (per-sido toggles) */
+.secondary-controls .control-btn{
+  padding:6px 9px;
+  border-radius:var(--radius-xs, 8px);
+  flex:0 0 auto;
+  white-space:nowrap;
+}
+
+.line-color{
+  width:16px;
+  height:16px;
+  flex:0 0 16px;
+  padding:0;
+  border:1px solid var(--line-normal-normal, rgba(112,115,124,0.22));
+  border-radius:50%;
+  background:transparent;
+  cursor:pointer;
+  overflow:hidden;
+  appearance:none;
+  -webkit-appearance:none;
+}
+.line-color::-webkit-color-swatch-wrapper{ padding:0; }
+.line-color::-webkit-color-swatch{ border:0; border-radius:50%; }
+.line-color::-moz-color-swatch{ border:0; border-radius:50%; }
+
+.line-weight-control > button{
+  border:0;
+  background:transparent;
+  color:inherit;
+  font:inherit;
+  font-family:var(--font-primary);
+  font-weight:600;
+  padding:0;
+  cursor:pointer;
+}
+.line-weight-panel{
+  position:absolute;
+  z-index:1001;
+  display:none;
+  align-items:center;
+  flex-direction:column;
+  gap:8px;
+  padding:12px 12px 14px;
+  border:1px solid var(--line-normal-normal, rgba(112,115,124,0.22));
+  border-radius:var(--radius-md, 16px);
+  background:var(--background-normal-normal, #fff);
+  box-shadow:var(--shadow-popover, 0 4px 16px rgba(23,23,23,.10));
+  color:var(--label-normal, rgb(23,23,23));
+  font-family:var(--font-primary);
+  white-space:nowrap;
+}
+.line-weight-panel.is-open{ display:flex; }
+.line-weight-panel input[type="range"]{
+  width:28px;
+  height:120px;
+  accent-color:var(--primary-normal, rgb(51,102,255));
+  writing-mode:vertical-lr;
+  direction:rtl;
+}
+.line-weight-value{
+  min-width:24px;
+  text-align:center;
+  font-family:var(--font-mono, "SF Mono", monospace);
+  font-variant-numeric:tabular-nums;
+  font-weight:600;
+}
+
+/* active toggle state — Wanted primary */
+.control-on{
+  border-color:var(--primary-normal, rgb(51,102,255));
+  background:var(--primary-normal, rgb(51,102,255));
+  color:var(--static-white, #fff);
+}
+.control-on:hover{
+  background:var(--primary-strong, rgb(44,90,232));
+  border-color:var(--primary-strong, rgb(44,90,232));
+}
+</style>
+
+<script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=htcml1d5g3&submodules=gl,geocoder&callback=initMap"></script>
+<!-- topojson-client library for converting TopoJSON to GeoJSON. Even though
+     시군구 데이터를 GeoJSON 형식으로 분할하여 사용하지만, 시도 데이터는 TopoJSON
+     그대로 사용하므로 이 라이브러리를 남겨둡니다. GeoJSON 데이터를 로드할 때는
+     topojson.feature() 호출을 건너뜁니다. -->
+<script src="https://unpkg.com/topojson-client@3"></script>
 </head>
 <body>
-  <div id="mapWrap">
-    <div id="map"></div>
+<div id="mapWrap">
+<div id="map"></div>
+<form id="addressSearch" class="address-search">
+<input id="addressInput" type="text" placeholder="상호, 키워드, 주소를 입력하세요" autocomplete="off">
+<button type="submit">검색</button>
+<button id="toggleAddressMarker" type="button">핀 숨김</button>
+<div id="searchResults" class="search-results" aria-live="polite"></div>
+</form>
+<div class="buttons">
+<div class="primary-controls">
+<!-- 테마 버튼들 (좌측부터 Blue / Blue(NoSB) / Dark / White) -->
+<input id="BLUE" type="button" value="Blue" class="control-btn">
+<input id="BLUENOSB" type="button" value="Blue(NoSB)" class="control-btn">
+<input id="DARK" type="button" value="Dark" class="control-btn">
+<input id="WHITE" type="button" value="White" class="control-btn">
+<!-- 기본 타입들 -->
+<input id="NORMAL" type="button" value="일반지도" class="control-btn control-on">
+<input id="TERRAIN" type="button" value="지형도" class="control-btn">
+<input id="SATELLITE" type="button" value="위성지도" class="control-btn">
+<input id="HYBRID" type="button" value="겹쳐보기" class="control-btn">
+<input id="VWORLD3D" type="button" value="Vworld3D" class="control-btn" onclick="window.open('https://map.vworld.kr/map/dtkmap.do?mode=MAPW201','_blank','noopener,noreferrer')">
+<input id="SMAP3D" type="button" value="S-map 3D" class="control-btn" onclick="window.open('https://smap.seoul.go.kr/','_blank','noopener,noreferrer')">
+</div>
+<div class="secondary-controls">
+<!-- 추가된 토글: 시도 라인 / 시군구(각 시도별) 라인 -->
+<label class="control-btn line-color-control">라인색 <input id="COLOR_LINES" class="line-color" type="color" value="#333333" title="전체 라인 색상" aria-label="전체 라인 색상"></label>
+<div class="control-btn line-weight-control" id="LINE_WEIGHT_CONTROL">
+<button id="TOGGLE_LINE_WEIGHT" type="button" aria-expanded="false" aria-controls="LINE_WEIGHT_PANEL">라인굵기</button>
+</div>
+<label class="control-btn"><input id="TOGGLE_SIDO" type="checkbox"> 시도</label>
+<!-- 시군구를 17개 시·도 단위로 나눈 토글 -->
+<label class="control-btn"><input id="TOGGLE_SIGUNGU_11" type="checkbox"> 서울</label>
+<label class="control-btn"><input id="TOGGLE_SIGUNGU_21" type="checkbox"> 부산</label>
+<label class="control-btn"><input id="TOGGLE_SIGUNGU_22" type="checkbox"> 대구</label>
+<label class="control-btn"><input id="TOGGLE_SIGUNGU_23" type="checkbox"> 인천</label>
+<label class="control-btn"><input id="TOGGLE_SIGUNGU_24" type="checkbox"> 광주</label>
+<label class="control-btn"><input id="TOGGLE_SIGUNGU_25" type="checkbox"> 대전</label>
+<label class="control-btn"><input id="TOGGLE_SIGUNGU_26" type="checkbox"> 울산</label>
+<label class="control-btn"><input id="TOGGLE_SIGUNGU_29" type="checkbox"> 세종</label>
+<label class="control-btn"><input id="TOGGLE_SIGUNGU_31" type="checkbox"> 경기</label>
+<label class="control-btn"><input id="TOGGLE_SIGUNGU_32" type="checkbox"> 강원</label>
+<label class="control-btn"><input id="TOGGLE_SIGUNGU_33" type="checkbox"> 충북</label>
+<label class="control-btn"><input id="TOGGLE_SIGUNGU_34" type="checkbox"> 충남</label>
+<label class="control-btn"><input id="TOGGLE_SIGUNGU_35" type="checkbox"> 전북</label>
+<label class="control-btn"><input id="TOGGLE_SIGUNGU_36" type="checkbox"> 전남</label>
+<label class="control-btn"><input id="TOGGLE_SIGUNGU_37" type="checkbox"> 경북</label>
+<label class="control-btn"><input id="TOGGLE_SIGUNGU_38" type="checkbox"> 경남</label>
+<label class="control-btn"><input id="TOGGLE_SIGUNGU_39" type="checkbox"> 제주</label>
+</div>
+<div class="line-weight-panel" id="LINE_WEIGHT_PANEL">
+<span class="line-weight-value" id="LINE_WEIGHT_VALUE">2</span>
+<input id="LINE_WEIGHT" type="range" min="1" max="10" step="0.5" value="2" aria-label="전체 라인 굵기">
+</div>
+</div>
+</div>
+<script>
+// theme style IDs
+const STYLE_WHITE = '7020740f-78b0-448e-804e-0d702f5db72e';
+const STYLE_DARK = '2a9d2f05-79b2-4590-92ee-9f30d52af0bc';
+const STYLE_BLUE = '13737385-1d14-471f-89a0-7725f38c4a0f';
+const STYLE_BLUE_NOSB = '91ec720a-a3e2-4d1e-8b9d-ed094c40d998'; // new
 
-    <form id="addressSearch" class="address-search">
-      <input id="addressInput" type="text" placeholder="상호, 키워드, 주소를 입력하세요" autocomplete="off">
-      <button type="submit">검색</button>
-      <button id="toggleAddressMarker" type="button">핀 숨김</button>
-      <div id="searchResults" class="search-results" aria-live="polite"></div>
-    </form>
+const BASE_OPTIONS = {
+  gl: true,
+  center: new naver.maps.LatLng(37.5666103, 126.9783882),
+  zoom: 15,
+  // 네이버 지도 API v3는 최소 줌 레벨을 6 이상으로 설정해야 합니다.
+  minZoom: 6, maxZoom: 20, tileSpare: 2
+};
 
-    <div class="buttons">
-      <div class="primary-controls">
-        <!-- 테마 버튼들 (좌측부터 Blue / Blue(NoSB) / Dark / White) -->
-        <input id="BLUE"      type="button" value="Blue"         class="control-btn">
-        <input id="BLUENOSB"  type="button" value="Blue(NoSB)"   class="control-btn">
-        <input id="DARK"      type="button" value="Dark"         class="control-btn">
-        <input id="WHITE"     type="button" value="White"        class="control-btn">
-        <!-- 기본 타입들 -->
-        <input id="NORMAL"    type="button" value="일반지도"     class="control-btn control-on">
-        <input id="TERRAIN"   type="button" value="지형도"       class="control-btn">
-        <input id="SATELLITE" type="button" value="위성지도"     class="control-btn">
-        <input id="HYBRID"    type="button" value="겹쳐보기"     class="control-btn">
-        <input id="VWORLD3D"  type="button" value="Vworld3D"     class="control-btn" onclick="window.open('https://map.vworld.kr/map/dtkmap.do?mode=MAPW201','_blank','noopener,noreferrer')">
-        <input id="SMAP3D"    type="button" value="S-map 3D"     class="control-btn" onclick="window.open('https://smap.seoul.go.kr/','_blank','noopener,noreferrer')">
-      </div>
+let map;
+let recreating = false;
+let addressMarker = null;
+let searchedLatLng = null;
+let addressMarkerVisible = true;
+let rightClickInfoWindow = null;
+let activeSearchResults = [];
 
-      <div class="secondary-controls">
-        <!-- 추가된 토글: 시도 라인 / 시군구(각 시도별) 라인 -->
-        <label class="control-btn line-color-control">라인색 <input id="COLOR_LINES" class="line-color" type="color" value="#333333" title="전체 라인 색상" aria-label="전체 라인 색상"></label>
-        <div class="control-btn line-weight-control" id="LINE_WEIGHT_CONTROL">
-          <button id="TOGGLE_LINE_WEIGHT" type="button" aria-expanded="false" aria-controls="LINE_WEIGHT_PANEL">라인굵기</button>
-        </div>
-        <label class="control-btn"><input id="TOGGLE_SIDO" type="checkbox"> 시도</label>
-        <!-- 시군구를 17개 시·도 단위로 나눈 토글 -->
-        <label class="control-btn"><input id="TOGGLE_SIGUNGU_11" type="checkbox"> 서울</label>
-        <label class="control-btn"><input id="TOGGLE_SIGUNGU_21" type="checkbox"> 부산</label>
-        <label class="control-btn"><input id="TOGGLE_SIGUNGU_22" type="checkbox"> 대구</label>
-        <label class="control-btn"><input id="TOGGLE_SIGUNGU_23" type="checkbox"> 인천</label>
-        <label class="control-btn"><input id="TOGGLE_SIGUNGU_24" type="checkbox"> 광주</label>
-        <label class="control-btn"><input id="TOGGLE_SIGUNGU_25" type="checkbox"> 대전</label>
-        <label class="control-btn"><input id="TOGGLE_SIGUNGU_26" type="checkbox"> 울산</label>
-        <label class="control-btn"><input id="TOGGLE_SIGUNGU_29" type="checkbox"> 세종</label>
-        <label class="control-btn"><input id="TOGGLE_SIGUNGU_31" type="checkbox"> 경기</label>
-        <label class="control-btn"><input id="TOGGLE_SIGUNGU_32" type="checkbox"> 강원</label>
-        <label class="control-btn"><input id="TOGGLE_SIGUNGU_33" type="checkbox"> 충북</label>
-        <label class="control-btn"><input id="TOGGLE_SIGUNGU_34" type="checkbox"> 충남</label>
-        <label class="control-btn"><input id="TOGGLE_SIGUNGU_35" type="checkbox"> 전북</label>
-        <label class="control-btn"><input id="TOGGLE_SIGUNGU_36" type="checkbox"> 전남</label>
-        <label class="control-btn"><input id="TOGGLE_SIGUNGU_37" type="checkbox"> 경북</label>
-        <label class="control-btn"><input id="TOGGLE_SIGUNGU_38" type="checkbox"> 경남</label>
-        <label class="control-btn"><input id="TOGGLE_SIGUNGU_39" type="checkbox"> 제주</label>
-      </div>
-      <div class="line-weight-panel" id="LINE_WEIGHT_PANEL">
-        <span class="line-weight-value" id="LINE_WEIGHT_VALUE">2</span>
-        <input id="LINE_WEIGHT" type="range" min="1" max="10" step="0.5" value="2" aria-label="전체 라인 굵기">
-      </div>
-    </div>
-  </div>
+// ====== 행정구역 경계 오버레이 관련 변수 및 함수 ======
+const DEFAULT_LINE_COLOR = '#333333';
+const DEFAULT_LINE_WEIGHT = 2;
 
-  <script>
-    // theme style IDs
-    const STYLE_WHITE      = '7020740f-78b0-448e-804e-0d702f5db72e';
-    const STYLE_DARK       = '2a9d2f05-79b2-4590-92ee-9f30d52af0bc';
-    const STYLE_BLUE       = '13737385-1d14-471f-89a0-7725f38c4a0f';
-    const STYLE_BLUE_NOSB  = '91ec720a-a3e2-4d1e-8b9d-ed094c40d998'; // new
+// 각 레이어의 상태와 데이터 캐시를 관리하는 객체입니다.
+const lineLayers = {
+  // 시도 경계: TopoJSON 파일 (Gunwi 편입 후 최적화 버전)
+  sido: {
+    overlays: [], // Polyline 객체들이 저장됩니다.
+    visible: false, // 현재 지도에 표시 중인지 여부
+    loaded: false, // GeoJSON을 읽어 왔는지 여부
+    // WGS84 좌표계의 시도 경계 GeoJSON (Gunwi 편입 후 최적화 버전)
+    url: './data/sido_gunwi_optimized.topojson'
+  },
+  // 시군구 경계: 시도별 TopoJSON 파일 (분할된 경계, Gunwi 편입 반영)
+  // 최적화된 GeoJSON 대신 각 시도별로 생성된 TopoJSON을 사용합니다. 이는 중복된 경계를 하나만 저장해 더 빠른 로딩 속도를 제공합니다.
+  sigungu_11: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_11.geojson' }, // 서울특별시
+  sigungu_21: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_21.geojson' }, // 부산광역시
+  sigungu_22: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_22.geojson' }, // 대구광역시 (군위군 포함)
+  sigungu_23: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_23.geojson' }, // 인천광역시
+  sigungu_24: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_24.geojson' }, // 광주광역시
+  sigungu_25: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_25.geojson' }, // 대전광역시
+  sigungu_26: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_26.geojson' }, // 울산광역시
+  sigungu_29: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_29.geojson' }, // 세종특별자치시
+  sigungu_31: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_31.geojson' }, // 경기도
+  sigungu_32: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_32.geojson' }, // 강원도
+  sigungu_33: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_33.geojson' }, // 충청북도
+  sigungu_34: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_34.geojson' }, // 충청남도
+  sigungu_35: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_35.geojson' }, // 전라북도
+  sigungu_36: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_36.geojson' }, // 전라남도
+  sigungu_37: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_37.geojson' }, // 경상북도
+  sigungu_38: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_38.geojson' }, // 경상남도
+  sigungu_39: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_39.geojson' } // 제주특별자치도
+};
 
-    const BASE_OPTIONS = {
-      gl: true,
-      center: new naver.maps.LatLng(37.5666103, 126.9783882),
-      zoom: 15,
-      // 네이버 지도 API v3는 최소 줌 레벨을 6 이상으로 설정해야 합니다.
-      minZoom: 6, maxZoom: 20, tileSpare: 2
-    };
+Object.values(lineLayers).forEach(info => {
+  info.color = DEFAULT_LINE_COLOR;
+  info.weight = DEFAULT_LINE_WEIGHT;
+});
 
-    let map;
-    let recreating = false;
-    let addressMarker = null;
-    let searchedLatLng = null;
-    let addressMarkerVisible = true;
-    let rightClickInfoWindow = null;
-    let activeSearchResults = [];
+// 선의 스타일 지정 (색상과 굵기)
+const STYLE_SIDO = {
+  strokeColor: '#333333',
+  strokeWeight: 2,
+  strokeOpacity: 0.95
+};
+const STYLE_SIGUNGU = {
+  // 시군구 경계의 선 스타일을 시도 경계와 동일하게 설정합니다.
+  // 시도 경계의 색상과 굵기(#333333, weight 2, opacity 0.95)를 그대로 사용하여 통일감을 줍니다.
+  strokeColor: '#333333',
+  strokeWeight: 2,
+  strokeOpacity: 0.95
+};
 
-    // ====== 행정구역 경계 오버레이 관련 변수 및 함수 ======
-    const DEFAULT_LINE_COLOR = '#333333';
-    const DEFAULT_LINE_WEIGHT = 2;
-    // 각 레이어의 상태와 데이터 캐시를 관리하는 객체입니다.
-    const lineLayers = {
-      // 시도 경계: TopoJSON 파일 (Gunwi 편입 후 최적화 버전)
-      sido: {
-        overlays: [],        // Polyline 객체들이 저장됩니다.
-        visible: false,       // 현재 지도에 표시 중인지 여부
-        loaded: false,        // GeoJSON을 읽어 왔는지 여부
-        // WGS84 좌표계의 시도 경계 GeoJSON (Gunwi 편입 후 최적화 버전)
-        url: './data/sido_gunwi_optimized.topojson'
-      },
-      // 시군구 경계: 시도별 TopoJSON 파일 (분할된 경계, Gunwi 편입 반영)
-      // 최적화된 GeoJSON 대신 각 시도별로 생성된 TopoJSON을 사용합니다. 이는 중복된 경계를 하나만 저장해 더 빠른 로딩 속도를 제공합니다.
-      sigungu_11: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_11.geojson' }, // 서울특별시
-      sigungu_21: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_21.geojson' }, // 부산광역시
-      sigungu_22: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_22.geojson' }, // 대구광역시 (군위군 포함)
-      sigungu_23: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_23.geojson' }, // 인천광역시
-      sigungu_24: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_24.geojson' }, // 광주광역시
-      sigungu_25: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_25.geojson' }, // 대전광역시
-      sigungu_26: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_26.geojson' }, // 울산광역시
-      sigungu_29: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_29.geojson' }, // 세종특별자치시
-      sigungu_31: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_31.geojson' }, // 경기도
-      sigungu_32: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_32.geojson' }, // 강원도
-      sigungu_33: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_33.geojson' }, // 충청북도
-      sigungu_34: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_34.geojson' }, // 충청남도
-      sigungu_35: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_35.geojson' }, // 전라북도
-      sigungu_36: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_36.geojson' }, // 전라남도
-      sigungu_37: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_37.geojson' }, // 경상북도
-      sigungu_38: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_38.geojson' }, // 경상남도
-      sigungu_39: { overlays: [], visible: false, loaded: false, url: './data/highdetail_split_geo/sigungu_39.geojson' }  // 제주특별자치도
-    };
-    Object.values(lineLayers).forEach(info => {
-      info.color = DEFAULT_LINE_COLOR;
-      info.weight = DEFAULT_LINE_WEIGHT;
+// GeoJSON 좌표 [lng, lat] 을 naver.maps.LatLng 객체로 변환
+function coordsToLatLngs(coords) {
+  return new naver.maps.LatLng(coords[1], coords[0]);
+}
+
+// Linear ring 배열을 Polyline 경로로 변환
+function ringToPath(ring) {
+  return ring.map(coordsToLatLngs);
+}
+
+// Polyline 생성 유틸
+function makePolyline(path, style) {
+  return new naver.maps.Polyline({
+    map: null,
+    path,
+    strokeColor: style.strokeColor,
+    strokeWeight: style.strokeWeight,
+    strokeOpacity: style.strokeOpacity,
+    clickable: false,
+    zIndex: 1000
+  });
+}
+
+function updatePolylineColor(polyline, color) {
+  if (typeof polyline.setOptions === 'function') {
+    polyline.setOptions({ strokeColor: color });
+    return;
+  }
+  if (typeof polyline.set === 'function') {
+    polyline.set('strokeColor', color);
+  }
+}
+
+function setLayerColor(kind, color) {
+  const info = lineLayers[kind];
+  if (!info) return;
+  info.color = color || DEFAULT_LINE_COLOR;
+  info.overlays.forEach(polyline => updatePolylineColor(polyline, info.color));
+}
+
+function setAllLayerColors(color) {
+  Object.keys(lineLayers).forEach(kind => setLayerColor(kind, color));
+}
+
+function updatePolylineWeight(polyline, weight) {
+  if (typeof polyline.setOptions === 'function') {
+    polyline.setOptions({ strokeWeight: weight });
+    return;
+  }
+  if (typeof polyline.set === 'function') {
+    polyline.set('strokeWeight', weight);
+  }
+}
+
+function setLayerWeight(kind, weight) {
+  const info = lineLayers[kind];
+  if (!info) return;
+  const nextWeight = Number(weight) || DEFAULT_LINE_WEIGHT;
+  info.weight = nextWeight;
+  info.overlays.forEach(polyline => updatePolylineWeight(polyline, nextWeight));
+}
+
+function setAllLayerWeights(weight) {
+  Object.keys(lineLayers).forEach(kind => setLayerWeight(kind, weight));
+}
+
+// GeoJSON Polygon 구조에서 Polyline 생성하여 버킷에 추가
+function addPolylinesFromPolygon(polygonCoords, style, bucket) {
+  polygonCoords.forEach(ring => {
+    const path = ringToPath(ring);
+    const pl = makePolyline(path, style);
+    bucket.push(pl);
+  });
+}
+
+// GeoJSON MultiPolygon 구조에서 Polyline 생성하여 버킷에 추가
+function addPolylinesFromMultiPolygon(multiCoords, style, bucket) {
+  multiCoords.forEach(poly => addPolylinesFromPolygon(poly, style, bucket));
+}
+
+// 지정된 종류(k: 'sido'|'sigungu')의 GeoJSON을 최초 1회만 불러와서 Polyline 생성
+async function loadGeoJSONOnce(kind) {
+  const info = lineLayers[kind];
+  if (info.loaded) return;
+  const res = await fetch(info.url, { cache: 'no-cache' });
+  if (!res.ok) throw new Error('GeoJSON 로드 실패: ' + info.url);
+  // Load the raw JSON. It may be a TopoJSON topology or a GeoJSON FeatureCollection/Feature.
+  const raw = await res.json();
+  // If the data is TopoJSON, convert it to a FeatureCollection using topojson-client.
+  // TopoJSON has a 'type' of 'Topology' and stores its geometries under objects.<name>.
+  let geo;
+  if (raw && raw.type === 'Topology') {
+    // The conversion returns a FeatureCollection when a GeometryCollection is provided.
+    geo = topojson.feature(raw, raw.objects.collection);
+  } else {
+    geo = raw;
+  }
+  const bucket = info.overlays;
+  const baseStyle = (kind === 'sido') ? STYLE_SIDO : STYLE_SIGUNGU;
+  const style = Object.assign({}, baseStyle, {
+    strokeColor: info.color || DEFAULT_LINE_COLOR,
+    strokeWeight: info.weight || DEFAULT_LINE_WEIGHT
+  });
+  // Extract features from the GeoJSON. Handle FeatureCollection, single Feature, or bare geometry.
+  const features = (geo.type === 'FeatureCollection')
+    ? geo.features
+    : (geo.type === 'Feature'
+      ? [geo]
+      : [{ type: 'Feature', geometry: geo }]);
+  features.forEach(f => {
+    if (!f || !f.geometry) return;
+    const g = f.geometry;
+    if (g.type === 'Polygon') {
+      addPolylinesFromPolygon(g.coordinates, style, bucket);
+    } else if (g.type === 'MultiPolygon') {
+      addPolylinesFromMultiPolygon(g.coordinates, style, bucket);
+    }
+  });
+  info.loaded = true;
+}
+
+// 현재 visible 상태에 따라 지도에 오버레이를 적용/제거
+function applyVisibility(kind) {
+  const { overlays, visible } = lineLayers[kind];
+  overlays.forEach(pl => pl.setMap(visible ? map : null));
+}
+
+// 새 map 생성 후 기존 오버레이를 복원하는 함수
+function restoreAllOverlaysOnNewMap() {
+  Object.keys(lineLayers).forEach(k => {
+    if (lineLayers[k].visible) {
+      lineLayers[k].overlays.forEach(pl => pl.setMap(map));
+    }
+  });
+  if (addressMarker && searchedLatLng && addressMarkerVisible) {
+    addressMarker.setMap(map);
+    addressMarker.setPosition(searchedLatLng);
+  }
+}
+
+function setAddressMarker(latlng) {
+  searchedLatLng = latlng;
+  addressMarkerVisible = true;
+  updateAddressMarkerToggle();
+  if (!addressMarker) {
+    addressMarker = new naver.maps.Marker({
+      position: latlng,
+      map,
+      zIndex: 2000
     });
+    return;
+  }
+  addressMarker.setPosition(latlng);
+  addressMarker.setMap(map);
+}
 
-    // 선의 스타일 지정 (색상과 굵기)
-    const STYLE_SIDO = {
-      strokeColor: '#333333',
-      strokeWeight: 2,
-      strokeOpacity: 0.95
-    };
-    const STYLE_SIGUNGU = {
-      // 시군구 경계의 선 스타일을 시도 경계와 동일하게 설정합니다.
-      // 시도 경계의 색상과 굵기(#333333, weight 2, opacity 0.95)를 그대로 사용하여 통일감을 줍니다.
-      strokeColor: '#333333',
-      strokeWeight: 2,
-      strokeOpacity: 0.95
-    };
+function updateAddressMarkerToggle() {
+  const button = document.getElementById('toggleAddressMarker');
+  if (!button) return;
+  button.textContent = addressMarkerVisible ? '핀 숨김' : '핀 표시';
+}
 
-    // GeoJSON 좌표 [lng, lat] 을 naver.maps.LatLng 객체로 변환
-    function coordsToLatLngs(coords) {
-      return new naver.maps.LatLng(coords[1], coords[0]);
+function bindAddressMarkerToggle() {
+  const button = document.getElementById('toggleAddressMarker');
+  button?.addEventListener('click', () => {
+    if (!addressMarker) return;
+    addressMarkerVisible = !addressMarkerVisible;
+    addressMarker.setMap(addressMarkerVisible ? map : null);
+    updateAddressMarkerToggle();
+  });
+  updateAddressMarkerToggle();
+}
+
+function showSearchStatus(message) {
+  const results = document.getElementById('searchResults');
+  if (!results) return;
+  results.innerHTML = '<div class="search-empty">' + escapeHtml(message) + '</div>';
+  results.classList.add('is-open');
+}
+
+function geocodeNaver(query) {
+  return new Promise(resolve => {
+    if (!window.naver || !naver.maps || !naver.maps.Service || !naver.maps.Service.geocode) {
+      resolve([]);
+      return;
     }
-
-    // Linear ring 배열을 Polyline 경로로 변환
-    function ringToPath(ring) {
-      return ring.map(coordsToLatLngs);
-    }
-
-    // Polyline 생성 유틸
-    function makePolyline(path, style) {
-      return new naver.maps.Polyline({
-        map: null,
-        path,
-        strokeColor: style.strokeColor,
-        strokeWeight: style.strokeWeight,
-        strokeOpacity: style.strokeOpacity,
-        clickable: false,
-        zIndex: 1000
-      });
-    }
-
-    function updatePolylineColor(polyline, color) {
-      if (typeof polyline.setOptions === 'function') {
-        polyline.setOptions({ strokeColor: color });
+    naver.maps.Service.geocode({ query }, (status, response) => {
+      if (status !== naver.maps.Service.Status.OK) {
+        resolve([]);
         return;
       }
-      if (typeof polyline.set === 'function') {
-        polyline.set('strokeColor', color);
-      }
-    }
+      const addresses = response?.v2?.addresses || [];
+      resolve(addresses.map((item, index) => ({
+        title: item.roadAddress || item.jibunAddress || query,
+        address: item.roadAddress || item.jibunAddress || item.englishAddress || '',
+        lat: Number(item.y),
+        lng: Number(item.x),
+        source: index === 0 ? 'Naver address' : 'Naver candidate'
+      })).filter(item => Number.isFinite(item.lat) && Number.isFinite(item.lng)));
+    });
+  });
+}
 
-    function setLayerColor(kind, color) {
-      const info = lineLayers[kind];
-      if (!info) return;
-      info.color = color || DEFAULT_LINE_COLOR;
-      info.overlays.forEach(polyline => updatePolylineColor(polyline, info.color));
-    }
+async function searchOpenStreetMap(query) {
+  const params = new URLSearchParams({
+    q: query,
+    format: 'jsonv2',
+    addressdetails: '1',
+    limit: '8',
+    countrycodes: 'kr',
+    'accept-language': 'ko'
+  });
+  try {
+    const response = await fetch('https://nominatim.openstreetmap.org/search?' + params.toString(), {
+      headers: { Accept: 'application/json' }
+    });
+    if (!response.ok) return [];
+    const places = await response.json();
+    return places.map(place => ({
+      title: place.name || place.display_name?.split(',')[0] || query,
+      address: place.display_name || '',
+      lat: Number(place.lat),
+      lng: Number(place.lon),
+      source: place.type || place.class || 'POI'
+    })).filter(item => Number.isFinite(item.lat) && Number.isFinite(item.lng));
+  } catch (err) {
+    console.warn('POI search failed', err);
+    return [];
+  }
+}
 
-    function setAllLayerColors(color) {
-      Object.keys(lineLayers).forEach(kind => setLayerColor(kind, color));
-    }
+function dedupeSearchResults(items) {
+  const seen = new Set();
+  return items.filter(item => {
+    const key = [item.title, item.address, item.lat.toFixed(5), item.lng.toFixed(5)].join('|');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 10);
+}
 
-    function updatePolylineWeight(polyline, weight) {
-      if (typeof polyline.setOptions === 'function') {
-        polyline.setOptions({ strokeWeight: weight });
-        return;
-      }
-      if (typeof polyline.set === 'function') {
-        polyline.set('strokeWeight', weight);
-      }
-    }
+function renderSearchResults(results) {
+  const list = document.getElementById('searchResults');
+  if (!list) return;
+  activeSearchResults = results;
+  if (!results.length) {
+    showSearchStatus('검색 결과가 없습니다. 다른 상호, 키워드, 주소로 검색해보세요.');
+    return;
+  }
+  list.innerHTML = results.map((item, index) => (
+    '<button class="search-result" type="button" data-index="' + index + '">' +
+    '<strong>' + escapeHtml(item.title || '검색 결과') + '</strong>' +
+    '<span>' + escapeHtml(item.address || item.source || '') + '</span>' +
+    '</button>'
+  )).join('');
+  list.classList.add('is-open');
+  list.querySelectorAll('.search-result').forEach(button => {
+    button.addEventListener('click', () => {
+      selectSearchResult(Number(button.dataset.index));
+    });
+  });
+}
 
-    function setLayerWeight(kind, weight) {
-      const info = lineLayers[kind];
-      if (!info) return;
-      const nextWeight = Number(weight) || DEFAULT_LINE_WEIGHT;
-      info.weight = nextWeight;
-      info.overlays.forEach(polyline => updatePolylineWeight(polyline, nextWeight));
-    }
+function selectSearchResult(index) {
+  const item = activeSearchResults[index];
+  if (!item) return;
+  document.querySelectorAll('.search-result').forEach((button, buttonIndex) => {
+    button.classList.toggle('is-selected', buttonIndex === index);
+  });
+  const latlng = new naver.maps.LatLng(item.lat, item.lng);
+  setAddressMarker(latlng);
+  showRightClickInfo(latlng, '<strong>' + escapeHtml(item.title || '선택 위치') + '</strong><br>' + escapeHtml(item.address || ''));
+  map.morph(latlng, 17);
+}
 
-    function setAllLayerWeights(weight) {
-      Object.keys(lineLayers).forEach(kind => setLayerWeight(kind, weight));
-    }
+async function moveToAddress(query) {
+  showSearchStatus('검색 중...');
+  const [naverResults, poiResults] = await Promise.all([
+    geocodeNaver(query),
+    searchOpenStreetMap(query)
+  ]);
+  const results = dedupeSearchResults([...naverResults, ...poiResults]);
+  renderSearchResults(results);
+  if (results.length === 1) selectSearchResult(0);
+}
 
-    // GeoJSON Polygon 구조에서 Polyline 생성하여 버킷에 추가
-    function addPolylinesFromPolygon(polygonCoords, style, bucket) {
-      polygonCoords.forEach(ring => {
-        const path = ringToPath(ring);
-        const pl = makePolyline(path, style);
-        bucket.push(pl);
-      });
+function bindAddressSearch() {
+  const form = document.getElementById('addressSearch');
+  const input = document.getElementById('addressInput');
+  form?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const query = input.value.trim();
+    if (!query) {
+      input.focus();
+      return;
     }
+    moveToAddress(query);
+  });
+}
 
-    // GeoJSON MultiPolygon 구조에서 Polyline 생성하여 버킷에 추가
-    function addPolylinesFromMultiPolygon(multiCoords, style, bucket) {
-      multiCoords.forEach(poly => addPolylinesFromPolygon(poly, style, bucket));
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (ch) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[ch]));
+}
+
+function getReverseAddress(response) {
+  const address = response?.v2?.address;
+  if (address?.roadAddress) return address.roadAddress;
+  if (address?.jibunAddress) return address.jibunAddress;
+  const result = response?.v2?.results?.[0];
+  if (!result) return '';
+  const region = result.region || {};
+  return [region.area1, region.area2, region.area3, region.area4]
+    .map(area => area?.name)
+    .filter(Boolean)
+    .join(' ');
+}
+
+function showRightClickInfo(latlng, content) {
+  if (!rightClickInfoWindow) {
+    rightClickInfoWindow = new naver.maps.InfoWindow({
+      borderWidth: 0,
+      disableAnchor: false,
+      backgroundColor: 'transparent',
+      pixelOffset: new naver.maps.Point(0, -8)
+    });
+  }
+  rightClickInfoWindow.setContent(
+    '<div style="padding:12px 14px;border:1px solid rgba(112,115,124,0.22);border-radius:12px;background:#fff;box-shadow:0 4px 16px rgba(23,23,23,.10),0 1px 4px rgba(23,23,23,.07);font-family:\'Pretendard JP\',-apple-system,BlinkMacSystemFont,sans-serif;font-size:13px;font-weight:500;line-height:1.45;color:rgb(23,23,23);max-width:280px;word-break:keep-all;">' +
+    content +
+    '</div>'
+  );
+  rightClickInfoWindow.open(map, latlng);
+}
+
+function lookupRightClickAddress(latlng) {
+  showRightClickInfo(latlng, '주소 확인 중...');
+  if (!window.naver || !naver.maps || !naver.maps.Service || !naver.maps.Service.reverseGeocode) {
+    showRightClickInfo(latlng, '주소 확인 기능을 불러오지 못했습니다.');
+    return;
+  }
+  naver.maps.Service.reverseGeocode({
+    coords: latlng,
+    orders: [
+      naver.maps.Service.OrderType.ROAD_ADDR,
+      naver.maps.Service.OrderType.ADDR
+    ].join(',')
+  }, (status, response) => {
+    if (status !== naver.maps.Service.Status.OK) {
+      showRightClickInfo(latlng, '주소를 찾지 못했습니다.');
+      return;
     }
+    const address = getReverseAddress(response);
+    showRightClickInfo(latlng, address ? escapeHtml(address) : '주소를 찾지 못했습니다.');
+  });
+}
 
-    // 지정된 종류(k: 'sido'|'sigungu')의 GeoJSON을 최초 1회만 불러와서 Polyline 생성
-    async function loadGeoJSONOnce(kind) {
-      const info = lineLayers[kind];
-      if (info.loaded) return;
-      const res = await fetch(info.url, { cache: 'no-cache' });
-      if (!res.ok) throw new Error('GeoJSON 로드 실패: ' + info.url);
-      // Load the raw JSON. It may be a TopoJSON topology or a GeoJSON FeatureCollection/Feature.
-      const raw = await res.json();
-      // If the data is TopoJSON, convert it to a FeatureCollection using topojson-client.
-      // TopoJSON has a 'type' of 'Topology' and stores its geometries under objects.<name>.
-      let geo;
-      if (raw && raw.type === 'Topology') {
-        // The conversion returns a FeatureCollection when a GeometryCollection is provided.
-        geo = topojson.feature(raw, raw.objects.collection);
-      } else {
-        geo = raw;
-      }
-      const bucket = info.overlays;
-      const baseStyle = (kind === 'sido') ? STYLE_SIDO : STYLE_SIGUNGU;
-      const style = Object.assign({}, baseStyle, {
-        strokeColor: info.color || DEFAULT_LINE_COLOR,
-        strokeWeight: info.weight || DEFAULT_LINE_WEIGHT
-      });
-      // Extract features from the GeoJSON. Handle FeatureCollection, single Feature, or bare geometry.
-      const features = (geo.type === 'FeatureCollection')
-        ? geo.features
-        : (geo.type === 'Feature'
-          ? [geo]
-          : [{ type: 'Feature', geometry: geo }]);
-      features.forEach(f => {
-        if (!f || !f.geometry) return;
-        const g = f.geometry;
-        if (g.type === 'Polygon') {
-          addPolylinesFromPolygon(g.coordinates, style, bucket);
-        } else if (g.type === 'MultiPolygon') {
-          addPolylinesFromMultiPolygon(g.coordinates, style, bucket);
-        }
-      });
-      info.loaded = true;
-    }
+function bindMapRightClick() {
+  naver.maps.Event.addListener(map, 'rightclick', (e) => {
+    lookupRightClickAddress(e.coord);
+  });
+  naver.maps.Event.addListener(map, 'click', () => {
+    rightClickInfoWindow?.close();
+  });
+}
 
-    // 현재 visible 상태에 따라 지도에 오버레이를 적용/제거
-    function applyVisibility(kind) {
-      const { overlays, visible } = lineLayers[kind];
-      overlays.forEach(pl => pl.setMap(visible ? map : null));
-    }
+// recreate 함수는 아래에서 재정의된 후 래핑됩니다. (파일 끝부분을 참고하세요)
 
-    // 새 map 생성 후 기존 오버레이를 복원하는 함수
-    function restoreAllOverlaysOnNewMap() {
-      Object.keys(lineLayers).forEach(k => {
-        if (lineLayers[k].visible) {
-          lineLayers[k].overlays.forEach(pl => pl.setMap(map));
-        }
-      });
-      if (addressMarker && searchedLatLng && addressMarkerVisible) {
-        addressMarker.setMap(map);
-        addressMarker.setPosition(searchedLatLng);
-      }
-    }
-
-    function setAddressMarker(latlng) {
-      searchedLatLng = latlng;
-      addressMarkerVisible = true;
-      updateAddressMarkerToggle();
-      if (!addressMarker) {
-        addressMarker = new naver.maps.Marker({
-          position: latlng,
-          map,
-          zIndex: 2000
-        });
-        return;
-      }
-      addressMarker.setPosition(latlng);
-      addressMarker.setMap(map);
-    }
-
-    function updateAddressMarkerToggle() {
-      const button = document.getElementById('toggleAddressMarker');
-      if (!button) return;
-      button.textContent = addressMarkerVisible ? '핀 숨김' : '핀 표시';
-    }
-
-    function bindAddressMarkerToggle() {
-      const button = document.getElementById('toggleAddressMarker');
-      button?.addEventListener('click', () => {
-        if (!addressMarker) return;
-        addressMarkerVisible = !addressMarkerVisible;
-        addressMarker.setMap(addressMarkerVisible ? map : null);
-        updateAddressMarkerToggle();
-      });
-      updateAddressMarkerToggle();
-    }
-
-    function showSearchStatus(message) {
-      const results = document.getElementById('searchResults');
-      if (!results) return;
-      results.innerHTML = '<div class="search-empty">' + escapeHtml(message) + '</div>';
-      results.classList.add('is-open');
-    }
-
-    function geocodeNaver(query) {
-      return new Promise(resolve => {
-        if (!window.naver || !naver.maps || !naver.maps.Service || !naver.maps.Service.geocode) {
-          resolve([]);
-          return;
-        }
-        naver.maps.Service.geocode({ query }, (status, response) => {
-          if (status !== naver.maps.Service.Status.OK) {
-            resolve([]);
-            return;
-          }
-          const addresses = response?.v2?.addresses || [];
-          resolve(addresses.map((item, index) => ({
-            title: item.roadAddress || item.jibunAddress || query,
-            address: item.roadAddress || item.jibunAddress || item.englishAddress || '',
-            lat: Number(item.y),
-            lng: Number(item.x),
-            source: index === 0 ? 'Naver address' : 'Naver candidate'
-          })).filter(item => Number.isFinite(item.lat) && Number.isFinite(item.lng)));
-        });
-      });
-    }
-
-    async function searchOpenStreetMap(query) {
-      const params = new URLSearchParams({
-        q: query,
-        format: 'jsonv2',
-        addressdetails: '1',
-        limit: '8',
-        countrycodes: 'kr',
-        'accept-language': 'ko'
-      });
+// 체크박스와 오버레이 상태 연결 핸들러
+function bindToggleHandlers() {
+  const cbSido = document.getElementById('TOGGLE_SIDO');
+  // 시도 토글 이벤트
+  cbSido?.addEventListener('change', async (e) => {
+    const checked = e.target.checked;
+    lineLayers.sido.visible = checked;
+    if (checked && !lineLayers.sido.loaded) {
       try {
-        const response = await fetch('https://nominatim.openstreetmap.org/search?' + params.toString(), {
-          headers: { Accept: 'application/json' }
-        });
-        if (!response.ok) return [];
-        const places = await response.json();
-        return places.map(place => ({
-          title: place.name || place.display_name?.split(',')[0] || query,
-          address: place.display_name || '',
-          lat: Number(place.lat),
-          lng: Number(place.lon),
-          source: place.type || place.class || 'POI'
-        })).filter(item => Number.isFinite(item.lat) && Number.isFinite(item.lng));
+        await loadGeoJSONOnce('sido');
       } catch (err) {
-        console.warn('POI search failed', err);
-        return [];
-      }
-    }
-
-    function dedupeSearchResults(items) {
-      const seen = new Set();
-      return items.filter(item => {
-        const key = [item.title, item.address, item.lat.toFixed(5), item.lng.toFixed(5)].join('|');
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      }).slice(0, 10);
-    }
-
-    function renderSearchResults(results) {
-      const list = document.getElementById('searchResults');
-      if (!list) return;
-      activeSearchResults = results;
-      if (!results.length) {
-        showSearchStatus('검색 결과가 없습니다. 다른 상호, 키워드, 주소로 검색해보세요.');
+        console.error(err);
+        alert('시도 경계 로드 실패. 파일 경로/형식을 확인하세요.');
+        lineLayers.sido.visible = false;
+        e.target.checked = false;
         return;
       }
-      list.innerHTML = results.map((item, index) => (
-        '<button class="search-result" type="button" data-index="' + index + '">' +
-          '<strong>' + escapeHtml(item.title || '검색 결과') + '</strong>' +
-          '<span>' + escapeHtml(item.address || item.source || '') + '</span>' +
-        '</button>'
-      )).join('');
-      list.classList.add('is-open');
-      list.querySelectorAll('.search-result').forEach(button => {
-        button.addEventListener('click', () => {
-          selectSearchResult(Number(button.dataset.index));
-        });
-      });
     }
+    applyVisibility('sido');
+  });
 
-    function selectSearchResult(index) {
-      const item = activeSearchResults[index];
-      if (!item) return;
-      document.querySelectorAll('.search-result').forEach((button, buttonIndex) => {
-        button.classList.toggle('is-selected', buttonIndex === index);
-      });
-      const latlng = new naver.maps.LatLng(item.lat, item.lng);
-      setAddressMarker(latlng);
-      showRightClickInfo(latlng, '<strong>' + escapeHtml(item.title || '선택 위치') + '</strong><br>' + escapeHtml(item.address || ''));
-      map.morph(latlng, 17);
-    }
-
-    async function moveToAddress(query) {
-      showSearchStatus('검색 중...');
-      const [naverResults, poiResults] = await Promise.all([
-        geocodeNaver(query),
-        searchOpenStreetMap(query)
-      ]);
-      const results = dedupeSearchResults([...naverResults, ...poiResults]);
-      renderSearchResults(results);
-      if (results.length === 1) selectSearchResult(0);
-    }
-
-    function bindAddressSearch() {
-      const form = document.getElementById('addressSearch');
-      const input = document.getElementById('addressInput');
-      form?.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const query = input.value.trim();
-        if (!query) {
-          input.focus();
-          return;
-        }
-        moveToAddress(query);
-      });
-    }
-
-    function escapeHtml(value) {
-      return String(value).replace(/[&<>"']/g, (ch) => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-      }[ch]));
-    }
-
-    function getReverseAddress(response) {
-      const address = response?.v2?.address;
-      if (address?.roadAddress) return address.roadAddress;
-      if (address?.jibunAddress) return address.jibunAddress;
-
-      const result = response?.v2?.results?.[0];
-      if (!result) return '';
-      const region = result.region || {};
-      return [region.area1, region.area2, region.area3, region.area4]
-        .map(area => area?.name)
-        .filter(Boolean)
-        .join(' ');
-    }
-
-    function showRightClickInfo(latlng, content) {
-      if (!rightClickInfoWindow) {
-        rightClickInfoWindow = new naver.maps.InfoWindow({
-          borderWidth: 0,
-          disableAnchor: false,
-          backgroundColor: 'transparent',
-          pixelOffset: new naver.maps.Point(0, -8)
-        });
-      }
-      rightClickInfoWindow.setContent(
-        '<div style="padding:9px 12px;border:1px solid #cfd6df;border-radius:8px;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.18);font-size:13px;line-height:1.45;max-width:280px;word-break:keep-all;">' +
-        content +
-        '</div>'
-      );
-      rightClickInfoWindow.open(map, latlng);
-    }
-
-    function lookupRightClickAddress(latlng) {
-      showRightClickInfo(latlng, '주소 확인 중...');
-      if (!window.naver || !naver.maps || !naver.maps.Service || !naver.maps.Service.reverseGeocode) {
-        showRightClickInfo(latlng, '주소 확인 기능을 불러오지 못했습니다.');
-        return;
-      }
-
-      naver.maps.Service.reverseGeocode({
-        coords: latlng,
-        orders: [
-          naver.maps.Service.OrderType.ROAD_ADDR,
-          naver.maps.Service.OrderType.ADDR
-        ].join(',')
-      }, (status, response) => {
-        if (status !== naver.maps.Service.Status.OK) {
-          showRightClickInfo(latlng, '주소를 찾지 못했습니다.');
-          return;
-        }
-
-        const address = getReverseAddress(response);
-        showRightClickInfo(latlng, address ? escapeHtml(address) : '주소를 찾지 못했습니다.');
-      });
-    }
-
-    function bindMapRightClick() {
-      naver.maps.Event.addListener(map, 'rightclick', (e) => {
-        lookupRightClickAddress(e.coord);
-      });
-      naver.maps.Event.addListener(map, 'click', () => {
-        rightClickInfoWindow?.close();
-      });
-    }
-
-    // recreate 함수는 아래에서 재정의된 후 래핑됩니다. (파일 끝부분을 참고하세요)
-
-    // 체크박스와 오버레이 상태 연결 핸들러
-    function bindToggleHandlers() {
-      const cbSido = document.getElementById('TOGGLE_SIDO');
-      // 시도 토글 이벤트
-      cbSido?.addEventListener('change', async (e) => {
+  // 시군구(시도별) 토글 이벤트를 동적으로 바인딩
+  Object.keys(lineLayers).forEach(key => {
+    if (key.startsWith('sigungu_')) {
+      const checkbox = document.getElementById('TOGGLE_' + key.toUpperCase());
+      checkbox?.addEventListener('change', async (e) => {
         const checked = e.target.checked;
-        lineLayers.sido.visible = checked;
-        if (checked && !lineLayers.sido.loaded) {
+        lineLayers[key].visible = checked;
+        if (checked && !lineLayers[key].loaded) {
           try {
-            await loadGeoJSONOnce('sido');
+            await loadGeoJSONOnce(key);
           } catch (err) {
             console.error(err);
-            alert('시도 경계 로드 실패. 파일 경로/형식을 확인하세요.');
-            lineLayers.sido.visible = false;
+            alert('시군구 경계 로드 실패: ' + key);
+            lineLayers[key].visible = false;
             e.target.checked = false;
             return;
           }
         }
-        applyVisibility('sido');
-      });
-
-      // 시군구(시도별) 토글 이벤트를 동적으로 바인딩
-      Object.keys(lineLayers).forEach(key => {
-        if (key.startsWith('sigungu_')) {
-          const checkbox = document.getElementById('TOGGLE_' + key.toUpperCase());
-          checkbox?.addEventListener('change', async (e) => {
-            const checked = e.target.checked;
-            lineLayers[key].visible = checked;
-            if (checked && !lineLayers[key].loaded) {
-              try {
-                await loadGeoJSONOnce(key);
-              } catch (err) {
-                console.error(err);
-                alert('시군구 경계 로드 실패: ' + key);
-                lineLayers[key].visible = false;
-                e.target.checked = false;
-                return;
-              }
-            }
-            applyVisibility(key);
-          });
-        }
+        applyVisibility(key);
       });
     }
+  });
+}
 
-    function bindColorHandlers() {
-      const input = document.getElementById('COLOR_LINES');
-      if (!input) return;
-      setAllLayerColors(input.value);
-      input.addEventListener('click', (e) => {
-        e.stopPropagation();
-      });
-      input.addEventListener('input', (e) => {
-        setAllLayerColors(e.target.value);
-      });
-      input.addEventListener('change', (e) => {
-        setAllLayerColors(e.target.value);
-      });
-    }
+function bindColorHandlers() {
+  const input = document.getElementById('COLOR_LINES');
+  if (!input) return;
+  setAllLayerColors(input.value);
+  input.addEventListener('click', (e) => {
+    e.stopPropagation();
+  });
+  input.addEventListener('input', (e) => {
+    setAllLayerColors(e.target.value);
+  });
+  input.addEventListener('change', (e) => {
+    setAllLayerColors(e.target.value);
+  });
+}
 
-    function bindWeightHandlers() {
-      const control = document.getElementById('LINE_WEIGHT_CONTROL');
-      const button = document.getElementById('TOGGLE_LINE_WEIGHT');
-      const panel = document.getElementById('LINE_WEIGHT_PANEL');
-      const slider = document.getElementById('LINE_WEIGHT');
-      const value = document.getElementById('LINE_WEIGHT_VALUE');
-      if (!control || !button || !panel || !slider || !value) return;
+function bindWeightHandlers() {
+  const control = document.getElementById('LINE_WEIGHT_CONTROL');
+  const button = document.getElementById('TOGGLE_LINE_WEIGHT');
+  const panel = document.getElementById('LINE_WEIGHT_PANEL');
+  const slider = document.getElementById('LINE_WEIGHT');
+  const value = document.getElementById('LINE_WEIGHT_VALUE');
+  if (!control || !button || !panel || !slider || !value) return;
 
-      const updateValue = () => {
-        const weight = Number(slider.value);
-        value.textContent = Number.isInteger(weight) ? String(weight) : weight.toFixed(1);
-        setAllLayerWeights(weight);
-      };
+  const updateValue = () => {
+    const weight = Number(slider.value);
+    value.textContent = Number.isInteger(weight) ? String(weight) : weight.toFixed(1);
+    setAllLayerWeights(weight);
+  };
 
-      const positionPanel = () => {
-        const buttonRect = button.getBoundingClientRect();
-        const wrapRect = document.querySelector('.buttons').getBoundingClientRect();
-        const panelWidth = panel.offsetWidth || 48;
-        const desiredLeft = buttonRect.left - wrapRect.left + (buttonRect.width - panelWidth) / 2;
-        const maxLeft = Math.max(0, window.innerWidth - wrapRect.left - panelWidth - 12);
-        panel.style.left = Math.max(0, Math.min(desiredLeft, maxLeft)) + 'px';
-        panel.style.top = (buttonRect.bottom - wrapRect.top + 6) + 'px';
-      };
+  const positionPanel = () => {
+    const buttonRect = button.getBoundingClientRect();
+    const wrapRect = document.querySelector('.buttons').getBoundingClientRect();
+    const panelWidth = panel.offsetWidth || 48;
+    const desiredLeft = buttonRect.left - wrapRect.left + (buttonRect.width - panelWidth) / 2;
+    const maxLeft = Math.max(0, window.innerWidth - wrapRect.left - panelWidth - 12);
+    panel.style.left = Math.max(0, Math.min(desiredLeft, maxLeft)) + 'px';
+    panel.style.top = (buttonRect.bottom - wrapRect.top + 6) + 'px';
+  };
 
-      updateValue();
-      button.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const isOpen = !panel.classList.contains('is-open');
-        panel.classList.toggle('is-open', isOpen);
-        button.setAttribute('aria-expanded', String(isOpen));
-        if (isOpen) positionPanel();
-      });
-      panel.addEventListener('click', (e) => {
-        e.stopPropagation();
-      });
-      slider.addEventListener('input', updateValue);
-      window.addEventListener('resize', () => {
-        if (panel.classList.contains('is-open')) positionPanel();
-      });
-      document.addEventListener('click', () => {
-        panel.classList.remove('is-open');
-        button.setAttribute('aria-expanded', 'false');
-      });
-    }
+  updateValue();
 
-    function initMap(){
-      createMap({ mapTypeId: naver.maps.MapTypeId.NORMAL, customStyleId: null });
-      // 테마 변경 버튼 핸들러
-      document.getElementById('WHITE').addEventListener('click',     () => switchToTheme(STYLE_WHITE,     'WHITE'));
-      document.getElementById('DARK').addEventListener('click',      () => switchToTheme(STYLE_DARK,      'DARK'));
-      document.getElementById('BLUE').addEventListener('click',      () => switchToTheme(STYLE_BLUE,      'BLUE'));
-      document.getElementById('BLUENOSB').addEventListener('click',  () => switchToTheme(STYLE_BLUE_NOSB, 'BLUENOSB'));
-      // 지도 타입 변경 버튼 핸들러
-      document.getElementById('NORMAL').addEventListener('click',    () => switchToType(naver.maps.MapTypeId.NORMAL,    'NORMAL'));
-      document.getElementById('TERRAIN').addEventListener('click',   () => switchToType(naver.maps.MapTypeId.TERRAIN,   'TERRAIN'));
-      document.getElementById('SATELLITE').addEventListener('click', () => switchToType(naver.maps.MapTypeId.SATELLITE, 'SATELLITE'));
-      document.getElementById('HYBRID').addEventListener('click',    () => switchToType(naver.maps.MapTypeId.HYBRID,    'HYBRID'));
+  button.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isOpen = !panel.classList.contains('is-open');
+    panel.classList.toggle('is-open', isOpen);
+    button.setAttribute('aria-expanded', String(isOpen));
+    if (isOpen) positionPanel();
+  });
 
-      // 오버레이 토글 체크박스 핸들러 바인딩
-      bindToggleHandlers();
-      bindColorHandlers();
-      bindWeightHandlers();
-    }
+  panel.addEventListener('click', (e) => {
+    e.stopPropagation();
+  });
 
-    function initMap(){
-      createMap({ mapTypeId: naver.maps.MapTypeId.NORMAL, customStyleId: null });
+  slider.addEventListener('input', updateValue);
 
-      document.getElementById('WHITE').addEventListener('click',     () => switchToTheme(STYLE_WHITE,     'WHITE'));
-      document.getElementById('DARK').addEventListener('click',      () => switchToTheme(STYLE_DARK,      'DARK'));
-      document.getElementById('BLUE').addEventListener('click',      () => switchToTheme(STYLE_BLUE,      'BLUE'));
-      document.getElementById('BLUENOSB').addEventListener('click',  () => switchToTheme(STYLE_BLUE_NOSB, 'BLUENOSB'));
+  window.addEventListener('resize', () => {
+    if (panel.classList.contains('is-open')) positionPanel();
+  });
 
-      document.getElementById('NORMAL').addEventListener('click',    () => switchToType(naver.maps.MapTypeId.NORMAL,    'NORMAL'));
-      document.getElementById('TERRAIN').addEventListener('click',   () => switchToType(naver.maps.MapTypeId.TERRAIN,   'TERRAIN'));
-      document.getElementById('SATELLITE').addEventListener('click', () => switchToType(naver.maps.MapTypeId.SATELLITE, 'SATELLITE'));
-      document.getElementById('HYBRID').addEventListener('click',    () => switchToType(naver.maps.MapTypeId.HYBRID,    'HYBRID'));
+  document.addEventListener('click', () => {
+    panel.classList.remove('is-open');
+    button.setAttribute('aria-expanded', 'false');
+  });
+}
 
-      bindToggleHandlers();
-      bindColorHandlers();
-      bindWeightHandlers();
-      bindAddressSearch();
-      bindAddressMarkerToggle();
-    }
-    window.initMap = initMap;
+function initMap(){
+  createMap({ mapTypeId: naver.maps.MapTypeId.NORMAL, customStyleId: null });
 
-    function createMap(extraOptions = {}){
-      map = new naver.maps.Map('map', Object.assign({}, BASE_OPTIONS, extraOptions));
-      bindMapRightClick();
-    }
+  document.getElementById('WHITE').addEventListener('click', () => switchToTheme(STYLE_WHITE, 'WHITE'));
+  document.getElementById('DARK').addEventListener('click', () => switchToTheme(STYLE_DARK, 'DARK'));
+  document.getElementById('BLUE').addEventListener('click', () => switchToTheme(STYLE_BLUE, 'BLUE'));
+  document.getElementById('BLUENOSB').addEventListener('click', () => switchToTheme(STYLE_BLUE_NOSB, 'BLUENOSB'));
 
-    function recreate(options = {}, doneActiveId = null){
-      if (recreating) return;
-      recreating = true;
+  document.getElementById('NORMAL').addEventListener('click', () => switchToType(naver.maps.MapTypeId.NORMAL, 'NORMAL'));
+  document.getElementById('TERRAIN').addEventListener('click', () => switchToType(naver.maps.MapTypeId.TERRAIN, 'TERRAIN'));
+  document.getElementById('SATELLITE').addEventListener('click', () => switchToType(naver.maps.MapTypeId.SATELLITE, 'SATELLITE'));
+  document.getElementById('HYBRID').addEventListener('click', () => switchToType(naver.maps.MapTypeId.HYBRID, 'HYBRID'));
 
-      const center = map.getCenter();
-      const zoom   = map.getZoom();
+  bindToggleHandlers();
+  bindColorHandlers();
+  bindWeightHandlers();
+  bindAddressSearch();
+  bindAddressMarkerToggle();
+}
+window.initMap = initMap;
 
-      const wrap = document.getElementById('mapWrap');
-      const old  = document.getElementById('map');
-      const fresh = document.createElement('div');
-      fresh.id = 'map'; fresh.style.width = '100%'; fresh.style.height = '100%';
-      wrap.replaceChild(fresh, old);
+function createMap(extraOptions = {}){
+  map = new naver.maps.Map('map', Object.assign({}, BASE_OPTIONS, extraOptions));
+  bindMapRightClick();
+}
 
-      createMap(Object.assign({ center, zoom }, options));
+function recreate(options = {}, doneActiveId = null){
+  if (recreating) return;
+  recreating = true;
+  const center = map.getCenter();
+  const zoom = map.getZoom();
+  const wrap = document.getElementById('mapWrap');
+  const old = document.getElementById('map');
+  const fresh = document.createElement('div');
+  fresh.id = 'map'; fresh.style.width = '100%'; fresh.style.height = '100%';
+  wrap.replaceChild(fresh, old);
+  createMap(Object.assign({ center, zoom }, options));
+  if (doneActiveId) setActive(doneActiveId);
+  setTimeout(()=>{ recreating = false; }, 80);
+}
 
-      if (doneActiveId) setActive(doneActiveId);
-      setTimeout(()=>{ recreating = false; }, 80);
-    }
+// recreate 을 오버레이 복원 기능으로 래핑합니다. 이 코드는 recreate 정의 이후에 위치해야 합니다.
+const __recreateOrig = recreate;
+recreate = function(options = {}, doneActiveId = null){
+  __recreateOrig(options, doneActiveId);
+  // 새 지도가 준비된 직후, 기존 오버레이를 복원합니다.
+  setTimeout(restoreAllOverlaysOnNewMap, 100);
+};
 
-    // recreate 을 오버레이 복원 기능으로 래핑합니다. 이 코드는 recreate 정의 이후에 위치해야 합니다.
-    const __recreateOrig = recreate;
-    recreate = function(options = {}, doneActiveId = null){
-      __recreateOrig(options, doneActiveId);
-      // 새 지도가 준비된 직후, 기존 오버레이를 복원합니다.
-      setTimeout(restoreAllOverlaysOnNewMap, 100);
-    };
+function setActive(id){
+  document.querySelectorAll('.control-btn').forEach(b => b.classList.remove('control-on'));
+  document.getElementById(id).classList.add('control-on');
+}
 
-    function setActive(id){
-      document.querySelectorAll('.control-btn').forEach(b => b.classList.remove('control-on'));
-      document.getElementById(id).classList.add('control-on');
-    }
+function switchToTheme(styleId, btnId){
+  recreate({ mapTypeId: naver.maps.MapTypeId.NORMAL, customStyleId: styleId }, btnId);
+}
 
-    function switchToTheme(styleId, btnId){
-      recreate({ mapTypeId: naver.maps.MapTypeId.NORMAL, customStyleId: styleId }, btnId);
-    }
-
-    function switchToType(typeId, btnId){
-      recreate({ mapTypeId: typeId, customStyleId: null }, btnId);
-    }
-  </script>
+function switchToType(typeId, btnId){
+  recreate({ mapTypeId: typeId, customStyleId: null }, btnId);
+}
+</script>
 </body>
 </html>
