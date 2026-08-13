@@ -249,7 +249,8 @@ html, body {height:100%; margin:0}
 .color-swatch::-webkit-color-swatch{ border:0; border-radius:50%; }
 .color-swatch::-moz-color-swatch{ border:0; border-radius:50%; }
 
-.line-weight-control > button{
+.line-weight-control > button,
+.fill-opacity-control > button{
   border:0;
   background:transparent;
   color:inherit;
@@ -259,14 +260,12 @@ html, body {height:100%; margin:0}
   padding:0;
   cursor:pointer;
 }
-.line-weight-panel{
+.line-weight-panel,
+.fill-opacity-panel,
+.fill-region-panel{
   position:absolute;
-  z-index:1001;
+  z-index:1200;
   display:none;
-  align-items:center;
-  flex-direction:column;
-  gap:8px;
-  padding:12px 12px 14px;
   border:1px solid var(--line-normal-normal, rgba(112,115,124,0.22));
   border-radius:var(--radius-md, 16px);
   background:var(--background-normal-normal, #fff);
@@ -275,21 +274,102 @@ html, body {height:100%; margin:0}
   font-family:var(--font-primary);
   white-space:nowrap;
 }
-.line-weight-panel.is-open{ display:flex; }
-.line-weight-panel input[type="range"]{
+.line-weight-panel,
+.fill-opacity-panel{
+  align-items:center;
+  flex-direction:column;
+  gap:8px;
+  padding:12px 12px 14px;
+}
+.line-weight-panel.is-open,
+.fill-opacity-panel.is-open{ display:flex; }
+.line-weight-panel input[type="range"],
+.fill-opacity-panel input[type="range"]{
   width:28px;
   height:120px;
   accent-color:var(--primary-normal, rgb(51,102,255));
   writing-mode:vertical-lr;
   direction:rtl;
 }
-.line-weight-value{
+.line-weight-value,
+.fill-opacity-value{
   min-width:24px;
   text-align:center;
   font-family:var(--font-mono, "SF Mono", monospace);
   font-variant-numeric:tabular-nums;
   font-weight:600;
 }
+
+.fill-region-trigger{
+  border:1px solid var(--line-normal-normal, rgba(112,115,124,0.22));
+}
+.fill-region-trigger .fill-region-chevron{
+  color:var(--label-alternative, rgba(55,56,60,0.61));
+  font-size:10px;
+  transition:transform .12s ease;
+}
+.fill-region-trigger[aria-expanded="true"] .fill-region-chevron{
+  transform:rotate(180deg);
+}
+.fill-region-trigger.has-active-fill{
+  border-color:var(--primary-normal, rgb(51,102,255));
+  color:var(--primary-normal, rgb(51,102,255));
+}
+.fill-region-count:empty{ display:none; }
+.fill-region-count{
+  min-width:16px;
+  padding:1px 4px;
+  border-radius:999px;
+  background:var(--primary-normal, rgb(51,102,255));
+  color:var(--static-white, #fff);
+  font-size:10px;
+  line-height:14px;
+  text-align:center;
+}
+.fill-region-panel{
+  width:190px;
+  max-width:calc(100vw - 32px);
+  padding:8px;
+}
+.fill-region-panel.is-open{ display:block; }
+.fill-region-panel-header{
+  padding:6px 8px 8px;
+  color:var(--label-neutral, rgba(46,47,51,0.88));
+  font-size:12px;
+  font-weight:700;
+}
+.fill-region-options{
+  max-height:min(320px, calc(100vh - 170px));
+  overflow-y:auto;
+  scrollbar-gutter:stable;
+}
+.fill-region-option{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-height:34px;
+  padding:4px 8px;
+  border-radius:8px;
+  color:var(--label-normal, rgb(23,23,23));
+  font-size:13px;
+  font-weight:500;
+  cursor:pointer;
+}
+.fill-region-option:hover{
+  background:var(--background-normal-alternative, rgb(248,248,249));
+}
+.fill-region-option input{
+  margin:0;
+  accent-color:var(--primary-normal, rgb(51,102,255));
+}
+.fill-region-loading,
+.fill-region-error{
+  padding:14px 8px;
+  color:var(--label-alternative, rgba(55,56,60,0.61));
+  font-size:12px;
+  text-align:center;
+}
+.fill-region-error{ color:#d93025; }
 
 /* active toggle state — Wanted primary */
 .control-on{
@@ -365,29 +445,37 @@ html, body {height:100%; margin:0}
 </div>
 <div class="secondary-controls fill-controls">
 <label class="control-btn fill-color-control">채움색 <input id="COLOR_FILLS" class="color-swatch" type="color" value="#ffffff" title="전체 채움 색상" aria-label="전체 채움 색상"></label>
+<div class="control-btn fill-opacity-control" id="FILL_OPACITY_CONTROL">
+<button id="TOGGLE_FILL_OPACITY" type="button" aria-expanded="false" aria-controls="FILL_OPACITY_PANEL">투명도</button>
+</div>
 <label class="control-btn"><input id="TOGGLE_FILL_SIDO" type="checkbox"> 시도</label>
-<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_11" type="checkbox"> 서울</label>
-<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_21" type="checkbox"> 부산</label>
-<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_22" type="checkbox"> 대구</label>
-<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_23" type="checkbox"> 인천</label>
-<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_24" type="checkbox"> 광주</label>
-<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_25" type="checkbox"> 대전</label>
-<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_26" type="checkbox"> 울산</label>
-<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_29" type="checkbox"> 세종</label>
-<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_31" type="checkbox"> 경기</label>
-<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_32" type="checkbox"> 강원</label>
-<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_33" type="checkbox"> 충북</label>
-<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_34" type="checkbox"> 충남</label>
-<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_35" type="checkbox"> 전북</label>
-<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_36" type="checkbox"> 전남</label>
-<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_37" type="checkbox"> 경북</label>
-<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_38" type="checkbox"> 경남</label>
-<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_39" type="checkbox"> 제주</label>
+<button id="FILL_DROPDOWN_SIGUNGU_11" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_11" data-fill-label="서울" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>서울</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
+<button id="FILL_DROPDOWN_SIGUNGU_21" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_21" data-fill-label="부산" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>부산</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
+<button id="FILL_DROPDOWN_SIGUNGU_22" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_22" data-fill-label="대구" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>대구</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
+<button id="FILL_DROPDOWN_SIGUNGU_23" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_23" data-fill-label="인천" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>인천</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
+<button id="FILL_DROPDOWN_SIGUNGU_24" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_24" data-fill-label="광주" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>광주</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
+<button id="FILL_DROPDOWN_SIGUNGU_25" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_25" data-fill-label="대전" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>대전</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
+<button id="FILL_DROPDOWN_SIGUNGU_26" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_26" data-fill-label="울산" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>울산</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
+<button id="FILL_DROPDOWN_SIGUNGU_29" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_29" data-fill-label="세종" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>세종</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
+<button id="FILL_DROPDOWN_SIGUNGU_31" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_31" data-fill-label="경기" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>경기</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
+<button id="FILL_DROPDOWN_SIGUNGU_32" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_32" data-fill-label="강원" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>강원</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
+<button id="FILL_DROPDOWN_SIGUNGU_33" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_33" data-fill-label="충북" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>충북</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
+<button id="FILL_DROPDOWN_SIGUNGU_34" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_34" data-fill-label="충남" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>충남</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
+<button id="FILL_DROPDOWN_SIGUNGU_35" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_35" data-fill-label="전북" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>전북</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
+<button id="FILL_DROPDOWN_SIGUNGU_36" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_36" data-fill-label="전남" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>전남</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
+<button id="FILL_DROPDOWN_SIGUNGU_37" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_37" data-fill-label="경북" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>경북</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
+<button id="FILL_DROPDOWN_SIGUNGU_38" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_38" data-fill-label="경남" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>경남</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
+<button id="FILL_DROPDOWN_SIGUNGU_39" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_39" data-fill-label="제주" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>제주</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
 </div>
 <div class="line-weight-panel" id="LINE_WEIGHT_PANEL">
 <span class="line-weight-value" id="LINE_WEIGHT_VALUE">2</span>
 <input id="LINE_WEIGHT" type="range" min="1" max="10" step="0.5" value="2" aria-label="전체 라인 굵기">
 </div>
+<div class="fill-opacity-panel" id="FILL_OPACITY_PANEL">
+<span class="fill-opacity-value" id="FILL_OPACITY_VALUE">50%</span>
+<input id="FILL_OPACITY" type="range" min="0" max="100" step="1" value="50" aria-label="전체 채움 투명도">
+</div>
+<div class="fill-region-panel" id="FILL_REGION_PANEL" role="group" aria-label="지역별 채움 설정"></div>
 </div>
 </div>
 <script>
@@ -457,6 +545,8 @@ Object.values(lineLayers).forEach(info => {
   info.fillVisible = false;
   info.fillLoaded = false;
   info.fillColor = DEFAULT_FILL_COLOR;
+  info.fillOpacity = DEFAULT_FILL_OPACITY;
+  info.fillItems = [];
   info.geo = null;
   info.loadPromise = null;
 });
@@ -508,6 +598,7 @@ function makeFillPolygon(polygonCoords, style) {
     paths: polygonCoords.map(ringToPath),
     fillColor: style.fillColor,
     fillOpacity: style.fillOpacity,
+    strokeColor: 'transparent',
     strokeOpacity: 0,
     strokeWeight: 0,
     clickable: false,
@@ -555,6 +646,36 @@ function setFillLayerColor(kind, color) {
 
 function setAllFillColors(color) {
   Object.keys(lineLayers).forEach(kind => setFillLayerColor(kind, color));
+}
+
+function updateFillOpacity(polygon, opacity) {
+  if (typeof polygon.setOptions === 'function') {
+    polygon.setOptions({
+      fillOpacity: opacity,
+      strokeColor: 'transparent',
+      strokeOpacity: 0,
+      strokeWeight: 0
+    });
+    return;
+  }
+  if (typeof polygon.set === 'function') {
+    polygon.set('fillOpacity', opacity);
+    polygon.set('strokeColor', 'transparent');
+    polygon.set('strokeOpacity', 0);
+    polygon.set('strokeWeight', 0);
+  }
+}
+
+function setFillLayerOpacity(kind, opacity) {
+  const info = lineLayers[kind];
+  if (!info) return;
+  const nextOpacity = Math.max(0, Math.min(1, Number(opacity)));
+  info.fillOpacity = Number.isFinite(nextOpacity) ? nextOpacity : DEFAULT_FILL_OPACITY;
+  info.fillOverlays.forEach(polygon => updateFillOpacity(polygon, info.fillOpacity));
+}
+
+function setAllFillOpacities(opacity) {
+  Object.keys(lineLayers).forEach(kind => setFillLayerOpacity(kind, opacity));
 }
 
 function updatePolylineWeight(polyline, weight) {
@@ -666,16 +787,25 @@ async function loadFillGeoJSONOnce(kind) {
   if (info.fillLoaded) return;
   const geo = await getBoundaryGeoJSON(kind);
   const style = Object.assign({}, STYLE_FILL, {
-    fillColor: info.fillColor || DEFAULT_FILL_COLOR
+    fillColor: info.fillColor || DEFAULT_FILL_COLOR,
+    fillOpacity: Number.isFinite(info.fillOpacity) ? info.fillOpacity : DEFAULT_FILL_OPACITY
   });
-  getGeoFeatures(geo).forEach(f => {
+  info.fillItems = [];
+  getGeoFeatures(geo).forEach((f, index) => {
     if (!f || !f.geometry) return;
+    const featureOverlays = [];
     const g = f.geometry;
     if (g.type === 'Polygon') {
-      addFillPolygonsFromPolygon(g.coordinates, style, info.fillOverlays);
+      addFillPolygonsFromPolygon(g.coordinates, style, featureOverlays);
     } else if (g.type === 'MultiPolygon') {
-      addFillPolygonsFromMultiPolygon(g.coordinates, style, info.fillOverlays);
+      addFillPolygonsFromMultiPolygon(g.coordinates, style, featureOverlays);
     }
+    if (!featureOverlays.length) return;
+    const properties = f.properties || {};
+    const name = properties.name || properties.SIG_KOR_NM || properties.CTP_KOR_NM || ('지역 ' + (index + 1));
+    const id = String(properties.code || properties.SIG_CD || properties.CTPRVN_CD || (kind + '_' + index));
+    info.fillItems.push({ id, name, overlays: featureOverlays, visible: false });
+    info.fillOverlays.push(...featureOverlays);
   });
   info.fillLoaded = true;
 }
@@ -687,8 +817,22 @@ function applyVisibility(kind) {
 }
 
 function applyFillVisibility(kind) {
-  const { fillOverlays, fillVisible } = lineLayers[kind];
-  fillOverlays.forEach(polygon => polygon.setMap(fillVisible ? map : null));
+  const info = lineLayers[kind];
+  if (!info) return;
+  if (kind === 'sido') {
+    info.fillOverlays.forEach(polygon => polygon.setMap(info.fillVisible ? map : null));
+    return;
+  }
+  info.fillItems.forEach(item => {
+    item.overlays.forEach(polygon => polygon.setMap(item.visible ? map : null));
+  });
+}
+
+function applyFillFeatureVisibility(kind, itemIndex) {
+  const info = lineLayers[kind];
+  const item = info?.fillItems[itemIndex];
+  if (!item) return;
+  item.overlays.forEach(polygon => polygon.setMap(item.visible ? map : null));
 }
 
 // 새 map 생성 후 기존 오버레이를 복원하는 함수
@@ -697,8 +841,12 @@ function restoreAllOverlaysOnNewMap() {
     if (lineLayers[k].visible) {
       lineLayers[k].overlays.forEach(pl => pl.setMap(map));
     }
-    if (lineLayers[k].fillVisible) {
+    if (k === 'sido' && lineLayers[k].fillVisible) {
       lineLayers[k].fillOverlays.forEach(polygon => polygon.setMap(map));
+    } else if (k.startsWith('sigungu_')) {
+      lineLayers[k].fillItems.forEach(item => {
+        if (item.visible) item.overlays.forEach(polygon => polygon.setMap(map));
+      });
     }
   });
   if (addressMarker && searchedLatLng && addressMarkerVisible) {
@@ -990,24 +1138,22 @@ function bindToggleHandlers() {
 }
 
 function bindFillToggleHandlers() {
-  Object.keys(lineLayers).forEach(key => {
-    const checkbox = document.getElementById('TOGGLE_FILL_' + key.toUpperCase());
-    checkbox?.addEventListener('change', async (e) => {
-      const checked = e.target.checked;
-      lineLayers[key].fillVisible = checked;
-      if (checked && !lineLayers[key].fillLoaded) {
-        try {
-          await loadFillGeoJSONOnce(key);
-        } catch (err) {
-          console.error(err);
-          alert('행정구역 채움 로드 실패: ' + key);
-          lineLayers[key].fillVisible = false;
-          e.target.checked = false;
-          return;
-        }
+  const checkbox = document.getElementById('TOGGLE_FILL_SIDO');
+  checkbox?.addEventListener('change', async (e) => {
+    const checked = e.target.checked;
+    lineLayers.sido.fillVisible = checked;
+    if (checked && !lineLayers.sido.fillLoaded) {
+      try {
+        await loadFillGeoJSONOnce('sido');
+      } catch (err) {
+        console.error(err);
+        alert('시도 채움 로드 실패. 파일 경로/형식을 확인하세요.');
+        lineLayers.sido.fillVisible = false;
+        e.target.checked = false;
+        return;
       }
-      applyFillVisibility(key);
-    });
+    }
+    applyFillVisibility('sido');
   });
 }
 
@@ -1041,6 +1187,171 @@ function bindFillColorHandlers() {
   });
 }
 
+let activeFillRegionKind = null;
+
+function closeControlPanels(exceptPanelId = null) {
+  const linePanel = document.getElementById('LINE_WEIGHT_PANEL');
+  const lineButton = document.getElementById('TOGGLE_LINE_WEIGHT');
+  if (linePanel && linePanel.id !== exceptPanelId) {
+    linePanel.classList.remove('is-open');
+    lineButton?.setAttribute('aria-expanded', 'false');
+  }
+
+  const opacityPanel = document.getElementById('FILL_OPACITY_PANEL');
+  const opacityButton = document.getElementById('TOGGLE_FILL_OPACITY');
+  if (opacityPanel && opacityPanel.id !== exceptPanelId) {
+    opacityPanel.classList.remove('is-open');
+    opacityButton?.setAttribute('aria-expanded', 'false');
+  }
+
+  const regionPanel = document.getElementById('FILL_REGION_PANEL');
+  if (regionPanel && regionPanel.id !== exceptPanelId) {
+    regionPanel.classList.remove('is-open');
+    document.querySelectorAll('.fill-region-trigger').forEach(button => {
+      button.setAttribute('aria-expanded', 'false');
+    });
+    activeFillRegionKind = null;
+  }
+}
+
+function positionFloatingPanel(panel, anchor) {
+  const anchorRect = anchor.getBoundingClientRect();
+  const wrapRect = document.querySelector('.buttons').getBoundingClientRect();
+  const panelWidth = panel.offsetWidth || 48;
+  const desiredLeft = anchorRect.left - wrapRect.left + (anchorRect.width - panelWidth) / 2;
+  const maxLeft = Math.max(0, window.innerWidth - wrapRect.left - panelWidth - 12);
+  panel.style.left = Math.max(0, Math.min(desiredLeft, maxLeft)) + 'px';
+  panel.style.top = (anchorRect.bottom - wrapRect.top + 6) + 'px';
+}
+
+function updateFillRegionTrigger(kind) {
+  const trigger = document.getElementById('FILL_DROPDOWN_' + kind.toUpperCase());
+  const count = trigger?.querySelector('.fill-region-count');
+  if (!trigger || !count) return;
+  const selectedCount = lineLayers[kind].fillItems.filter(item => item.visible).length;
+  count.textContent = selectedCount ? String(selectedCount) : '';
+  trigger.classList.toggle('has-active-fill', selectedCount > 0);
+  trigger.setAttribute('aria-label', trigger.dataset.fillLabel + ' 지역별 채움, ' + selectedCount + '개 선택');
+}
+
+function renderFillRegionPanel(kind) {
+  const panel = document.getElementById('FILL_REGION_PANEL');
+  const trigger = document.getElementById('FILL_DROPDOWN_' + kind.toUpperCase());
+  if (!panel || !trigger) return;
+  panel.replaceChildren();
+
+  const header = document.createElement('div');
+  header.className = 'fill-region-panel-header';
+  header.textContent = trigger.dataset.fillLabel + ' 지역별 채움';
+  panel.appendChild(header);
+
+  const options = document.createElement('div');
+  options.className = 'fill-region-options';
+  lineLayers[kind].fillItems.forEach((item, itemIndex) => {
+    const label = document.createElement('label');
+    label.className = 'fill-region-option';
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = item.visible;
+    checkbox.dataset.fillKind = kind;
+    checkbox.dataset.fillIndex = String(itemIndex);
+    checkbox.setAttribute('aria-label', item.name + ' 채움');
+    checkbox.addEventListener('change', () => {
+      item.visible = checkbox.checked;
+      applyFillFeatureVisibility(kind, itemIndex);
+      updateFillRegionTrigger(kind);
+    });
+
+    const name = document.createElement('span');
+    name.textContent = item.name;
+    label.append(checkbox, name);
+    options.appendChild(label);
+  });
+  panel.appendChild(options);
+}
+
+function bindFillRegionDropdownHandlers() {
+  const panel = document.getElementById('FILL_REGION_PANEL');
+  if (!panel) return;
+
+  document.querySelectorAll('.fill-region-trigger').forEach(trigger => {
+    const kind = trigger.dataset.fillKind;
+    updateFillRegionTrigger(kind);
+    trigger.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const isCurrentOpen = panel.classList.contains('is-open') && activeFillRegionKind === kind;
+      if (isCurrentOpen) {
+        closeControlPanels();
+        return;
+      }
+
+      closeControlPanels('FILL_REGION_PANEL');
+      document.querySelectorAll('.fill-region-trigger').forEach(button => {
+        button.setAttribute('aria-expanded', 'false');
+      });
+      activeFillRegionKind = kind;
+      trigger.setAttribute('aria-expanded', 'true');
+      panel.classList.add('is-open');
+      panel.innerHTML = '<div class="fill-region-loading">지역 목록을 불러오는 중…</div>';
+      positionFloatingPanel(panel, trigger);
+
+      try {
+        await loadFillGeoJSONOnce(kind);
+        if (activeFillRegionKind !== kind || !panel.classList.contains('is-open')) return;
+        renderFillRegionPanel(kind);
+        positionFloatingPanel(panel, trigger);
+      } catch (err) {
+        console.error(err);
+        if (activeFillRegionKind === kind) {
+          panel.innerHTML = '<div class="fill-region-error">지역 목록을 불러오지 못했습니다.</div>';
+          positionFloatingPanel(panel, trigger);
+        }
+      }
+    });
+  });
+
+  panel.addEventListener('click', e => e.stopPropagation());
+  window.addEventListener('resize', () => {
+    if (!panel.classList.contains('is-open') || !activeFillRegionKind) return;
+    const trigger = document.getElementById('FILL_DROPDOWN_' + activeFillRegionKind.toUpperCase());
+    if (trigger) positionFloatingPanel(panel, trigger);
+  });
+}
+
+function bindFillOpacityHandlers() {
+  const button = document.getElementById('TOGGLE_FILL_OPACITY');
+  const panel = document.getElementById('FILL_OPACITY_PANEL');
+  const slider = document.getElementById('FILL_OPACITY');
+  const value = document.getElementById('FILL_OPACITY_VALUE');
+  if (!button || !panel || !slider || !value) return;
+
+  const updateValue = () => {
+    const percent = Math.max(0, Math.min(100, Number(slider.value)));
+    value.textContent = percent + '%';
+    setAllFillOpacities(percent / 100);
+  };
+
+  updateValue();
+  button.addEventListener('click', e => {
+    e.stopPropagation();
+    const isOpen = !panel.classList.contains('is-open');
+    if (!isOpen) {
+      closeControlPanels();
+      return;
+    }
+    closeControlPanels(panel.id);
+    panel.classList.add('is-open');
+    button.setAttribute('aria-expanded', 'true');
+    positionFloatingPanel(panel, button);
+  });
+  panel.addEventListener('click', e => e.stopPropagation());
+  slider.addEventListener('input', updateValue);
+  window.addEventListener('resize', () => {
+    if (panel.classList.contains('is-open')) positionFloatingPanel(panel, button);
+  });
+}
+
 function bindWeightHandlers() {
   const control = document.getElementById('LINE_WEIGHT_CONTROL');
   const button = document.getElementById('TOGGLE_LINE_WEIGHT');
@@ -1055,24 +1366,19 @@ function bindWeightHandlers() {
     setAllLayerWeights(weight);
   };
 
-  const positionPanel = () => {
-    const buttonRect = button.getBoundingClientRect();
-    const wrapRect = document.querySelector('.buttons').getBoundingClientRect();
-    const panelWidth = panel.offsetWidth || 48;
-    const desiredLeft = buttonRect.left - wrapRect.left + (buttonRect.width - panelWidth) / 2;
-    const maxLeft = Math.max(0, window.innerWidth - wrapRect.left - panelWidth - 12);
-    panel.style.left = Math.max(0, Math.min(desiredLeft, maxLeft)) + 'px';
-    panel.style.top = (buttonRect.bottom - wrapRect.top + 6) + 'px';
-  };
-
   updateValue();
 
   button.addEventListener('click', (e) => {
     e.stopPropagation();
     const isOpen = !panel.classList.contains('is-open');
-    panel.classList.toggle('is-open', isOpen);
-    button.setAttribute('aria-expanded', String(isOpen));
-    if (isOpen) positionPanel();
+    if (!isOpen) {
+      closeControlPanels();
+      return;
+    }
+    closeControlPanels(panel.id);
+    panel.classList.add('is-open');
+    button.setAttribute('aria-expanded', 'true');
+    positionFloatingPanel(panel, button);
   });
 
   panel.addEventListener('click', (e) => {
@@ -1082,12 +1388,7 @@ function bindWeightHandlers() {
   slider.addEventListener('input', updateValue);
 
   window.addEventListener('resize', () => {
-    if (panel.classList.contains('is-open')) positionPanel();
-  });
-
-  document.addEventListener('click', () => {
-    panel.classList.remove('is-open');
-    button.setAttribute('aria-expanded', 'false');
+    if (panel.classList.contains('is-open')) positionFloatingPanel(panel, button);
   });
 }
 
@@ -1106,9 +1407,12 @@ function initMap(){
 
   bindToggleHandlers();
   bindFillToggleHandlers();
+  bindFillRegionDropdownHandlers();
   bindColorHandlers();
   bindFillColorHandlers();
+  bindFillOpacityHandlers();
   bindWeightHandlers();
+  document.addEventListener('click', () => closeControlPanels());
   bindAddressSearch();
   bindAddressMarkerToggle();
 }
