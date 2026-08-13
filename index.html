@@ -191,6 +191,9 @@ html, body {height:100%; margin:0}
 .secondary-controls .control-btn{
   font-size:inherit;
 }
+.fill-controls{
+  margin-top:6px;
+}
 
 /* base toggle button — Wanted pill/chip look */
 .control-btn{
@@ -229,7 +232,7 @@ html, body {height:100%; margin:0}
   white-space:nowrap;
 }
 
-.line-color{
+.color-swatch{
   width:16px;
   height:16px;
   flex:0 0 16px;
@@ -242,9 +245,9 @@ html, body {height:100%; margin:0}
   appearance:none;
   -webkit-appearance:none;
 }
-.line-color::-webkit-color-swatch-wrapper{ padding:0; }
-.line-color::-webkit-color-swatch{ border:0; border-radius:50%; }
-.line-color::-moz-color-swatch{ border:0; border-radius:50%; }
+.color-swatch::-webkit-color-swatch-wrapper{ padding:0; }
+.color-swatch::-webkit-color-swatch{ border:0; border-radius:50%; }
+.color-swatch::-moz-color-swatch{ border:0; border-radius:50%; }
 
 .line-weight-control > button{
   border:0;
@@ -336,7 +339,7 @@ html, body {height:100%; margin:0}
 </div>
 <div class="secondary-controls">
 <!-- 추가된 토글: 시도 라인 / 시군구(각 시도별) 라인 -->
-<label class="control-btn line-color-control">라인색 <input id="COLOR_LINES" class="line-color" type="color" value="#333333" title="전체 라인 색상" aria-label="전체 라인 색상"></label>
+<label class="control-btn line-color-control">라인색 <input id="COLOR_LINES" class="color-swatch" type="color" value="#333333" title="전체 라인 색상" aria-label="전체 라인 색상"></label>
 <div class="control-btn line-weight-control" id="LINE_WEIGHT_CONTROL">
 <button id="TOGGLE_LINE_WEIGHT" type="button" aria-expanded="false" aria-controls="LINE_WEIGHT_PANEL">라인굵기</button>
 </div>
@@ -359,6 +362,27 @@ html, body {height:100%; margin:0}
 <label class="control-btn"><input id="TOGGLE_SIGUNGU_37" type="checkbox"> 경북</label>
 <label class="control-btn"><input id="TOGGLE_SIGUNGU_38" type="checkbox"> 경남</label>
 <label class="control-btn"><input id="TOGGLE_SIGUNGU_39" type="checkbox"> 제주</label>
+</div>
+<div class="secondary-controls fill-controls">
+<label class="control-btn fill-color-control">채움색 <input id="COLOR_FILLS" class="color-swatch" type="color" value="#ffffff" title="전체 채움 색상" aria-label="전체 채움 색상"></label>
+<label class="control-btn"><input id="TOGGLE_FILL_SIDO" type="checkbox"> 시도</label>
+<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_11" type="checkbox"> 서울</label>
+<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_21" type="checkbox"> 부산</label>
+<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_22" type="checkbox"> 대구</label>
+<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_23" type="checkbox"> 인천</label>
+<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_24" type="checkbox"> 광주</label>
+<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_25" type="checkbox"> 대전</label>
+<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_26" type="checkbox"> 울산</label>
+<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_29" type="checkbox"> 세종</label>
+<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_31" type="checkbox"> 경기</label>
+<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_32" type="checkbox"> 강원</label>
+<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_33" type="checkbox"> 충북</label>
+<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_34" type="checkbox"> 충남</label>
+<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_35" type="checkbox"> 전북</label>
+<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_36" type="checkbox"> 전남</label>
+<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_37" type="checkbox"> 경북</label>
+<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_38" type="checkbox"> 경남</label>
+<label class="control-btn"><input id="TOGGLE_FILL_SIGUNGU_39" type="checkbox"> 제주</label>
 </div>
 <div class="line-weight-panel" id="LINE_WEIGHT_PANEL">
 <span class="line-weight-value" id="LINE_WEIGHT_VALUE">2</span>
@@ -392,6 +416,8 @@ let activeSearchResults = [];
 // ====== 행정구역 경계 오버레이 관련 변수 및 함수 ======
 const DEFAULT_LINE_COLOR = '#333333';
 const DEFAULT_LINE_WEIGHT = 2;
+const DEFAULT_FILL_COLOR = '#ffffff';
+const DEFAULT_FILL_OPACITY = 0.5;
 
 // 각 레이어의 상태와 데이터 캐시를 관리하는 객체입니다.
 const lineLayers = {
@@ -427,6 +453,12 @@ const lineLayers = {
 Object.values(lineLayers).forEach(info => {
   info.color = DEFAULT_LINE_COLOR;
   info.weight = DEFAULT_LINE_WEIGHT;
+  info.fillOverlays = [];
+  info.fillVisible = false;
+  info.fillLoaded = false;
+  info.fillColor = DEFAULT_FILL_COLOR;
+  info.geo = null;
+  info.loadPromise = null;
 });
 
 // 선의 스타일 지정 (색상과 굵기)
@@ -441,6 +473,10 @@ const STYLE_SIGUNGU = {
   strokeColor: '#333333',
   strokeWeight: 2,
   strokeOpacity: 0.95
+};
+const STYLE_FILL = {
+  fillColor: DEFAULT_FILL_COLOR,
+  fillOpacity: DEFAULT_FILL_OPACITY
 };
 
 // GeoJSON 좌표 [lng, lat] 을 naver.maps.LatLng 객체로 변환
@@ -466,6 +502,19 @@ function makePolyline(path, style) {
   });
 }
 
+function makeFillPolygon(polygonCoords, style) {
+  return new naver.maps.Polygon({
+    map: null,
+    paths: polygonCoords.map(ringToPath),
+    fillColor: style.fillColor,
+    fillOpacity: style.fillOpacity,
+    strokeOpacity: 0,
+    strokeWeight: 0,
+    clickable: false,
+    zIndex: 900
+  });
+}
+
 function updatePolylineColor(polyline, color) {
   if (typeof polyline.setOptions === 'function') {
     polyline.setOptions({ strokeColor: color });
@@ -485,6 +534,27 @@ function setLayerColor(kind, color) {
 
 function setAllLayerColors(color) {
   Object.keys(lineLayers).forEach(kind => setLayerColor(kind, color));
+}
+
+function updateFillColor(polygon, color) {
+  if (typeof polygon.setOptions === 'function') {
+    polygon.setOptions({ fillColor: color });
+    return;
+  }
+  if (typeof polygon.set === 'function') {
+    polygon.set('fillColor', color);
+  }
+}
+
+function setFillLayerColor(kind, color) {
+  const info = lineLayers[kind];
+  if (!info) return;
+  info.fillColor = color || DEFAULT_FILL_COLOR;
+  info.fillOverlays.forEach(polygon => updateFillColor(polygon, info.fillColor));
+}
+
+function setAllFillColors(color) {
+  Object.keys(lineLayers).forEach(kind => setFillLayerColor(kind, color));
 }
 
 function updatePolylineWeight(polyline, weight) {
@@ -523,35 +593,62 @@ function addPolylinesFromMultiPolygon(multiCoords, style, bucket) {
   multiCoords.forEach(poly => addPolylinesFromPolygon(poly, style, bucket));
 }
 
+function addFillPolygonsFromPolygon(polygonCoords, style, bucket) {
+  bucket.push(makeFillPolygon(polygonCoords, style));
+}
+
+function addFillPolygonsFromMultiPolygon(multiCoords, style, bucket) {
+  multiCoords.forEach(poly => addFillPolygonsFromPolygon(poly, style, bucket));
+}
+
+function getGeoFeatures(geo) {
+  return (geo.type === 'FeatureCollection')
+    ? geo.features
+    : (geo.type === 'Feature'
+      ? [geo]
+      : [{ type: 'Feature', geometry: geo }]);
+}
+
+async function getBoundaryGeoJSON(kind) {
+  const info = lineLayers[kind];
+  if (info.geo) return info.geo;
+  if (info.loadPromise) return info.loadPromise;
+
+  info.loadPromise = (async () => {
+    const res = await fetch(info.url, { cache: 'no-cache' });
+    if (!res.ok) throw new Error('GeoJSON 로드 실패: ' + info.url);
+    const raw = await res.json();
+    let geo;
+    if (raw && raw.type === 'Topology') {
+      const topologyObject = raw.objects.collection || Object.values(raw.objects)[0];
+      geo = topojson.feature(raw, topologyObject);
+    } else {
+      geo = raw;
+    }
+    info.geo = geo;
+    return geo;
+  })();
+
+  try {
+    return await info.loadPromise;
+  } catch (err) {
+    info.loadPromise = null;
+    throw err;
+  }
+}
+
 // 지정된 종류(k: 'sido'|'sigungu')의 GeoJSON을 최초 1회만 불러와서 Polyline 생성
 async function loadGeoJSONOnce(kind) {
   const info = lineLayers[kind];
   if (info.loaded) return;
-  const res = await fetch(info.url, { cache: 'no-cache' });
-  if (!res.ok) throw new Error('GeoJSON 로드 실패: ' + info.url);
-  // Load the raw JSON. It may be a TopoJSON topology or a GeoJSON FeatureCollection/Feature.
-  const raw = await res.json();
-  // If the data is TopoJSON, convert it to a FeatureCollection using topojson-client.
-  // TopoJSON has a 'type' of 'Topology' and stores its geometries under objects.<name>.
-  let geo;
-  if (raw && raw.type === 'Topology') {
-    // The conversion returns a FeatureCollection when a GeometryCollection is provided.
-    geo = topojson.feature(raw, raw.objects.collection);
-  } else {
-    geo = raw;
-  }
+  const geo = await getBoundaryGeoJSON(kind);
   const bucket = info.overlays;
   const baseStyle = (kind === 'sido') ? STYLE_SIDO : STYLE_SIGUNGU;
   const style = Object.assign({}, baseStyle, {
     strokeColor: info.color || DEFAULT_LINE_COLOR,
     strokeWeight: info.weight || DEFAULT_LINE_WEIGHT
   });
-  // Extract features from the GeoJSON. Handle FeatureCollection, single Feature, or bare geometry.
-  const features = (geo.type === 'FeatureCollection')
-    ? geo.features
-    : (geo.type === 'Feature'
-      ? [geo]
-      : [{ type: 'Feature', geometry: geo }]);
+  const features = getGeoFeatures(geo);
   features.forEach(f => {
     if (!f || !f.geometry) return;
     const g = f.geometry;
@@ -564,10 +661,34 @@ async function loadGeoJSONOnce(kind) {
   info.loaded = true;
 }
 
+async function loadFillGeoJSONOnce(kind) {
+  const info = lineLayers[kind];
+  if (info.fillLoaded) return;
+  const geo = await getBoundaryGeoJSON(kind);
+  const style = Object.assign({}, STYLE_FILL, {
+    fillColor: info.fillColor || DEFAULT_FILL_COLOR
+  });
+  getGeoFeatures(geo).forEach(f => {
+    if (!f || !f.geometry) return;
+    const g = f.geometry;
+    if (g.type === 'Polygon') {
+      addFillPolygonsFromPolygon(g.coordinates, style, info.fillOverlays);
+    } else if (g.type === 'MultiPolygon') {
+      addFillPolygonsFromMultiPolygon(g.coordinates, style, info.fillOverlays);
+    }
+  });
+  info.fillLoaded = true;
+}
+
 // 현재 visible 상태에 따라 지도에 오버레이를 적용/제거
 function applyVisibility(kind) {
   const { overlays, visible } = lineLayers[kind];
   overlays.forEach(pl => pl.setMap(visible ? map : null));
+}
+
+function applyFillVisibility(kind) {
+  const { fillOverlays, fillVisible } = lineLayers[kind];
+  fillOverlays.forEach(polygon => polygon.setMap(fillVisible ? map : null));
 }
 
 // 새 map 생성 후 기존 오버레이를 복원하는 함수
@@ -575,6 +696,9 @@ function restoreAllOverlaysOnNewMap() {
   Object.keys(lineLayers).forEach(k => {
     if (lineLayers[k].visible) {
       lineLayers[k].overlays.forEach(pl => pl.setMap(map));
+    }
+    if (lineLayers[k].fillVisible) {
+      lineLayers[k].fillOverlays.forEach(polygon => polygon.setMap(map));
     }
   });
   if (addressMarker && searchedLatLng && addressMarkerVisible) {
@@ -608,9 +732,13 @@ function updateAddressMarkerToggle() {
 function bindAddressMarkerToggle() {
   const button = document.getElementById('toggleAddressMarker');
   button?.addEventListener('click', () => {
-    if (!addressMarker) return;
+    if (!addressMarker) {
+      rightClickInfoWindow?.close();
+      return;
+    }
     addressMarkerVisible = !addressMarkerVisible;
     addressMarker.setMap(addressMarkerVisible ? map : null);
+    if (!addressMarkerVisible) rightClickInfoWindow?.close();
     updateAddressMarkerToggle();
   });
   updateAddressMarkerToggle();
@@ -861,6 +989,28 @@ function bindToggleHandlers() {
   });
 }
 
+function bindFillToggleHandlers() {
+  Object.keys(lineLayers).forEach(key => {
+    const checkbox = document.getElementById('TOGGLE_FILL_' + key.toUpperCase());
+    checkbox?.addEventListener('change', async (e) => {
+      const checked = e.target.checked;
+      lineLayers[key].fillVisible = checked;
+      if (checked && !lineLayers[key].fillLoaded) {
+        try {
+          await loadFillGeoJSONOnce(key);
+        } catch (err) {
+          console.error(err);
+          alert('행정구역 채움 로드 실패: ' + key);
+          lineLayers[key].fillVisible = false;
+          e.target.checked = false;
+          return;
+        }
+      }
+      applyFillVisibility(key);
+    });
+  });
+}
+
 function bindColorHandlers() {
   const input = document.getElementById('COLOR_LINES');
   if (!input) return;
@@ -873,6 +1023,21 @@ function bindColorHandlers() {
   });
   input.addEventListener('change', (e) => {
     setAllLayerColors(e.target.value);
+  });
+}
+
+function bindFillColorHandlers() {
+  const input = document.getElementById('COLOR_FILLS');
+  if (!input) return;
+  setAllFillColors(input.value);
+  input.addEventListener('click', (e) => {
+    e.stopPropagation();
+  });
+  input.addEventListener('input', (e) => {
+    setAllFillColors(e.target.value);
+  });
+  input.addEventListener('change', (e) => {
+    setAllFillColors(e.target.value);
   });
 }
 
@@ -940,7 +1105,9 @@ function initMap(){
   document.getElementById('HYBRID').addEventListener('click', () => switchToType(naver.maps.MapTypeId.HYBRID, 'HYBRID'));
 
   bindToggleHandlers();
+  bindFillToggleHandlers();
   bindColorHandlers();
+  bindFillColorHandlers();
   bindWeightHandlers();
   bindAddressSearch();
   bindAddressMarkerToggle();
