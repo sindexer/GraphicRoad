@@ -208,6 +208,25 @@ html, body {height:100%; margin:0}
 .fill-controls{
   margin-top:0;
 }
+.fill-mode-control select{
+  max-width:92px;
+  border:0;
+  outline:0;
+  background:transparent;
+  color:inherit;
+  font:inherit;
+  font-family:var(--font-primary);
+  font-weight:600;
+  cursor:pointer;
+}
+.fill-blend-canvas{
+  position:absolute;
+  left:0;
+  top:0;
+  z-index:900;
+  display:block;
+  pointer-events:none;
+}
 
 /* base toggle button — Wanted pill/chip look */
 .control-btn{
@@ -465,6 +484,18 @@ html, body {height:100%; margin:0}
 <div class="boundary-group-spacer" aria-hidden="true"></div>
 <div class="boundary-control-group fill-controls">
 <label class="control-btn fill-color-control">채움색 <input id="COLOR_FILLS" class="color-swatch" type="color" value="#ffffff" title="전체 채움 색상" aria-label="전체 채움 색상"></label>
+<label class="control-btn fill-mode-control">모드
+<select id="FILL_BLEND_MODE" aria-label="채움색 혼합 모드">
+<option value="normal">Normal</option>
+<option value="add">Add</option>
+<option value="multiply">Multiply</option>
+<option value="screen">Screen</option>
+<option value="overlay">Overlay</option>
+<option value="soft-light">Soft Light</option>
+<option value="hard-light">Hard Light</option>
+<option value="difference">Difference</option>
+</select>
+</label>
 <div class="control-btn fill-opacity-control" id="FILL_OPACITY_CONTROL">
 <button id="TOGGLE_FILL_OPACITY" type="button" aria-expanded="false" aria-controls="FILL_OPACITY_PANEL">투명도</button>
 </div>
@@ -543,12 +574,25 @@ let searchedLatLng = null;
 let addressMarkerVisible = true;
 let rightClickInfoWindow = null;
 let activeSearchResults = [];
+let fillCanvasOverlay = null;
+let currentFillBlendMode = 'normal';
 
 // ====== 행정구역 경계 오버레이 관련 변수 및 함수 ======
 const DEFAULT_LINE_COLOR = '#333333';
 const DEFAULT_LINE_WEIGHT = 2;
 const DEFAULT_FILL_COLOR = '#ffffff';
 const DEFAULT_FILL_OPACITY = 0.5;
+const DEFAULT_FILL_BLEND_MODE = 'normal';
+const FILL_BLEND_MODE_STYLES = Object.freeze({
+  normal: 'normal',
+  add: 'plus-lighter',
+  multiply: 'multiply',
+  screen: 'screen',
+  overlay: 'overlay',
+  'soft-light': 'soft-light',
+  'hard-light': 'hard-light',
+  difference: 'difference'
+});
 
 // 각 레이어의 상태와 데이터 캐시를 관리하는 객체입니다.
 const lineLayers = {
@@ -622,6 +666,125 @@ function ringToPath(ring) {
   return ring.map(coordsToLatLngs);
 }
 
+function resolveFillBlendStyle(mode) {
+  const style = FILL_BLEND_MODE_STYLES[mode] || FILL_BLEND_MODE_STYLES[DEFAULT_FILL_BLEND_MODE];
+  if (style === 'plus-lighter' && window.CSS && typeof window.CSS.supports === 'function') {
+    return window.CSS.supports('mix-blend-mode', 'plus-lighter') ? style : 'screen';
+  }
+  return style;
+}
+
+function drawFillPolygonPaths(context, polygonPaths, projection) {
+  context.beginPath();
+  let hasPoints = false;
+  polygonPaths.forEach(ring => {
+    ring.forEach((coord, index) => {
+      const point = projection.fromCoordToOffset(coord);
+      if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
+      if (index === 0) context.moveTo(point.x, point.y);
+      else context.lineTo(point.x, point.y);
+      hasPoints = true;
+    });
+    context.closePath();
+  });
+  if (hasPoints) context.fill('evenodd');
+}
+
+function drawVisibleFillCanvas(context, projection) {
+  Object.keys(lineLayers).forEach(kind => {
+    const info = lineLayers[kind];
+    if (!info.fillLoaded) return;
+    context.save();
+    context.fillStyle = info.fillColor || DEFAULT_FILL_COLOR;
+    context.globalAlpha = Number.isFinite(info.fillOpacity) ? info.fillOpacity : DEFAULT_FILL_OPACITY;
+    info.fillItems.forEach(item => {
+      const visible = kind === 'sido' ? info.fillVisible : item.visible;
+      if (!visible) return;
+      item.canvasPolygons.forEach(polygonPaths => {
+        drawFillPolygonPaths(context, polygonPaths, projection);
+      });
+    });
+    context.restore();
+  });
+}
+
+function FillCanvasOverlay(options = {}) {
+  this._canvas = document.createElement('canvas');
+  this._canvas.className = 'fill-blend-canvas';
+  this._canvas.setAttribute('aria-hidden', 'true');
+  this._blendMode = options.blendMode || DEFAULT_FILL_BLEND_MODE;
+  this.setMap(options.map || null);
+}
+
+FillCanvasOverlay.prototype = new naver.maps.OverlayView();
+FillCanvasOverlay.prototype.constructor = FillCanvasOverlay;
+
+FillCanvasOverlay.prototype.onAdd = function() {
+  this.getPanes().overlayLayer.appendChild(this._canvas);
+  this.setBlendMode(this._blendMode);
+};
+
+FillCanvasOverlay.prototype.draw = function() {
+  if (!this.getMap() || !this._canvas.isConnected) return;
+  const mapElement = document.getElementById('map');
+  if (!mapElement) return;
+  const width = mapElement.clientWidth;
+  const height = mapElement.clientHeight;
+  if (!width || !height) return;
+
+  const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+  const canvasWidth = Math.round(width * pixelRatio);
+  const canvasHeight = Math.round(height * pixelRatio);
+  if (this._canvas.width !== canvasWidth || this._canvas.height !== canvasHeight) {
+    this._canvas.width = canvasWidth;
+    this._canvas.height = canvasHeight;
+    this._canvas.style.width = width + 'px';
+    this._canvas.style.height = height + 'px';
+  }
+
+  const context = this._canvas.getContext('2d');
+  context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  context.clearRect(0, 0, width, height);
+  context.globalCompositeOperation = 'source-over';
+  drawVisibleFillCanvas(context, this.getProjection());
+};
+
+FillCanvasOverlay.prototype.onRemove = function() {
+  this._canvas.remove();
+};
+
+FillCanvasOverlay.prototype.setBlendMode = function(mode) {
+  this._blendMode = FILL_BLEND_MODE_STYLES[mode] ? mode : DEFAULT_FILL_BLEND_MODE;
+  this._canvas.dataset.blendMode = this._blendMode;
+  this._canvas.style.mixBlendMode = resolveFillBlendStyle(this._blendMode);
+};
+
+FillCanvasOverlay.prototype.requestDraw = function() {
+  this.draw();
+};
+
+function ensureFillCanvasOverlay() {
+  if (!fillCanvasOverlay) {
+    fillCanvasOverlay = new FillCanvasOverlay({ map, blendMode: currentFillBlendMode });
+    return fillCanvasOverlay;
+  }
+  if (fillCanvasOverlay.getMap() !== map) {
+    fillCanvasOverlay.setMap(map);
+  }
+  fillCanvasOverlay.setBlendMode(currentFillBlendMode);
+  return fillCanvasOverlay;
+}
+
+function requestFillCanvasRedraw() {
+  fillCanvasOverlay?.requestDraw();
+}
+
+function setFillBlendMode(mode) {
+  currentFillBlendMode = FILL_BLEND_MODE_STYLES[mode] ? mode : DEFAULT_FILL_BLEND_MODE;
+  ensureFillCanvasOverlay().setBlendMode(currentFillBlendMode);
+  requestFillCanvasRedraw();
+}
+
 // Polyline 생성 유틸
 function makePolyline(path, style) {
   return new naver.maps.Polyline({
@@ -680,15 +843,17 @@ function updateFillColor(polygon, color) {
   }
 }
 
-function setFillLayerColor(kind, color) {
+function setFillLayerColor(kind, color, shouldRedraw = true) {
   const info = lineLayers[kind];
   if (!info) return;
   info.fillColor = color || DEFAULT_FILL_COLOR;
   info.fillOverlays.forEach(polygon => updateFillColor(polygon, info.fillColor));
+  if (shouldRedraw) requestFillCanvasRedraw();
 }
 
 function setAllFillColors(color) {
-  Object.keys(lineLayers).forEach(kind => setFillLayerColor(kind, color));
+  Object.keys(lineLayers).forEach(kind => setFillLayerColor(kind, color, false));
+  requestFillCanvasRedraw();
 }
 
 function updateFillOpacity(polygon, opacity) {
@@ -709,16 +874,18 @@ function updateFillOpacity(polygon, opacity) {
   }
 }
 
-function setFillLayerOpacity(kind, opacity) {
+function setFillLayerOpacity(kind, opacity, shouldRedraw = true) {
   const info = lineLayers[kind];
   if (!info) return;
   const nextOpacity = Math.max(0, Math.min(1, Number(opacity)));
   info.fillOpacity = Number.isFinite(nextOpacity) ? nextOpacity : DEFAULT_FILL_OPACITY;
   info.fillOverlays.forEach(polygon => updateFillOpacity(polygon, info.fillOpacity));
+  if (shouldRedraw) requestFillCanvasRedraw();
 }
 
 function setAllFillOpacities(opacity) {
-  Object.keys(lineLayers).forEach(kind => setFillLayerOpacity(kind, opacity));
+  Object.keys(lineLayers).forEach(kind => setFillLayerOpacity(kind, opacity, false));
+  requestFillCanvasRedraw();
 }
 
 function updatePolylineWeight(polyline, weight) {
@@ -837,17 +1004,22 @@ async function loadFillGeoJSONOnce(kind) {
   getGeoFeatures(geo).forEach((f, index) => {
     if (!f || !f.geometry) return;
     const featureOverlays = [];
+    const canvasPolygons = [];
     const g = f.geometry;
     if (g.type === 'Polygon') {
       addFillPolygonsFromPolygon(g.coordinates, style, featureOverlays);
+      canvasPolygons.push(g.coordinates.map(ringToPath));
     } else if (g.type === 'MultiPolygon') {
       addFillPolygonsFromMultiPolygon(g.coordinates, style, featureOverlays);
+      g.coordinates.forEach(polygonCoords => {
+        canvasPolygons.push(polygonCoords.map(ringToPath));
+      });
     }
-    if (!featureOverlays.length) return;
+    if (!canvasPolygons.length) return;
     const properties = f.properties || {};
     const name = properties.name || properties.SIG_KOR_NM || properties.CTP_KOR_NM || ('지역 ' + (index + 1));
     const id = String(properties.code || properties.SIG_CD || properties.CTPRVN_CD || (kind + '_' + index));
-    info.fillItems.push({ id, name, overlays: featureOverlays, visible: false });
+    info.fillItems.push({ id, name, overlays: featureOverlays, canvasPolygons, visible: false });
     info.fillOverlays.push(...featureOverlays);
   });
   info.fillLoaded = true;
@@ -862,20 +1034,16 @@ function applyVisibility(kind) {
 function applyFillVisibility(kind) {
   const info = lineLayers[kind];
   if (!info) return;
-  if (kind === 'sido') {
-    info.fillOverlays.forEach(polygon => polygon.setMap(info.fillVisible ? map : null));
-    return;
-  }
-  info.fillItems.forEach(item => {
-    item.overlays.forEach(polygon => polygon.setMap(item.visible ? map : null));
-  });
+  info.fillOverlays.forEach(polygon => polygon.setMap(null));
+  requestFillCanvasRedraw();
 }
 
 function applyFillFeatureVisibility(kind, itemIndex) {
   const info = lineLayers[kind];
   const item = info?.fillItems[itemIndex];
   if (!item) return;
-  item.overlays.forEach(polygon => polygon.setMap(item.visible ? map : null));
+  item.overlays.forEach(polygon => polygon.setMap(null));
+  requestFillCanvasRedraw();
 }
 
 function setAllFillFeatureVisibility(kind, visible) {
@@ -893,14 +1061,10 @@ function restoreAllOverlaysOnNewMap() {
     if (lineLayers[k].visible) {
       lineLayers[k].overlays.forEach(pl => pl.setMap(map));
     }
-    if (k === 'sido' && lineLayers[k].fillVisible) {
-      lineLayers[k].fillOverlays.forEach(polygon => polygon.setMap(map));
-    } else if (k.startsWith('sigungu_')) {
-      lineLayers[k].fillItems.forEach(item => {
-        if (item.visible) item.overlays.forEach(polygon => polygon.setMap(map));
-      });
-    }
+    lineLayers[k].fillOverlays.forEach(polygon => polygon.setMap(null));
   });
+  ensureFillCanvasOverlay();
+  requestFillCanvasRedraw();
   if (addressMarker && searchedLatLng && addressMarkerVisible) {
     addressMarker.setMap(map);
     addressMarker.setPosition(searchedLatLng);
@@ -1241,6 +1405,16 @@ function bindFillColorHandlers() {
   });
 }
 
+function bindFillBlendModeHandlers() {
+  const select = document.getElementById('FILL_BLEND_MODE');
+  if (!select) return;
+  select.value = currentFillBlendMode;
+  select.addEventListener('click', e => e.stopPropagation());
+  select.addEventListener('change', e => {
+    setFillBlendMode(e.target.value);
+  });
+}
+
 let activeFillRegionKind = null;
 
 function closeControlPanels(exceptPanelId = null) {
@@ -1521,6 +1695,7 @@ function bindWeightHandlers() {
 
 function initMap(){
   createMap({ mapTypeId: naver.maps.MapTypeId.NORMAL, customStyleId: null });
+  ensureFillCanvasOverlay();
 
   document.getElementById('WHITE').addEventListener('click', () => switchToTheme(STYLE_WHITE, 'WHITE'));
   document.getElementById('DARK').addEventListener('click', () => switchToTheme(STYLE_DARK, 'DARK'));
@@ -1538,9 +1713,11 @@ function initMap(){
   bindFillRegionDropdownHandlers();
   bindColorHandlers();
   bindFillColorHandlers();
+  bindFillBlendModeHandlers();
   bindFillOpacityHandlers();
   bindWeightHandlers();
   document.addEventListener('click', () => closeControlPanels());
+  window.addEventListener('resize', requestFillCanvasRedraw);
   bindAddressSearch();
   bindAddressMarkerToggle();
 }
@@ -1558,6 +1735,7 @@ function recreate(options = {}, doneActiveId = null){
   const zoom = map.getZoom();
   const wrap = document.getElementById('mapWrap');
   const old = document.getElementById('map');
+  fillCanvasOverlay?.setMap(null);
   const fresh = document.createElement('div');
   fresh.id = 'map'; fresh.style.width = '100%'; fresh.style.height = '100%';
   wrap.replaceChild(fresh, old);
