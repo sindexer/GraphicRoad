@@ -37,7 +37,7 @@
 <style>
 html, body {height:100%; margin:0}
 #mapWrap {position:relative; width:100%; height:100%}
-#map {width:100%; height:100%}
+#map {width:100%; height:100%; position:relative; isolation:isolate}
 
 /* ============ Wanted Design System — control chrome ============ */
 .top-navigation{
@@ -302,13 +302,18 @@ html, body {height:100%; margin:0}
   font-weight:600;
   cursor:pointer;
 }
-.fill-blend-canvas{
+.fill-blend-canvas,
+.line-overlay-canvas{
   position:absolute;
   left:0;
   top:0;
-  z-index:900;
   display:block;
   pointer-events:none;
+}
+.fill-blend-canvas{ z-index:900; }
+.line-overlay-canvas{
+  z-index:901;
+  mix-blend-mode:normal;
 }
 
 /* base toggle button — Wanted pill/chip look */
@@ -634,15 +639,15 @@ body.ui-hidden #TOGGLE_UI_VISIBILITY{
 </div>
 <label class="control-btn"><input id="TOGGLE_FILL_SIDO" type="checkbox"> 시도</label>
 <button id="FILL_DROPDOWN_SIGUNGU_11" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_11" data-fill-label="서울" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>서울</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
+<button id="FILL_DROPDOWN_SIGUNGU_31" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_31" data-fill-label="경기" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>경기</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
+<button id="FILL_DROPDOWN_SIGUNGU_23" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_23" data-fill-label="인천" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>인천</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
+<button id="FILL_DROPDOWN_SIGUNGU_29" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_29" data-fill-label="세종" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>세종</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
+<button id="FILL_DROPDOWN_SIGUNGU_25" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_25" data-fill-label="대전" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>대전</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
+<button id="FILL_DROPDOWN_SIGUNGU_32" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_32" data-fill-label="강원" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>강원</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
 <button id="FILL_DROPDOWN_SIGUNGU_21" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_21" data-fill-label="부산" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>부산</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
 <button id="FILL_DROPDOWN_SIGUNGU_22" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_22" data-fill-label="대구" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>대구</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
-<button id="FILL_DROPDOWN_SIGUNGU_23" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_23" data-fill-label="인천" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>인천</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
 <button id="FILL_DROPDOWN_SIGUNGU_24" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_24" data-fill-label="광주" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>광주</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
-<button id="FILL_DROPDOWN_SIGUNGU_25" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_25" data-fill-label="대전" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>대전</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
 <button id="FILL_DROPDOWN_SIGUNGU_26" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_26" data-fill-label="울산" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>울산</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
-<button id="FILL_DROPDOWN_SIGUNGU_29" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_29" data-fill-label="세종" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>세종</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
-<button id="FILL_DROPDOWN_SIGUNGU_31" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_31" data-fill-label="경기" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>경기</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
-<button id="FILL_DROPDOWN_SIGUNGU_32" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_32" data-fill-label="강원" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>강원</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
 <button id="FILL_DROPDOWN_SIGUNGU_33" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_33" data-fill-label="충북" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>충북</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
 <button id="FILL_DROPDOWN_SIGUNGU_34" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_34" data-fill-label="충남" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>충남</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
 <button id="FILL_DROPDOWN_SIGUNGU_35" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_35" data-fill-label="전북" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>전북</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
@@ -665,15 +670,15 @@ body.ui-hidden #TOGGLE_UI_VISIBILITY{
 <div class="fill-region-panel-header">시군구 라인</div>
 <div class="fill-region-options">
 <label class="fill-region-option"><input id="TOGGLE_SIGUNGU_11" type="checkbox"> <span>서울</span></label>
+<label class="fill-region-option"><input id="TOGGLE_SIGUNGU_31" type="checkbox"> <span>경기</span></label>
+<label class="fill-region-option"><input id="TOGGLE_SIGUNGU_23" type="checkbox"> <span>인천</span></label>
+<label class="fill-region-option"><input id="TOGGLE_SIGUNGU_29" type="checkbox"> <span>세종</span></label>
+<label class="fill-region-option"><input id="TOGGLE_SIGUNGU_25" type="checkbox"> <span>대전</span></label>
+<label class="fill-region-option"><input id="TOGGLE_SIGUNGU_32" type="checkbox"> <span>강원</span></label>
 <label class="fill-region-option"><input id="TOGGLE_SIGUNGU_21" type="checkbox"> <span>부산</span></label>
 <label class="fill-region-option"><input id="TOGGLE_SIGUNGU_22" type="checkbox"> <span>대구</span></label>
-<label class="fill-region-option"><input id="TOGGLE_SIGUNGU_23" type="checkbox"> <span>인천</span></label>
 <label class="fill-region-option"><input id="TOGGLE_SIGUNGU_24" type="checkbox"> <span>광주</span></label>
-<label class="fill-region-option"><input id="TOGGLE_SIGUNGU_25" type="checkbox"> <span>대전</span></label>
 <label class="fill-region-option"><input id="TOGGLE_SIGUNGU_26" type="checkbox"> <span>울산</span></label>
-<label class="fill-region-option"><input id="TOGGLE_SIGUNGU_29" type="checkbox"> <span>세종</span></label>
-<label class="fill-region-option"><input id="TOGGLE_SIGUNGU_31" type="checkbox"> <span>경기</span></label>
-<label class="fill-region-option"><input id="TOGGLE_SIGUNGU_32" type="checkbox"> <span>강원</span></label>
 <label class="fill-region-option"><input id="TOGGLE_SIGUNGU_33" type="checkbox"> <span>충북</span></label>
 <label class="fill-region-option"><input id="TOGGLE_SIGUNGU_34" type="checkbox"> <span>충남</span></label>
 <label class="fill-region-option"><input id="TOGGLE_SIGUNGU_35" type="checkbox"> <span>전북</span></label>
@@ -774,6 +779,7 @@ const lineLayers = {
 Object.values(lineLayers).forEach(info => {
   info.color = DEFAULT_LINE_COLOR;
   info.weight = DEFAULT_LINE_WEIGHT;
+  info.canvasLinePaths = [];
   info.fillOverlays = [];
   info.fillVisible = false;
   info.fillLoaded = false;
@@ -856,10 +862,58 @@ function drawVisibleFillCanvas(context, projection) {
   });
 }
 
+function drawLinePath(context, path, projection) {
+  context.beginPath();
+  let hasPoints = false;
+  path.forEach(coord => {
+    const point = projection.fromCoordToOffset(coord);
+    if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
+    if (!hasPoints) context.moveTo(point.x, point.y);
+    else context.lineTo(point.x, point.y);
+    hasPoints = true;
+  });
+  if (hasPoints) context.stroke();
+}
+
+function drawVisibleLineCanvas(context, projection) {
+  Object.keys(lineLayers).forEach(kind => {
+    const info = lineLayers[kind];
+    if (!info.loaded || !info.visible || !info.canvasLinePaths.length) return;
+    const baseStyle = kind === 'sido' ? STYLE_SIDO : STYLE_SIGUNGU;
+    context.save();
+    context.strokeStyle = info.color || DEFAULT_LINE_COLOR;
+    context.lineWidth = info.weight || DEFAULT_LINE_WEIGHT;
+    context.globalAlpha = baseStyle.strokeOpacity;
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+    info.canvasLinePaths.forEach(path => drawLinePath(context, path, projection));
+    context.restore();
+  });
+}
+
+function prepareBoundaryCanvas(canvas, width, height, pixelRatio) {
+  const canvasWidth = Math.round(width * pixelRatio);
+  const canvasHeight = Math.round(height * pixelRatio);
+  if (canvas.width !== canvasWidth || canvas.height !== canvasHeight) {
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+  }
+  const context = canvas.getContext('2d');
+  context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  context.clearRect(0, 0, width, height);
+  context.globalCompositeOperation = 'source-over';
+  return context;
+}
+
 function FillCanvasOverlay(options = {}) {
   this._canvas = document.createElement('canvas');
   this._canvas.className = 'fill-blend-canvas';
   this._canvas.setAttribute('aria-hidden', 'true');
+  this._lineCanvas = document.createElement('canvas');
+  this._lineCanvas.className = 'line-overlay-canvas';
+  this._lineCanvas.setAttribute('aria-hidden', 'true');
   this._blendMode = options.blendMode || DEFAULT_FILL_BLEND_MODE;
   this.setMap(options.map || null);
 }
@@ -868,12 +922,14 @@ FillCanvasOverlay.prototype = new naver.maps.OverlayView();
 FillCanvasOverlay.prototype.constructor = FillCanvasOverlay;
 
 FillCanvasOverlay.prototype.onAdd = function() {
-  this.getPanes().overlayLayer.appendChild(this._canvas);
+  const mapElement = document.getElementById('map');
+  if (!mapElement) return;
+  mapElement.append(this._canvas, this._lineCanvas);
   this.setBlendMode(this._blendMode);
 };
 
 FillCanvasOverlay.prototype.draw = function() {
-  if (!this.getMap() || !this._canvas.isConnected) return;
+  if (!this.getMap() || !this._canvas.isConnected || !this._lineCanvas.isConnected) return;
   const mapElement = document.getElementById('map');
   if (!mapElement) return;
   const width = mapElement.clientWidth;
@@ -881,24 +937,16 @@ FillCanvasOverlay.prototype.draw = function() {
   if (!width || !height) return;
 
   const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
-  const canvasWidth = Math.round(width * pixelRatio);
-  const canvasHeight = Math.round(height * pixelRatio);
-  if (this._canvas.width !== canvasWidth || this._canvas.height !== canvasHeight) {
-    this._canvas.width = canvasWidth;
-    this._canvas.height = canvasHeight;
-    this._canvas.style.width = width + 'px';
-    this._canvas.style.height = height + 'px';
-  }
-
-  const context = this._canvas.getContext('2d');
-  context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-  context.clearRect(0, 0, width, height);
-  context.globalCompositeOperation = 'source-over';
-  drawVisibleFillCanvas(context, this.getProjection());
+  const projection = this.getProjection();
+  const fillContext = prepareBoundaryCanvas(this._canvas, width, height, pixelRatio);
+  const lineContext = prepareBoundaryCanvas(this._lineCanvas, width, height, pixelRatio);
+  drawVisibleFillCanvas(fillContext, projection);
+  drawVisibleLineCanvas(lineContext, projection);
 };
 
 FillCanvasOverlay.prototype.onRemove = function() {
   this._canvas.remove();
+  this._lineCanvas.remove();
 };
 
 FillCanvasOverlay.prototype.setBlendMode = function(mode) {
@@ -970,15 +1018,17 @@ function updatePolylineColor(polyline, color) {
   }
 }
 
-function setLayerColor(kind, color) {
+function setLayerColor(kind, color, shouldRedraw = true) {
   const info = lineLayers[kind];
   if (!info) return;
   info.color = color || DEFAULT_LINE_COLOR;
   info.overlays.forEach(polyline => updatePolylineColor(polyline, info.color));
+  if (shouldRedraw) requestFillCanvasRedraw();
 }
 
 function setAllLayerColors(color) {
-  Object.keys(lineLayers).forEach(kind => setLayerColor(kind, color));
+  Object.keys(lineLayers).forEach(kind => setLayerColor(kind, color, false));
+  requestFillCanvasRedraw();
 }
 
 function updateFillColor(polygon, color) {
@@ -1046,30 +1096,33 @@ function updatePolylineWeight(polyline, weight) {
   }
 }
 
-function setLayerWeight(kind, weight) {
+function setLayerWeight(kind, weight, shouldRedraw = true) {
   const info = lineLayers[kind];
   if (!info) return;
   const nextWeight = Number(weight) || DEFAULT_LINE_WEIGHT;
   info.weight = nextWeight;
   info.overlays.forEach(polyline => updatePolylineWeight(polyline, nextWeight));
+  if (shouldRedraw) requestFillCanvasRedraw();
 }
 
 function setAllLayerWeights(weight) {
-  Object.keys(lineLayers).forEach(kind => setLayerWeight(kind, weight));
+  Object.keys(lineLayers).forEach(kind => setLayerWeight(kind, weight, false));
+  requestFillCanvasRedraw();
 }
 
 // GeoJSON Polygon 구조에서 Polyline 생성하여 버킷에 추가
-function addPolylinesFromPolygon(polygonCoords, style, bucket) {
+function addPolylinesFromPolygon(polygonCoords, style, bucket, canvasPathBucket = null) {
   polygonCoords.forEach(ring => {
     const path = ringToPath(ring);
     const pl = makePolyline(path, style);
     bucket.push(pl);
+    canvasPathBucket?.push(path);
   });
 }
 
 // GeoJSON MultiPolygon 구조에서 Polyline 생성하여 버킷에 추가
-function addPolylinesFromMultiPolygon(multiCoords, style, bucket) {
-  multiCoords.forEach(poly => addPolylinesFromPolygon(poly, style, bucket));
+function addPolylinesFromMultiPolygon(multiCoords, style, bucket, canvasPathBucket = null) {
+  multiCoords.forEach(poly => addPolylinesFromPolygon(poly, style, bucket, canvasPathBucket));
 }
 
 function addFillPolygonsFromPolygon(polygonCoords, style, bucket) {
@@ -1132,12 +1185,13 @@ async function loadGeoJSONOnce(kind) {
     if (!f || !f.geometry) return;
     const g = f.geometry;
     if (g.type === 'Polygon') {
-      addPolylinesFromPolygon(g.coordinates, style, bucket);
+      addPolylinesFromPolygon(g.coordinates, style, bucket, info.canvasLinePaths);
     } else if (g.type === 'MultiPolygon') {
-      addPolylinesFromMultiPolygon(g.coordinates, style, bucket);
+      addPolylinesFromMultiPolygon(g.coordinates, style, bucket, info.canvasLinePaths);
     }
   });
   info.loaded = true;
+  requestFillCanvasRedraw();
 }
 
 async function loadFillGeoJSONOnce(kind) {
@@ -1175,8 +1229,9 @@ async function loadFillGeoJSONOnce(kind) {
 
 // 현재 visible 상태에 따라 지도에 오버레이를 적용/제거
 function applyVisibility(kind) {
-  const { overlays, visible } = lineLayers[kind];
-  overlays.forEach(pl => pl.setMap(visible ? map : null));
+  const { overlays } = lineLayers[kind];
+  overlays.forEach(pl => pl.setMap(null));
+  requestFillCanvasRedraw();
 }
 
 function applyFillVisibility(kind) {
@@ -1206,9 +1261,7 @@ function setAllFillFeatureVisibility(kind, visible) {
 // 새 map 생성 후 기존 오버레이를 복원하는 함수
 function restoreAllOverlaysOnNewMap() {
   Object.keys(lineLayers).forEach(k => {
-    if (lineLayers[k].visible) {
-      lineLayers[k].overlays.forEach(pl => pl.setMap(map));
-    }
+    lineLayers[k].overlays.forEach(pl => pl.setMap(null));
     lineLayers[k].fillOverlays.forEach(polygon => polygon.setMap(null));
   });
   ensureFillCanvasOverlay();
