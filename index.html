@@ -179,8 +179,9 @@ html, body {height:100%; margin:0}
 }
 /* group containing the 시도 및 시군구 토글 */
 .secondary-controls{
+  --secondary-control-gap:6px;
   display:flex;
-  gap:6px;
+  gap:var(--secondary-control-gap);
   flex-wrap:nowrap;
   overflow-x:auto;
   max-width:calc(100vw - 32px);
@@ -188,11 +189,24 @@ html, body {height:100%; margin:0}
   font-size:0.6em;
   margin-top:10px;
 }
+.boundary-controls-row{
+  gap:0;
+}
+.boundary-control-group{
+  display:flex;
+  align-items:center;
+  flex:0 0 auto;
+  gap:var(--secondary-control-gap);
+}
+.boundary-group-spacer{
+  width:calc(var(--secondary-control-gap) * 8);
+  flex:0 0 calc(var(--secondary-control-gap) * 8);
+}
 .secondary-controls .control-btn{
   font-size:inherit;
 }
 .fill-controls{
-  margin-top:6px;
+  margin-top:0;
 }
 
 /* base toggle button — Wanted pill/chip look */
@@ -262,7 +276,8 @@ html, body {height:100%; margin:0}
 }
 .line-weight-panel,
 .fill-opacity-panel,
-.fill-region-panel{
+.fill-region-panel,
+.line-region-panel{
   position:absolute;
   z-index:1200;
   display:none;
@@ -300,23 +315,32 @@ html, body {height:100%; margin:0}
   font-weight:600;
 }
 
-.fill-region-trigger{
+.fill-region-trigger,
+.line-region-trigger{
   border:1px solid var(--line-normal-normal, rgba(112,115,124,0.22));
 }
-.fill-region-trigger .fill-region-chevron{
+.fill-region-trigger .fill-region-chevron,
+.line-region-trigger .fill-region-chevron{
   color:var(--label-alternative, rgba(55,56,60,0.61));
   font-size:10px;
   transition:transform .12s ease;
 }
-.fill-region-trigger[aria-expanded="true"] .fill-region-chevron{
+.fill-region-trigger[aria-expanded="true"] .fill-region-chevron,
+.line-region-trigger[aria-expanded="true"] .fill-region-chevron{
   transform:rotate(180deg);
 }
 .fill-region-trigger.has-active-fill{
   border-color:var(--primary-normal, rgb(51,102,255));
   color:var(--primary-normal, rgb(51,102,255));
 }
-.fill-region-count:empty{ display:none; }
-.fill-region-count{
+.line-region-trigger.has-active-line{
+  border-color:var(--primary-normal, rgb(51,102,255));
+  color:var(--primary-normal, rgb(51,102,255));
+}
+.fill-region-count:empty,
+.line-region-count:empty{ display:none; }
+.fill-region-count,
+.line-region-count{
   min-width:16px;
   padding:1px 4px;
   border-radius:999px;
@@ -428,33 +452,18 @@ html, body {height:100%; margin:0}
 <input id="VWORLD3D" type="button" value="Vworld3D" class="control-btn" onclick="window.open('https://map.vworld.kr/map/dtkmap.do?mode=MAPW201','_blank','noopener,noreferrer')">
 <input id="SMAP3D" type="button" value="S-map 3D" class="control-btn" onclick="window.open('https://smap.seoul.go.kr/','_blank','noopener,noreferrer')">
 </div>
-<div class="secondary-controls">
+<div class="secondary-controls boundary-controls-row">
+<div class="boundary-control-group line-controls">
 <!-- 추가된 토글: 시도 라인 / 시군구(각 시도별) 라인 -->
 <label class="control-btn line-color-control">라인색 <input id="COLOR_LINES" class="color-swatch" type="color" value="#333333" title="전체 라인 색상" aria-label="전체 라인 색상"></label>
 <div class="control-btn line-weight-control" id="LINE_WEIGHT_CONTROL">
 <button id="TOGGLE_LINE_WEIGHT" type="button" aria-expanded="false" aria-controls="LINE_WEIGHT_PANEL">라인굵기</button>
 </div>
 <label class="control-btn"><input id="TOGGLE_SIDO" type="checkbox"> 시도</label>
-<!-- 시군구를 17개 시·도 단위로 나눈 토글 -->
-<label class="control-btn"><input id="TOGGLE_SIGUNGU_11" type="checkbox"> 서울</label>
-<label class="control-btn"><input id="TOGGLE_SIGUNGU_21" type="checkbox"> 부산</label>
-<label class="control-btn"><input id="TOGGLE_SIGUNGU_22" type="checkbox"> 대구</label>
-<label class="control-btn"><input id="TOGGLE_SIGUNGU_23" type="checkbox"> 인천</label>
-<label class="control-btn"><input id="TOGGLE_SIGUNGU_24" type="checkbox"> 광주</label>
-<label class="control-btn"><input id="TOGGLE_SIGUNGU_25" type="checkbox"> 대전</label>
-<label class="control-btn"><input id="TOGGLE_SIGUNGU_26" type="checkbox"> 울산</label>
-<label class="control-btn"><input id="TOGGLE_SIGUNGU_29" type="checkbox"> 세종</label>
-<label class="control-btn"><input id="TOGGLE_SIGUNGU_31" type="checkbox"> 경기</label>
-<label class="control-btn"><input id="TOGGLE_SIGUNGU_32" type="checkbox"> 강원</label>
-<label class="control-btn"><input id="TOGGLE_SIGUNGU_33" type="checkbox"> 충북</label>
-<label class="control-btn"><input id="TOGGLE_SIGUNGU_34" type="checkbox"> 충남</label>
-<label class="control-btn"><input id="TOGGLE_SIGUNGU_35" type="checkbox"> 전북</label>
-<label class="control-btn"><input id="TOGGLE_SIGUNGU_36" type="checkbox"> 전남</label>
-<label class="control-btn"><input id="TOGGLE_SIGUNGU_37" type="checkbox"> 경북</label>
-<label class="control-btn"><input id="TOGGLE_SIGUNGU_38" type="checkbox"> 경남</label>
-<label class="control-btn"><input id="TOGGLE_SIGUNGU_39" type="checkbox"> 제주</label>
+<button id="LINE_REGION_DROPDOWN" class="control-btn line-region-trigger" type="button" aria-expanded="false" aria-controls="LINE_REGION_PANEL" aria-label="시군구 라인, 0개 선택"><span>시군구</span><span class="line-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
 </div>
-<div class="secondary-controls fill-controls">
+<div class="boundary-group-spacer" aria-hidden="true"></div>
+<div class="boundary-control-group fill-controls">
 <label class="control-btn fill-color-control">채움색 <input id="COLOR_FILLS" class="color-swatch" type="color" value="#ffffff" title="전체 채움 색상" aria-label="전체 채움 색상"></label>
 <div class="control-btn fill-opacity-control" id="FILL_OPACITY_CONTROL">
 <button id="TOGGLE_FILL_OPACITY" type="button" aria-expanded="false" aria-controls="FILL_OPACITY_PANEL">투명도</button>
@@ -478,15 +487,38 @@ html, body {height:100%; margin:0}
 <button id="FILL_DROPDOWN_SIGUNGU_38" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_38" data-fill-label="경남" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>경남</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
 <button id="FILL_DROPDOWN_SIGUNGU_39" class="control-btn fill-region-trigger" type="button" data-fill-kind="sigungu_39" data-fill-label="제주" aria-expanded="false" aria-controls="FILL_REGION_PANEL"><span>제주</span><span class="fill-region-count"></span><span class="fill-region-chevron" aria-hidden="true">▼</span></button>
 </div>
+</div>
 <div class="line-weight-panel" id="LINE_WEIGHT_PANEL">
 <span class="line-weight-value" id="LINE_WEIGHT_VALUE">2</span>
-<input id="LINE_WEIGHT" type="range" min="1" max="10" step="0.5" value="2" aria-label="전체 라인 굵기">
+<input id="LINE_WEIGHT" type="range" min="1" max="5" step="0.1" value="2" aria-label="전체 라인 굵기">
 </div>
 <div class="fill-opacity-panel" id="FILL_OPACITY_PANEL">
 <span class="fill-opacity-value" id="FILL_OPACITY_VALUE">50%</span>
 <input id="FILL_OPACITY" type="range" min="0" max="100" step="1" value="50" aria-label="전체 채움 투명도">
 </div>
 <div class="fill-region-panel" id="FILL_REGION_PANEL" role="group" aria-label="지역별 채움 설정"></div>
+<div class="fill-region-panel line-region-panel" id="LINE_REGION_PANEL" role="group" aria-label="지역별 시군구 라인 설정">
+<div class="fill-region-panel-header">시군구 라인</div>
+<div class="fill-region-options">
+<label class="fill-region-option"><input id="TOGGLE_SIGUNGU_11" type="checkbox"> <span>서울</span></label>
+<label class="fill-region-option"><input id="TOGGLE_SIGUNGU_21" type="checkbox"> <span>부산</span></label>
+<label class="fill-region-option"><input id="TOGGLE_SIGUNGU_22" type="checkbox"> <span>대구</span></label>
+<label class="fill-region-option"><input id="TOGGLE_SIGUNGU_23" type="checkbox"> <span>인천</span></label>
+<label class="fill-region-option"><input id="TOGGLE_SIGUNGU_24" type="checkbox"> <span>광주</span></label>
+<label class="fill-region-option"><input id="TOGGLE_SIGUNGU_25" type="checkbox"> <span>대전</span></label>
+<label class="fill-region-option"><input id="TOGGLE_SIGUNGU_26" type="checkbox"> <span>울산</span></label>
+<label class="fill-region-option"><input id="TOGGLE_SIGUNGU_29" type="checkbox"> <span>세종</span></label>
+<label class="fill-region-option"><input id="TOGGLE_SIGUNGU_31" type="checkbox"> <span>경기</span></label>
+<label class="fill-region-option"><input id="TOGGLE_SIGUNGU_32" type="checkbox"> <span>강원</span></label>
+<label class="fill-region-option"><input id="TOGGLE_SIGUNGU_33" type="checkbox"> <span>충북</span></label>
+<label class="fill-region-option"><input id="TOGGLE_SIGUNGU_34" type="checkbox"> <span>충남</span></label>
+<label class="fill-region-option"><input id="TOGGLE_SIGUNGU_35" type="checkbox"> <span>전북</span></label>
+<label class="fill-region-option"><input id="TOGGLE_SIGUNGU_36" type="checkbox"> <span>전남</span></label>
+<label class="fill-region-option"><input id="TOGGLE_SIGUNGU_37" type="checkbox"> <span>경북</span></label>
+<label class="fill-region-option"><input id="TOGGLE_SIGUNGU_38" type="checkbox"> <span>경남</span></label>
+<label class="fill-region-option"><input id="TOGGLE_SIGUNGU_39" type="checkbox"> <span>제주</span></label>
+</div>
+</div>
 </div>
 </div>
 <script>
@@ -1148,10 +1180,12 @@ function bindToggleHandlers() {
             alert('시군구 경계 로드 실패: ' + key);
             lineLayers[key].visible = false;
             e.target.checked = false;
+            updateLineRegionTrigger();
             return;
           }
         }
         applyVisibility(key);
+        updateLineRegionTrigger();
       });
     }
   });
@@ -1224,6 +1258,13 @@ function closeControlPanels(exceptPanelId = null) {
     opacityButton?.setAttribute('aria-expanded', 'false');
   }
 
+  const lineRegionPanel = document.getElementById('LINE_REGION_PANEL');
+  const lineRegionButton = document.getElementById('LINE_REGION_DROPDOWN');
+  if (lineRegionPanel && lineRegionPanel.id !== exceptPanelId) {
+    lineRegionPanel.classList.remove('is-open');
+    lineRegionButton?.setAttribute('aria-expanded', 'false');
+  }
+
   const regionPanel = document.getElementById('FILL_REGION_PANEL');
   if (regionPanel && regionPanel.id !== exceptPanelId) {
     regionPanel.classList.remove('is-open');
@@ -1242,6 +1283,42 @@ function positionFloatingPanel(panel, anchor) {
   const maxLeft = Math.max(0, window.innerWidth - wrapRect.left - panelWidth - 12);
   panel.style.left = Math.max(0, Math.min(desiredLeft, maxLeft)) + 'px';
   panel.style.top = (anchorRect.bottom - wrapRect.top + 6) + 'px';
+}
+
+function updateLineRegionTrigger() {
+  const trigger = document.getElementById('LINE_REGION_DROPDOWN');
+  const count = trigger?.querySelector('.line-region-count');
+  if (!trigger || !count) return;
+  const selectedCount = Object.keys(lineLayers).filter(key => {
+    return key.startsWith('sigungu_') && lineLayers[key].visible;
+  }).length;
+  count.textContent = selectedCount ? String(selectedCount) : '';
+  trigger.classList.toggle('has-active-line', selectedCount > 0);
+  trigger.setAttribute('aria-label', '시군구 라인, ' + selectedCount + '개 선택');
+}
+
+function bindLineRegionDropdownHandlers() {
+  const button = document.getElementById('LINE_REGION_DROPDOWN');
+  const panel = document.getElementById('LINE_REGION_PANEL');
+  if (!button || !panel) return;
+
+  updateLineRegionTrigger();
+  button.addEventListener('click', e => {
+    e.stopPropagation();
+    const isOpen = !panel.classList.contains('is-open');
+    if (!isOpen) {
+      closeControlPanels();
+      return;
+    }
+    closeControlPanels(panel.id);
+    panel.classList.add('is-open');
+    button.setAttribute('aria-expanded', 'true');
+    positionFloatingPanel(panel, button);
+  });
+  panel.addEventListener('click', e => e.stopPropagation());
+  window.addEventListener('resize', () => {
+    if (panel.classList.contains('is-open')) positionFloatingPanel(panel, button);
+  });
 }
 
 function updateFillRegionTrigger(kind) {
@@ -1456,6 +1533,7 @@ function initMap(){
   document.getElementById('HYBRID').addEventListener('click', () => switchToType(naver.maps.MapTypeId.HYBRID, 'HYBRID'));
 
   bindToggleHandlers();
+  bindLineRegionDropdownHandlers();
   bindFillToggleHandlers();
   bindFillRegionDropdownHandlers();
   bindColorHandlers();
