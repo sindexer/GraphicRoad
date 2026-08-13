@@ -358,6 +358,17 @@ html, body {height:100%; margin:0}
 .fill-region-option:hover{
   background:var(--background-normal-alternative, rgb(248,248,249));
 }
+.fill-region-option-all{
+  position:sticky;
+  z-index:1;
+  top:0;
+  margin-bottom:4px;
+  padding-bottom:8px;
+  border-bottom:1px solid var(--line-normal-normal, rgba(112,115,124,0.22));
+  border-radius:0;
+  background:var(--background-normal-normal, #fff);
+  font-weight:700;
+}
 .fill-region-option input{
   margin:0;
   accent-color:var(--primary-normal, rgb(51,102,255));
@@ -835,6 +846,15 @@ function applyFillFeatureVisibility(kind, itemIndex) {
   item.overlays.forEach(polygon => polygon.setMap(item.visible ? map : null));
 }
 
+function setAllFillFeatureVisibility(kind, visible) {
+  const info = lineLayers[kind];
+  if (!info) return;
+  info.fillItems.forEach(item => {
+    item.visible = visible;
+  });
+  applyFillVisibility(kind);
+}
+
 // 새 map 생성 후 기존 오버레이를 복원하는 함수
 function restoreAllOverlaysOnNewMap() {
   Object.keys(lineLayers).forEach(k => {
@@ -1247,7 +1267,35 @@ function renderFillRegionPanel(kind) {
 
   const options = document.createElement('div');
   options.className = 'fill-region-options';
-  lineLayers[kind].fillItems.forEach((item, itemIndex) => {
+  const fillItems = lineLayers[kind].fillItems;
+
+  const allLabel = document.createElement('label');
+  allLabel.className = 'fill-region-option fill-region-option-all';
+  const allCheckbox = document.createElement('input');
+  allCheckbox.type = 'checkbox';
+  allCheckbox.dataset.fillAll = kind;
+  allCheckbox.setAttribute('aria-label', trigger.dataset.fillLabel + ' 전체 채움');
+  const allName = document.createElement('span');
+  allName.textContent = '전체';
+  allLabel.append(allCheckbox, allName);
+  options.appendChild(allLabel);
+
+  const syncAllCheckbox = () => {
+    const selectedCount = fillItems.filter(item => item.visible).length;
+    allCheckbox.checked = fillItems.length > 0 && selectedCount === fillItems.length;
+    allCheckbox.indeterminate = selectedCount > 0 && selectedCount < fillItems.length;
+  };
+
+  allCheckbox.addEventListener('change', () => {
+    setAllFillFeatureVisibility(kind, allCheckbox.checked);
+    options.querySelectorAll('input[data-fill-index]').forEach(checkbox => {
+      checkbox.checked = allCheckbox.checked;
+    });
+    syncAllCheckbox();
+    updateFillRegionTrigger(kind);
+  });
+
+  fillItems.forEach((item, itemIndex) => {
     const label = document.createElement('label');
     label.className = 'fill-region-option';
 
@@ -1260,6 +1308,7 @@ function renderFillRegionPanel(kind) {
     checkbox.addEventListener('change', () => {
       item.visible = checkbox.checked;
       applyFillFeatureVisibility(kind, itemIndex);
+      syncAllCheckbox();
       updateFillRegionTrigger(kind);
     });
 
@@ -1268,6 +1317,7 @@ function renderFillRegionPanel(kind) {
     label.append(checkbox, name);
     options.appendChild(label);
   });
+  syncAllCheckbox();
   panel.appendChild(options);
 }
 
