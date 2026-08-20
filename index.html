@@ -4,14 +4,14 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <meta name="referrer" content="origin-when-cross-origin" />
-<title>Map_JS</title>
+<title>MAP_JS</title>
 
 <!-- Wanted Design System tokens — inlined so the page is fully self-contained
      (works standalone on GitHub Pages with no external _ds/ folder). -->
 <style>
-@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-jp.min.css");
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css");
 :root{
-  --font-primary:"Pretendard JP",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --font-primary:"Pretendard",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   --font-mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
   --primary-normal:rgb(51,102,255);
   --primary-strong:rgb(44,90,232);
@@ -46,35 +46,97 @@ html, body {height:100%; margin:0}
   top:0;
   right:0;
   left:0;
-  display:flex;
+  display:grid;
+  grid-template-columns:minmax(230px, 1fr) auto minmax(520px, 1fr);
   align-items:center;
-  gap:12px;
+  gap:20px;
   min-height:68px;
   padding:12px 16px;
   box-sizing:border-box;
-  overflow-x:auto;
-  overflow-y:visible;
+  overflow:visible;
   border-bottom:1px solid var(--cool-grey-200);
   background:#fff;
   box-shadow:0 2px 10px rgba(34,43,54,.08);
   font-family:var(--font-primary);
   scrollbar-width:thin;
 }
+.brand-theme-controls{
+  display:flex;
+  min-width:0;
+  align-items:center;
+  justify-self:start;
+  gap:20px;
+  white-space:nowrap;
+}
+.site-logo{
+  color:var(--label-normal);
+  font-family:var(--font-primary);
+  font-size:21px;
+  font-weight:900;
+  letter-spacing:-.035em;
+  line-height:1;
+}
+.theme-control{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  color:var(--label-neutral);
+  font-size:13px;
+  font-weight:800;
+}
+.theme-select{
+  height:42px;
+  min-width:156px;
+  padding:0 34px 0 13px;
+  border:1px solid var(--cool-grey-200);
+  border-radius:var(--radius-sm);
+  background:var(--cool-grey-50);
+  color:var(--label-normal);
+  font-family:var(--font-primary);
+  font-size:13px;
+  font-weight:700;
+  outline:none;
+  cursor:pointer;
+}
+.theme-select:focus{
+  border-color:var(--primary-normal);
+  box-shadow:0 0 0 3px rgba(51,102,255,.14);
+}
+.right-controls{
+  display:flex;
+  min-width:0;
+  align-items:center;
+  justify-self:end;
+  gap:5px;
+  white-space:nowrap;
+}
+.right-controls .control-btn{
+  min-height:38px;
+  padding:8px 9px;
+  border-color:var(--cool-grey-200);
+  background:var(--cool-grey-50);
+  box-shadow:none;
+  font-size:12px;
+  white-space:nowrap;
+}
 .address-search{
   position:relative;
   z-index:1;
   display:flex;
-  flex:0 0 380px;
+  flex:none;
   flex-wrap:nowrap;
   align-items:center;
+  justify-self:center;
   gap:6px;
-  width:380px;
+  width:auto;
   font-family:var(--font-primary);
 }
 .address-search input{
-  flex:1;
+  flex:0 1 420px;
+  width:420px;
   min-width:0;
   height:44px;
+  box-sizing:border-box;
   padding:0 16px;
   border:1px solid var(--line-normal-normal, rgba(112,115,124,0.22));
   border-radius:var(--radius-sm, 12px);
@@ -115,6 +177,12 @@ html, body {height:100%; margin:0}
   background:#e5eaef;
   border-color:#cdd5dd;
 }
+.address-search button:disabled{
+  border-color:var(--cool-grey-200);
+  background:var(--cool-grey-50);
+  color:var(--label-alternative);
+  cursor:not-allowed;
+}
 /* the 핀 숨김/표시 secondary button */
 .address-search #toggleAddressMarker{
   background:var(--background-normal-normal, #fff);
@@ -140,12 +208,12 @@ html, body {height:100%; margin:0}
 
 .search-results,
 .search-history-panel{
-  position:fixed;
+  position:absolute;
   z-index:1200;
-  top:62px;
-  right:16px;
-  width:380px;
-  max-width:calc(100vw - 32px);
+  top:calc(100% + 8px);
+  left:0;
+  width:420px;
+  max-width:calc(100vw - 24px);
   display:none;
   max-height:300px;
   overflow:auto;
@@ -199,36 +267,72 @@ html, body {height:100%; margin:0}
 .address-search .search-history-item:last-child{ border-bottom:0; }
 .address-search .search-history-item:hover{ background:var(--cool-grey-50); }
 .address-search .search-result{
-  display:block;
+  display:flex;
+  align-items:stretch;
   width:100%;
   height:auto;
-  padding:12px 14px;
+  padding:0;
   border:0;
   border-bottom:1px solid var(--line-normal-neutral, rgba(112,115,124,0.16));
   border-radius:0;
   background:var(--background-normal-normal, #fff);
   color:var(--label-normal, rgb(23,23,23));
   box-shadow:none;
-  text-align:left;
   line-height:1.4;
-  cursor:pointer;
   transition:background .1s ease;
 }
 .address-search .search-result:last-child{
   border-bottom:0;
 }
-.address-search .search-result:hover,
 .address-search .search-result.is-selected{
   background:rgba(51,102,255,.08);
 }
-.search-result strong{
+.address-search .search-result-main{
+  display:block;
+  flex:1 1 auto;
+  min-width:0;
+  height:auto;
+  padding:12px 14px;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
+  color:inherit;
+  text-align:left;
+}
+.address-search .search-result-main:hover{
+  border-color:transparent;
+  background:rgba(51,102,255,.06);
+}
+.address-search .search-result-add{
+  align-self:center;
+  height:32px;
+  margin:8px 10px 8px 0;
+  padding:0 11px;
+  border-color:rgba(51,102,255,.34);
+  border-radius:9px;
+  background:rgba(51,102,255,.08);
+  color:var(--primary-strong);
+  font-size:12px;
+  font-weight:800;
+}
+.address-search .search-result-add:hover{
+  border-color:var(--primary-normal);
+  background:rgba(51,102,255,.14);
+}
+.address-search .search-result-add:disabled{
+  border-color:var(--cool-grey-200);
+  background:var(--cool-grey-50);
+  color:var(--label-alternative);
+}
+.search-result-main strong{
   display:block;
   margin-bottom:4px;
   font-size:14px;
   font-weight:600;
   color:var(--label-normal, rgb(23,23,23));
 }
-.search-result span,
+.search-result-main > span,
 .search-empty{
   display:block;
   color:var(--label-alternative, rgba(55,56,60,0.61));
@@ -239,6 +343,35 @@ html, body {height:100%; margin:0}
 .search-empty{
   padding:14px 16px;
   font-family:var(--font-primary);
+}
+.search-map-pin{
+  position:relative;
+  display:block;
+  width:30px;
+  height:38px;
+  filter:drop-shadow(0 3px 4px rgba(23,23,23,.28));
+}
+.search-map-pin::before{
+  position:absolute;
+  top:3px;
+  left:4px;
+  width:22px;
+  height:22px;
+  border:2px solid #fff;
+  border-radius:50% 50% 50% 0;
+  background:var(--pin-color);
+  content:"";
+  transform:rotate(-45deg);
+}
+.search-map-pin::after{
+  position:absolute;
+  top:10px;
+  left:11px;
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  background:#fff;
+  content:"";
 }
 
 .buttons{
@@ -536,24 +669,92 @@ html, body {height:100%; margin:0}
   border-color:var(--primary-strong, rgb(44,90,232));
 }
 body.ui-hidden .top-navigation{
-  right:auto;
-  min-height:0;
-  padding:16px;
+  right:0;
+  left:auto;
+  display:flex;
+  justify-content:flex-end;
+  min-height:68px;
+  padding:12px 16px;
   overflow:visible;
   border:0;
   background:transparent;
   box-shadow:none;
   pointer-events:none;
 }
-body.ui-hidden .primary-controls > :not(#TOGGLE_UI_VISIBILITY),
+body.ui-hidden .brand-theme-controls,
 body.ui-hidden .address-search,
+body.ui-hidden .right-controls > :not(#TOGGLE_UI_VISIBILITY),
 body.ui-hidden .buttons{
   display:none !important;
+}
+body.ui-hidden .right-controls{
+  pointer-events:none;
 }
 body.ui-hidden #TOGGLE_UI_VISIBILITY{
   display:flex;
   pointer-events:auto;
   box-shadow:var(--shadow-popover);
+}
+
+@media (max-width:1750px){
+  .top-navigation{
+    grid-template-columns:auto minmax(0, 1fr);
+    grid-template-rows:44px 44px;
+    gap:8px 16px;
+    min-height:112px;
+  }
+  .brand-theme-controls{ grid-column:1; grid-row:1; }
+  .right-controls{
+    grid-column:2;
+    grid-row:1;
+    max-width:100%;
+    overflow-x:auto;
+    padding-bottom:2px;
+  }
+  .address-search{ grid-column:1 / -1; grid-row:2; }
+  .buttons{ top:122px; }
+}
+
+@media (max-width:900px){
+  .top-navigation{
+    grid-template-columns:minmax(0, 1fr);
+    grid-template-rows:auto auto auto;
+    gap:8px;
+    min-height:168px;
+    padding:10px;
+  }
+  .brand-theme-controls{
+    grid-column:1;
+    grid-row:1;
+    width:100%;
+    justify-content:space-between;
+    gap:10px;
+  }
+  .site-logo{ font-size:19px; }
+  .theme-control{ gap:6px; }
+  .theme-select{ min-width:142px; }
+  .address-search{
+    grid-column:1;
+    grid-row:2;
+    width:100%;
+  }
+  .address-search input{
+    flex:1 1 auto;
+    width:auto;
+  }
+  .search-results,
+  .search-history-panel{
+    width:calc(100vw - 20px);
+  }
+  .right-controls{
+    grid-column:1;
+    grid-row:3;
+    width:100%;
+    justify-self:stretch;
+    justify-content:flex-start;
+    overflow-x:auto;
+  }
+  .buttons{ top:178px; }
 }
 </style>
 
@@ -568,23 +769,20 @@ body.ui-hidden #TOGGLE_UI_VISIBILITY{
 <div id="mapWrap">
 <div id="map"></div>
 <nav id="TOP_NAVIGATION" class="top-navigation" aria-label="지도 도구">
-<div class="primary-controls">
-<!-- 테마 버튼들 (좌측부터 Blue / Blue(NoSB) / Dark / White) -->
-<input id="BLUE" type="button" value="Blue" class="control-btn">
-<input id="BLUENOSB" type="button" value="Blue(NoSB)" class="control-btn">
-<input id="DARK" type="button" value="Dark" class="control-btn">
-<input id="WHITE" type="button" value="White" class="control-btn">
-<!-- 기본 타입들 -->
-<input id="NORMAL" type="button" value="일반지도" class="control-btn control-on">
-<input id="TERRAIN" type="button" value="지형도" class="control-btn">
-<input id="SATELLITE" type="button" value="위성지도" class="control-btn">
-<input id="HYBRID" type="button" value="겹쳐보기" class="control-btn">
-<input id="GOOGLEVECTOR" type="button" value="구글Vector" class="control-btn" onclick="window.open('https://mapstyle.withgoogle.com/','_blank','noopener,noreferrer')">
-<input id="GOOGLEMAP" type="button" value="구글Map" class="control-btn" onclick="window.open('https://www.google.com/maps/@25.2723225,41.6800099,6811525m/data=!3m1!1e3?entry=ttu&amp;g_ep=EgoyMDI2MDgwMi4wIKXMDSoASAFQAw%3D%3D','_blank','noopener,noreferrer')">
-<input id="KAKAOMAP" type="button" value="카카오Map" class="control-btn" onclick="window.open('https://map.kakao.com/','_blank','noopener,noreferrer')">
-<input id="VWORLD3D" type="button" value="Vworld3D" class="control-btn" onclick="window.open('https://map.vworld.kr/map/dtkmap.do?mode=MAPW201','_blank','noopener,noreferrer')">
-<input id="SMAP3D" type="button" value="S-map 3D" class="control-btn" onclick="window.open('https://smap.seoul.go.kr/','_blank','noopener,noreferrer')">
-<button id="TOGGLE_UI_VISIBILITY" type="button" class="control-btn" aria-pressed="false">UI 숨김</button>
+<div class="brand-theme-controls">
+<div class="site-logo" aria-label="MAP JS">MAP_JS</div>
+<label class="theme-control" for="THEME_SELECT"><span>테마</span>
+<select id="THEME_SELECT" class="theme-select" aria-label="지도 테마 선택">
+<option value="NORMAL">일반지도</option>
+<option value="WHITE">Basic</option>
+<option value="BLUENOSB">Blue(Subway X)</option>
+<option value="BLUE">Blue</option>
+<option value="DARK">Dark</option>
+<option value="SATELLITE">위성지도</option>
+<option value="TERRAIN">지형도</option>
+<option value="HYBRID">겹쳐보기</option>
+</select>
+</label>
 </div>
 <form id="addressSearch" class="address-search">
 <input id="addressInput" type="text" placeholder="상호, 키워드, 주소를 입력하세요" autocomplete="off">
@@ -597,6 +795,14 @@ body.ui-hidden #TOGGLE_UI_VISIBILITY{
 </div>
 <div id="searchResults" class="search-results" aria-live="polite"></div>
 </form>
+<div class="right-controls">
+<input id="GOOGLEVECTOR" type="button" value="구글Vector" class="control-btn" onclick="window.open('https://mapstyle.withgoogle.com/','_blank','noopener,noreferrer')">
+<input id="GOOGLEMAP" type="button" value="구글Map" class="control-btn" onclick="window.open('https://www.google.com/maps/@25.2723225,41.6800099,6811525m/data=!3m1!1e3?entry=ttu&amp;g_ep=EgoyMDI2MDgwMi4wIKXMDSoASAFQAw%3D%3D','_blank','noopener,noreferrer')">
+<input id="KAKAOMAP" type="button" value="카카오Map" class="control-btn" onclick="window.open('https://map.kakao.com/','_blank','noopener,noreferrer')">
+<input id="VWORLD3D" type="button" value="Vworld3D" class="control-btn" onclick="window.open('https://map.vworld.kr/map/dtkmap.do?mode=MAPW201','_blank','noopener,noreferrer')">
+<input id="SMAP3D" type="button" value="S-map 3D" class="control-btn" onclick="window.open('https://smap.seoul.go.kr/','_blank','noopener,noreferrer')">
+<button id="TOGGLE_UI_VISIBILITY" type="button" class="control-btn" aria-pressed="false">UI 숨김</button>
+</div>
 </nav>
 <div class="buttons">
 <div class="secondary-controls boundary-controls-row">
@@ -707,9 +913,9 @@ const BASE_OPTIONS = {
 
 let map;
 let recreating = false;
-let addressMarker = null;
-let searchedLatLng = null;
-let addressMarkerVisible = true;
+let searchMarkers = [];
+let searchMarkersVisible = true;
+const usedSearchMarkerColors = new Set();
 let rightClickInfoWindow = null;
 let activeSearchResults = [];
 let searchHistoryQueries = [];
@@ -724,6 +930,10 @@ const DEFAULT_FILL_OPACITY = 0.5;
 const DEFAULT_FILL_BLEND_MODE = 'normal';
 const SEARCH_HISTORY_STORAGE_KEY = 'graphicRoad.searchHistory.v1';
 const MAX_SEARCH_HISTORY = 12;
+const SEARCH_MARKER_COLORS = Object.freeze([
+  '#e53935', '#8e24aa', '#3949ab', '#1e88e5', '#00897b', '#43a047',
+  '#7cb342', '#f9a825', '#fb8c00', '#f4511e', '#6d4c41', '#546e7a'
+]);
 const FILL_BLEND_MODE_STYLES = Object.freeze({
   normal: 'normal',
   add: 'plus-lighter',
@@ -1258,7 +1468,7 @@ function setAllFillFeatureVisibility(kind, visible) {
   applyFillVisibility(kind);
 }
 
-// 새 map 생성 후 기존 오버레이를 복원하는 함수
+// 새 map 생성 후 기존 오버레이와 검색 핀을 복원하는 함수
 function restoreAllOverlaysOnNewMap() {
   Object.keys(lineLayers).forEach(k => {
     lineLayers[k].overlays.forEach(pl => pl.setMap(null));
@@ -1266,32 +1476,63 @@ function restoreAllOverlaysOnNewMap() {
   });
   ensureFillCanvasOverlay();
   requestFillCanvasRedraw();
-  if (addressMarker && searchedLatLng && addressMarkerVisible) {
-    addressMarker.setMap(map);
-    addressMarker.setPosition(searchedLatLng);
-  }
+  searchMarkers.forEach(entry => entry.marker.setMap(searchMarkersVisible ? map : null));
 }
 
-function setAddressMarker(latlng) {
-  searchedLatLng = latlng;
-  addressMarkerVisible = true;
-  updateAddressMarkerToggle();
-  if (!addressMarker) {
-    addressMarker = new naver.maps.Marker({
-      position: latlng,
-      map,
-      zIndex: 2000
-    });
-    return;
+function getSearchMarkerKey(item) {
+  return [Number(item.lat).toFixed(6), Number(item.lng).toFixed(6)].join(',');
+}
+
+function isSearchMarkerAdded(item) {
+  const key = getSearchMarkerKey(item);
+  return searchMarkers.some(entry => entry.key === key);
+}
+
+function getUniqueSearchMarkerColor() {
+  const available = SEARCH_MARKER_COLORS.filter(color => !usedSearchMarkerColors.has(color));
+  let color;
+  if (available.length) {
+    color = available[Math.floor(Math.random() * available.length)];
+  } else {
+    do {
+      color = 'hsl(' + Math.floor(Math.random() * 360) + ' 76% 47%)';
+    } while (usedSearchMarkerColors.has(color));
   }
-  addressMarker.setPosition(latlng);
-  addressMarker.setMap(map);
+  usedSearchMarkerColors.add(color);
+  return color;
+}
+
+function addSearchMarker(item) {
+  const key = getSearchMarkerKey(item);
+  if (searchMarkers.some(entry => entry.key === key)) return false;
+
+  const latlng = new naver.maps.LatLng(item.lat, item.lng);
+  const color = getUniqueSearchMarkerColor();
+  const marker = new naver.maps.Marker({
+    position: latlng,
+    map,
+    zIndex:2000 + searchMarkers.length,
+    title:String(item.title || '검색 위치'),
+    icon:{
+      content:'<span class="search-map-pin" style="--pin-color:' + color + '"></span>',
+      anchor:new naver.maps.Point(15, 38)
+    }
+  });
+
+  searchMarkers.push({ key, marker, color, latlng });
+  searchMarkersVisible = true;
+  searchMarkers.forEach(entry => entry.marker.setMap(map));
+  updateAddressMarkerToggle();
+  return true;
 }
 
 function updateAddressMarkerToggle() {
   const button = document.getElementById('toggleAddressMarker');
   if (!button) return;
-  button.textContent = addressMarkerVisible ? '핀 숨김' : '핀 표시';
+  const count = searchMarkers.length;
+  button.disabled = count === 0;
+  button.textContent = (searchMarkersVisible ? '핀 숨김' : '핀 표시') + ' (' + count + ')';
+  button.setAttribute('aria-label', (searchMarkersVisible ? '검색 핀 모두 숨기기' : '검색 핀 모두 표시하기') + ', 현재 ' + count + '개');
 }
 
 function hideSearchResults() {
@@ -1391,13 +1632,10 @@ function bindAddressMarkerToggle() {
   const button = document.getElementById('toggleAddressMarker');
   button?.addEventListener('click', () => {
     hideSearchResults();
-    if (!addressMarker) {
-      rightClickInfoWindow?.close();
-      return;
-    }
-    addressMarkerVisible = !addressMarkerVisible;
-    addressMarker.setMap(addressMarkerVisible ? map : null);
-    if (!addressMarkerVisible) rightClickInfoWindow?.close();
+    if (!searchMarkers.length) return;
+    searchMarkersVisible = !searchMarkersVisible;
+    searchMarkers.forEach(entry => entry.marker.setMap(searchMarkersVisible ? map : null));
+    if (!searchMarkersVisible) rightClickInfoWindow?.close();
     updateAddressMarkerToggle();
   });
   updateAddressMarkerToggle();
@@ -1472,6 +1710,15 @@ function dedupeSearchResults(items) {
   }).slice(0, 10);
 }
 
+function updateSearchResultAddButtons() {
+  document.querySelectorAll('.search-result-add').forEach(button => {
+    const item = activeSearchResults[Number(button.dataset.addIndex)];
+    const added = item && isSearchMarkerAdded(item);
+    button.disabled = Boolean(added);
+    button.textContent = added ? '추가됨' : '추가';
+  });
+}
+
 function renderSearchResults(results) {
   const list = document.getElementById('searchResults');
   if (!list) return;
@@ -1481,16 +1728,30 @@ function renderSearchResults(results) {
     showSearchStatus('검색 결과가 없습니다. 다른 상호, 키워드, 주소로 검색해보세요.');
     return;
   }
-  list.innerHTML = results.map((item, index) => (
-    '<button class="search-result" type="button" data-index="' + index + '">' +
-    '<strong>' + escapeHtml(item.title || '검색 결과') + '</strong>' +
-    '<span>' + escapeHtml(item.address || item.source || '') + '</span>' +
-    '</button>'
-  )).join('');
+  list.innerHTML = results.map((item, index) => {
+    const added = isSearchMarkerAdded(item);
+    return '<div class="search-result" data-index="' + index + '">' +
+      '<button class="search-result-main" type="button" data-index="' + index + '">' +
+      '<strong>' + escapeHtml(item.title || '검색 결과') + '</strong>' +
+      '<span>' + escapeHtml(item.address || item.source || '') + '</span>' +
+      '</button>' +
+      '<button class="search-result-add" type="button" data-add-index="' + index + '" aria-label="이 위치 핀 추가"' + (added ? ' disabled' : '') + '>' +
+      (added ? '추가됨' : '추가') +
+      '</button>' +
+      '</div>';
+  }).join('');
   list.classList.add('is-open');
-  list.querySelectorAll('.search-result').forEach(button => {
+  list.querySelectorAll('.search-result-main').forEach(button => {
+    button.addEventListener('click', () => selectSearchResult(Number(button.dataset.index)));
+  });
+  list.querySelectorAll('.search-result-add').forEach(button => {
     button.addEventListener('click', () => {
-      selectSearchResult(Number(button.dataset.index));
+      const index = Number(button.dataset.addIndex);
+      const item = activeSearchResults[index];
+      if (!item) return;
+      addSearchMarker(item);
+      selectSearchResult(index);
+      updateSearchResultAddButtons();
     });
   });
 }
@@ -1498,16 +1759,16 @@ function renderSearchResults(results) {
 function selectSearchResult(index) {
   const item = activeSearchResults[index];
   if (!item) return;
-  document.querySelectorAll('.search-result').forEach((button, buttonIndex) => {
-    button.classList.toggle('is-selected', buttonIndex === index);
+  document.querySelectorAll('.search-result').forEach((row, rowIndex) => {
+    row.classList.toggle('is-selected', rowIndex === index);
   });
+  rightClickInfoWindow?.close();
   const latlng = new naver.maps.LatLng(item.lat, item.lng);
-  setAddressMarker(latlng);
-  showRightClickInfo(latlng, '<strong>' + escapeHtml(item.title || '선택 위치') + '</strong><br>' + escapeHtml(item.address || ''));
   map.morph(latlng, 17);
 }
 
 async function moveToAddress(query) {
+  rightClickInfoWindow?.close();
   showSearchStatus('검색 중...');
   const [naverResults, poiResults] = await Promise.all([
     geocodeNaver(query),
@@ -2015,19 +2276,27 @@ function bindUiVisibilityToggle() {
   setUiVisible(true);
 }
 
+function bindThemeSelector(){
+  const select = document.getElementById('THEME_SELECT');
+  if (!select) return;
+  select.addEventListener('change', () => {
+    const selection = select.value;
+    if (selection === 'WHITE') switchToTheme(STYLE_WHITE, selection);
+    else if (selection === 'BLUENOSB') switchToTheme(STYLE_BLUE_NOSB, selection);
+    else if (selection === 'BLUE') switchToTheme(STYLE_BLUE, selection);
+    else if (selection === 'DARK') switchToTheme(STYLE_DARK, selection);
+    else if (selection === 'SATELLITE') switchToType(naver.maps.MapTypeId.SATELLITE, selection);
+    else if (selection === 'TERRAIN') switchToType(naver.maps.MapTypeId.TERRAIN, selection);
+    else if (selection === 'HYBRID') switchToType(naver.maps.MapTypeId.HYBRID, selection);
+    else switchToType(naver.maps.MapTypeId.NORMAL, 'NORMAL');
+  });
+  select.value = 'NORMAL';
+}
+
 function initMap(){
   createMap({ mapTypeId: naver.maps.MapTypeId.NORMAL, customStyleId: null });
   ensureFillCanvasOverlay();
-
-  document.getElementById('WHITE').addEventListener('click', () => switchToTheme(STYLE_WHITE, 'WHITE'));
-  document.getElementById('DARK').addEventListener('click', () => switchToTheme(STYLE_DARK, 'DARK'));
-  document.getElementById('BLUE').addEventListener('click', () => switchToTheme(STYLE_BLUE, 'BLUE'));
-  document.getElementById('BLUENOSB').addEventListener('click', () => switchToTheme(STYLE_BLUE_NOSB, 'BLUENOSB'));
-
-  document.getElementById('NORMAL').addEventListener('click', () => switchToType(naver.maps.MapTypeId.NORMAL, 'NORMAL'));
-  document.getElementById('TERRAIN').addEventListener('click', () => switchToType(naver.maps.MapTypeId.TERRAIN, 'TERRAIN'));
-  document.getElementById('SATELLITE').addEventListener('click', () => switchToType(naver.maps.MapTypeId.SATELLITE, 'SATELLITE'));
-  document.getElementById('HYBRID').addEventListener('click', () => switchToType(naver.maps.MapTypeId.HYBRID, 'HYBRID'));
+  bindThemeSelector();
 
   bindToggleHandlers();
   bindLineRegionDropdownHandlers();
@@ -2077,8 +2346,8 @@ recreate = function(options = {}, doneActiveId = null){
 };
 
 function setActive(id){
-  document.querySelectorAll('.control-btn').forEach(b => b.classList.remove('control-on'));
-  document.getElementById(id).classList.add('control-on');
+  const select = document.getElementById('THEME_SELECT');
+  if (select) select.value = id;
 }
 
 function switchToTheme(styleId, btnId){
