@@ -6,40 +6,40 @@
 <meta name="referrer" content="origin-when-cross-origin" />
 <title>MAP_JS</title>
 
-<!-- Apple-inspired design-system tokens from DESIGN-apple.md.
-     Kept inline so the GitHub Pages build remains fully self-contained. -->
+<!-- Kraken-inspired design-system tokens from DESIGN-kraken.md.
+     Pretendard is used for every site text role by explicit request. -->
 <style>
 @import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css");
 :root{
   color-scheme:light;
-  --font-primary:"SF Pro Text","SF Pro KR","Pretendard",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
-  --font-display:"SF Pro Display","SF Pro KR","Pretendard",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
-  --font-mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
-  --primary-normal:#0066cc;
-  --primary-strong:#0055b3;
-  --primary-focus:#0071e3;
-  --primary-on-dark:#2997ff;
+  --font-primary:"Pretendard",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+  --font-display:var(--font-primary);
+  --font-mono:var(--font-primary);
+  --primary-normal:#7132f5;
+  --primary-strong:#5741d8;
+  --primary-deep:#5b1ecf;
+  --primary-subtle:rgba(133,91,251,.16);
   --static-white:#fff;
-  --label-normal:#1d1d1f;
-  --label-neutral:#333;
-  --label-alternative:#7a7a7a;
-  --line-normal-neutral:#f0f0f0;
-  --line-normal-normal:rgba(0,0,0,.08);
-  --line-normal-strong:#e0e0e0;
+  --label-normal:#101114;
+  --label-neutral:#484b5e;
+  --label-alternative:#9497a9;
+  --line-normal-neutral:rgba(104,107,130,.12);
+  --line-normal-normal:rgba(104,107,130,.24);
+  --line-normal-strong:#dedee5;
   --background-normal-normal:#fff;
-  --background-normal-alternative:#f5f5f7;
-  --surface-pearl:#fafafc;
-  --cool-grey-25:#fafafc;
-  --cool-grey-50:#f5f5f7;
-  --cool-grey-100:#f0f0f0;
-  --cool-grey-200:#e0e0e0;
-  --radius-xs:5px;
+  --background-normal-alternative:rgba(148,151,169,.08);
+  --surface-pearl:#fff;
+  --cool-grey-25:#fff;
+  --cool-grey-50:rgba(148,151,169,.08);
+  --cool-grey-100:rgba(104,107,130,.12);
+  --cool-grey-200:#dedee5;
+  --radius-xs:6px;
   --radius-sm:8px;
-  --radius-md:11px;
-  --radius-lg:18px;
-  --radius-pill:9999px;
-  --shadow-popover:none;
-  --type-tracking-normal:-.01em;
+  --radius-md:12px;
+  --radius-lg:16px;
+  --radius-pill:12px;
+  --shadow-popover:0 4px 24px rgba(0,0,0,.03),0 1px 4px rgba(16,24,40,.04);
+  --type-tracking-normal:0;
 }
 </style>
 
@@ -48,7 +48,7 @@ html, body {height:100%; margin:0}
 #mapWrap {position:relative; width:100%; height:100%}
 #map {width:100%; height:100%; position:relative; isolation:isolate}
 
-/* ============ Apple design system — map control chrome ============ */
+/* ============ Kraken design system — map control chrome ============ */
 .top-navigation{
   position:absolute;
   z-index:1150;
@@ -739,7 +739,7 @@ body.ui-hidden #TOGGLE_UI_VISIBILITY{
 </style>
 
 
-<!-- Component-level adaptation of DESIGN-apple.md for this dense map workspace. -->
+<!-- Component-level adaptation of DESIGN-kraken.md for this dense map workspace. -->
 <style>
 html,body{
   color:var(--label-normal);
@@ -747,97 +747,105 @@ html,body{
   -webkit-font-smoothing:antialiased;
   text-rendering:optimizeLegibility;
 }
-button,input,select{ font-family:var(--font-primary); }
+button,input,select,textarea{ font-family:var(--font-primary); }
 
 .top-navigation{
-  min-height:68px;
-  border-bottom:1px solid var(--line-normal-normal);
-  background:rgba(245,245,247,.82);
-  box-shadow:none;
-  -webkit-backdrop-filter:saturate(180%) blur(20px);
-  backdrop-filter:saturate(180%) blur(20px);
+  grid-template-columns:minmax(480px,1fr) auto minmax(480px,1fr);
+  gap:12px;
+  min-height:48px;
+  padding:6px 12px;
+  border-bottom:1px solid var(--line-normal-strong);
+  background:#fff;
+  box-shadow:0 4px 24px rgba(0,0,0,.03);
 }
+.brand-theme-controls{ gap:12px; }
 .site-logo{
-  color:var(--label-normal);
-  font-family:var(--font-display);
-  font-size:21px;
+  color:var(--primary-normal);
+  font-family:var(--font-primary);
+  font-size:18px;
   font-weight:700;
-  letter-spacing:-.04em;
+  letter-spacing:-.03em;
 }
-.theme-control{ color:var(--label-neutral); font-size:14px; font-weight:400; }
+.theme-control{ color:var(--label-neutral); font-size:12px; font-weight:500; }
 .theme-select{
-  height:44px;
-  min-width:160px;
-  padding:0 36px 0 16px;
+  height:34px;
+  min-width:146px;
+  padding:0 30px 0 12px;
   border:1px solid var(--line-normal-normal);
-  border-radius:var(--radius-pill);
+  border-radius:12px;
   background:#fff;
   color:var(--label-normal);
-  font-size:14px;
-  font-weight:400;
-  letter-spacing:-.01em;
+  font-size:12px;
+  font-weight:500;
+  letter-spacing:0;
 }
-.theme-select:hover{ border-color:var(--line-normal-strong); }
+.theme-select:hover{ border-color:var(--primary-strong); }
 .theme-select:focus,.theme-select:focus-visible{
-  border-color:var(--primary-focus);
-  box-shadow:none;
+  border-color:var(--primary-normal);
+  box-shadow:0 0 0 3px var(--primary-subtle);
 }
 .brand-theme-controls .export-map-button{
-  height:44px;
-  min-width:78px;
-  padding:0 20px;
+  height:34px;
+  min-width:68px;
+  padding:0 13px;
   border:1px solid var(--primary-normal);
-  border-radius:var(--radius-pill);
+  border-radius:12px;
   background:var(--primary-normal);
   color:#fff;
-  font-size:14px;
+  font-size:12px;
   font-weight:600;
-  letter-spacing:-.01em;
+  letter-spacing:0;
 }
 .brand-theme-controls .export-map-button:hover{
-  border-color:var(--primary-normal);
-  background:var(--primary-normal);
+  border-color:var(--primary-deep);
+  background:var(--primary-deep);
 }
 .brand-theme-controls .export-map-button:disabled{
-  border-color:var(--cool-grey-200);
+  border-color:var(--line-normal-strong);
   background:var(--cool-grey-100);
   color:var(--label-alternative);
 }
 
-.address-search input{
-  flex-basis:420px;
+.address-search{ gap:4px; }
+.search-input-shell{
+  position:relative;
+  flex:0 1 420px;
   width:420px;
-  height:44px;
-  padding:0 20px;
+  min-width:0;
+}
+.address-search input{
+  width:100%;
+  height:36px;
+  padding:0 40px 0 14px;
   border:1px solid var(--line-normal-normal);
-  border-radius:var(--radius-pill);
+  border-radius:12px;
   background:#fff;
   box-shadow:none;
   color:var(--label-normal);
-  font-size:17px;
+  font-size:14px;
   font-weight:400;
-  letter-spacing:-.01em;
+  letter-spacing:0;
 }
 .address-search input::placeholder{ color:var(--label-alternative); }
 .address-search input:focus{
-  border-color:var(--primary-focus);
-  box-shadow:none;
+  border-color:var(--primary-normal);
+  box-shadow:0 0 0 3px var(--primary-subtle);
 }
 .address-search button{
-  height:44px;
-  padding:0 18px;
+  height:36px;
+  padding:0 13px;
   border:1px solid var(--line-normal-normal);
-  border-radius:var(--radius-pill);
-  background:var(--surface-pearl);
-  color:var(--label-neutral);
+  border-radius:12px;
+  background:rgba(148,151,169,.08);
+  color:var(--label-normal);
   box-shadow:none;
-  font-size:14px;
-  font-weight:400;
-  letter-spacing:-.01em;
+  font-size:13px;
+  font-weight:500;
+  letter-spacing:0;
 }
 .address-search button:hover{
   border-color:var(--line-normal-strong);
-  background:var(--cool-grey-100);
+  background:rgba(104,107,130,.12);
 }
 .address-search button[type="submit"]{
   border-color:var(--primary-normal);
@@ -846,166 +854,214 @@ button,input,select{ font-family:var(--font-primary); }
   font-weight:600;
 }
 .address-search button[type="submit"]:hover{
-  border-color:var(--primary-normal);
-  background:var(--primary-normal);
+  border-color:var(--primary-deep);
+  background:var(--primary-deep);
 }
 .address-search #toggleAddressMarker{
-  border-color:var(--primary-normal);
+  border-color:var(--primary-strong);
   background:#fff;
-  color:var(--primary-normal);
-  font-weight:400;
+  color:var(--primary-strong);
+  font-weight:500;
 }
 .address-search #toggleAddressMarker:hover{
   border-color:var(--primary-normal);
-  background:rgba(0,102,204,.06);
+  background:var(--primary-subtle);
+  color:var(--primary-normal);
 }
 .address-search #toggleSearchHistory{
-  width:44px;
-  height:44px;
+  position:absolute;
+  z-index:2;
+  top:50%;
+  right:4px;
+  width:28px;
+  height:28px;
   padding:0;
-  border-radius:50%;
-  background:rgba(29,29,31,.08);
+  border:0;
+  border-radius:8px;
+  background:transparent;
+  color:var(--label-neutral);
+  transform:translateY(-50%);
 }
-.search-history-chevron{ color:var(--label-neutral); font-size:10px; }
+.address-search #toggleSearchHistory:hover{
+  border:0;
+  background:var(--primary-subtle);
+  color:var(--primary-normal);
+}
+.address-search #toggleSearchHistory:active{ transform:translateY(-50%) scale(.95); }
+.search-history-chevron{ color:inherit; font-size:10px; }
 
 .search-results,.search-history-panel{
+  top:calc(100% + 6px);
+  width:420px;
+  max-height:280px;
   border:1px solid var(--line-normal-strong);
-  border-radius:var(--radius-lg);
+  border-radius:16px;
   background:#fff;
-  box-shadow:none;
+  box-shadow:var(--shadow-popover);
 }
 .search-history-header{
-  min-height:44px;
+  min-height:36px;
   border-bottom-color:var(--line-normal-neutral);
   color:var(--label-neutral);
-  font-size:13px;
-}
-.search-history-header strong{ font-weight:600; }
-.address-search .search-history-clear{
-  color:var(--primary-normal);
   font-size:12px;
-  font-weight:400;
+}
+.search-history-header strong{ font-weight:700; }
+.address-search .search-history-clear{
+  height:26px;
+  color:var(--primary-normal);
+  font-size:11px;
+  font-weight:500;
 }
 .address-search .search-history-item{
-  min-height:44px;
+  min-height:36px;
+  padding:8px 12px;
   border-bottom-color:var(--line-normal-neutral);
   color:var(--label-normal);
-  font-size:14px;
+  font-size:12px;
   font-weight:400;
 }
 .address-search .search-history-item:hover{ background:var(--background-normal-alternative); }
 .address-search .search-result{ border-bottom-color:var(--line-normal-neutral); }
-.address-search .search-result.is-selected{ background:rgba(0,102,204,.08); }
-.address-search .search-result-main{ padding:12px 16px; }
-.address-search .search-result-main:hover{ background:rgba(0,102,204,.05); }
+.address-search .search-result.is-selected{ background:var(--primary-subtle); }
+.address-search .search-result-main{ padding:9px 12px; }
+.address-search .search-result-main:hover{ background:rgba(133,91,251,.08); }
 .address-search .search-result-add{
-  height:36px;
-  margin:8px 12px 8px 0;
-  padding:0 15px;
+  height:28px;
+  margin:6px 8px 6px 0;
+  padding:0 10px;
   border-color:var(--primary-normal);
-  border-radius:var(--radius-pill);
+  border-radius:10px;
   background:var(--primary-normal);
   color:#fff;
-  font-size:12px;
+  font-size:11px;
   font-weight:600;
 }
 .address-search .search-result-add:hover{
-  border-color:var(--primary-normal);
-  background:var(--primary-normal);
+  border-color:var(--primary-deep);
+  background:var(--primary-deep);
 }
-.search-result-main strong{ font-size:14px; font-weight:600; color:var(--label-normal); }
+.search-result-main strong{ font-size:13px; font-weight:600; color:var(--label-normal); }
 .search-result-main > span,.search-empty{
   color:var(--label-alternative);
-  font-size:13px;
-  font-weight:400;
-}
-.search-map-pin{ filter:none; }
-
-.right-controls .control-btn{
-  min-height:44px;
-  padding:0 12px;
-  border:1px solid var(--line-normal-normal);
-  border-radius:var(--radius-md);
-  background:var(--surface-pearl);
-  color:var(--label-neutral);
-  box-shadow:none;
   font-size:12px;
   font-weight:400;
 }
+
+.right-controls{ gap:4px; }
+.right-controls .control-btn{
+  min-height:34px;
+  padding:0 9px;
+  border:1px solid transparent;
+  border-radius:12px;
+  background:rgba(148,151,169,.08);
+  color:var(--label-normal);
+  box-shadow:none;
+  font-size:11px;
+  font-weight:500;
+}
 .right-controls .control-btn:hover{
-  border-color:var(--line-normal-strong);
-  background:var(--cool-grey-100);
+  border-color:var(--line-normal-normal);
+  background:rgba(104,107,130,.12);
 }
 .right-controls #TOGGLE_UI_VISIBILITY{
-  border-color:var(--label-normal);
-  background:var(--label-normal);
-  color:#fff;
+  border-color:var(--primary-strong);
+  background:#fff;
+  color:var(--primary-strong);
   font-weight:600;
 }
 .right-controls #TOGGLE_UI_VISIBILITY:hover{
-  border-color:var(--label-normal);
-  background:var(--label-normal);
+  border-color:var(--primary-normal);
+  background:var(--primary-subtle);
+  color:var(--primary-normal);
 }
 
 .buttons{
-  top:80px;
+  top:56px;
   max-width:calc(100vw - 32px);
-  padding:8px;
-  border:1px solid var(--line-normal-normal);
-  border-radius:var(--radius-lg);
-  background:rgba(245,245,247,.82);
-  box-shadow:none;
-  -webkit-backdrop-filter:saturate(180%) blur(20px);
-  backdrop-filter:saturate(180%) blur(20px);
+  padding:4px;
+  border:1px solid var(--line-normal-strong);
+  border-radius:12px;
+  background:#fff;
+  box-shadow:0 4px 24px rgba(0,0,0,.03);
 }
 .secondary-controls{
-  max-width:calc(100vw - 50px);
+  --secondary-control-gap:4px;
+  max-width:calc(100vw - 42px);
   padding:0;
-  font-size:12px;
+  font-size:11px;
 }
 .control-btn{
-  min-height:44px;
+  min-height:34px;
   border:1px solid var(--line-normal-normal);
-  border-radius:var(--radius-md);
-  background:var(--surface-pearl);
-  box-shadow:none;
+  border-radius:12px;
+  background:#fff;
+  box-shadow:var(--shadow-popover);
   color:var(--label-neutral);
-  font-size:14px;
-  font-weight:400;
-  letter-spacing:-.01em;
+  font-size:13px;
+  font-weight:500;
+  letter-spacing:0;
   transition:background .12s ease,border-color .12s ease,color .12s ease,transform .12s ease;
 }
 .control-btn:hover{
-  border-color:var(--line-normal-strong);
-  background:var(--background-normal-alternative);
+  border-color:var(--primary-strong);
+  background:var(--primary-subtle);
+  color:var(--primary-normal);
 }
 .control-btn input[type="checkbox"]{ accent-color:var(--primary-normal); }
 .secondary-controls .control-btn{
-  min-height:36px;
-  padding:0 12px;
-  border-radius:var(--radius-md);
-  font-size:12px;
+  min-height:28px;
+  padding:0 8px;
+  border-radius:10px;
+  box-shadow:none;
+  font-size:11px;
 }
+.color-swatch{ width:14px; height:14px; flex-basis:14px; }
 .fill-mode-control select,
 .line-weight-control > button,
-.fill-opacity-control > button{ font-weight:400; }
+.fill-opacity-control > button{ font-weight:500; }
 .line-weight-panel,.fill-opacity-panel,.fill-region-panel,.line-region-panel{
   border:1px solid var(--line-normal-strong);
-  border-radius:var(--radius-lg);
+  border-radius:12px;
   background:#fff;
-  box-shadow:none;
+  box-shadow:var(--shadow-popover);
 }
-.fill-region-panel-header{ color:var(--label-neutral); font-weight:600; }
+.line-weight-panel,.fill-opacity-panel{
+  gap:5px;
+  padding:8px 8px 9px;
+}
+.line-weight-panel input[type="range"],.fill-opacity-panel input[type="range"]{ height:84px; }
+.fill-region-panel{ width:180px; padding:5px; }
+.fill-region-panel-header{
+  padding:4px 6px 5px;
+  color:var(--label-neutral);
+  font-size:11px;
+  font-weight:700;
+}
+.fill-region-options{ max-height:min(260px,calc(100vh - 130px)); }
 .fill-region-option{
-  min-height:36px;
-  border-radius:var(--radius-sm);
+  min-height:26px;
+  padding:2px 6px;
+  border-radius:8px;
   color:var(--label-normal);
-  font-size:13px;
+  font-size:11px;
   font-weight:400;
 }
 .fill-region-option:hover{ background:var(--background-normal-alternative); }
-.fill-region-option-all{ border-bottom-color:var(--line-normal-normal); font-weight:600; }
-.fill-region-count,.line-region-count{ background:var(--primary-normal); color:#fff; }
+.fill-region-option-all{
+  margin-bottom:3px;
+  padding-bottom:5px;
+  border-bottom-color:var(--line-normal-normal);
+  font-weight:700;
+}
+.fill-region-count,.line-region-count{
+  min-width:14px;
+  padding:0 4px;
+  border-radius:6px;
+  background:var(--primary-normal);
+  color:#fff;
+  font-size:9px;
+  line-height:14px;
+}
 .fill-region-trigger.has-active-fill,.line-region-trigger.has-active-line{
   border-color:var(--primary-normal);
   color:var(--primary-normal);
@@ -1016,17 +1072,19 @@ button,input,select{ font-family:var(--font-primary); }
   color:#fff;
 }
 .control-on:hover,.primary-controls .control-btn.control-on:hover{
-  border-color:var(--primary-normal);
-  background:var(--primary-normal);
+  border-color:var(--primary-deep);
+  background:var(--primary-deep);
+  color:#fff;
 }
 
 :is(button,input,select,.control-btn):focus-visible{
-  outline:2px solid var(--primary-focus);
+  outline:2px solid var(--primary-normal);
   outline-offset:2px;
-  box-shadow:none;
+  box-shadow:0 0 0 3px var(--primary-subtle);
 }
 :is(button,input[type="button"],.control-btn):active:not(:disabled){ transform:scale(.95); }
-body.ui-hidden #TOGGLE_UI_VISIBILITY{ box-shadow:none; }
+body.ui-hidden .top-navigation{ min-height:48px; padding:6px 12px; }
+body.ui-hidden #TOGGLE_UI_VISIBILITY{ box-shadow:var(--shadow-popover); }
 </style>
 <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=htcml1d5g3&submodules=gl,geocoder&callback=initMap"></script>
 <!-- topojson-client library for converting TopoJSON to GeoJSON. Even though
@@ -1056,8 +1114,10 @@ body.ui-hidden #TOGGLE_UI_VISIBILITY{ box-shadow:none; }
 <button id="EXPORT_MAP" type="button" class="control-btn export-map-button" title="현재 지도와 표시 중인 오버레이를 PNG로 바로 다운로드합니다" aria-label="현재 지도 PNG로 바로 다운로드">Export</button>
 </div>
 <form id="addressSearch" class="address-search">
+<div class="search-input-shell">
 <input id="addressInput" type="text" placeholder="상호, 키워드, 주소를 입력하세요" autocomplete="off">
 <button id="toggleSearchHistory" type="button" aria-expanded="false" aria-controls="searchHistory" aria-label="과거 검색목록 열기" title="과거 검색목록"><span class="search-history-chevron" aria-hidden="true">▼</span></button>
+</div>
 <button type="submit">검색</button>
 <button id="toggleAddressMarker" type="button">핀 숨김</button>
 <div id="searchHistory" class="search-history-panel" aria-label="과거 검색목록">
@@ -2098,7 +2158,7 @@ function showRightClickInfo(latlng, content) {
     });
   }
   rightClickInfoWindow.setContent(
-    '<div style="padding:12px 14px;border:1px solid #e0e0e0;border-radius:18px;background:#fff;box-shadow:none;font-family:\'SF Pro Text\',-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:13px;font-weight:400;line-height:1.45;color:#1d1d1f;max-width:280px;word-break:keep-all;">' +
+    '<div style="padding:10px 12px;border:1px solid rgba(104,107,130,.24);border-radius:16px;background:#fff;box-shadow:0 4px 24px rgba(0,0,0,.03);font-family:\'Pretendard\',-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;font-size:12px;font-weight:400;line-height:1.45;color:#101114;max-width:280px;word-break:keep-all;">' +
     content +
     '</div>'
   );
