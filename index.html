@@ -389,6 +389,7 @@ body.exporting-map .buttons{
   display:block;
   width:30px;
   height:38px;
+  cursor:context-menu;
   filter:drop-shadow(0 3px 4px rgba(23,23,23,.28));
 }
 .search-map-pin::before{
@@ -1833,6 +1834,23 @@ function getUniqueSearchMarkerColor() {
   return color;
 }
 
+function removeSearchMarker(key) {
+  const index = searchMarkers.findIndex(entry => entry.key === key);
+  if (index === -1) return false;
+
+  const [entry] = searchMarkers.splice(index, 1);
+  entry.marker.setMap(null);
+  if (entry.rightClickListener) {
+    naver.maps.Event.removeListener(entry.rightClickListener);
+  }
+  usedSearchMarkerColors.delete(entry.color);
+  if (!searchMarkers.length) searchMarkersVisible = true;
+  rightClickInfoWindow?.close();
+  updateAddressMarkerToggle();
+  updateSearchResultAddButtons();
+  return true;
+}
+
 function addSearchMarker(item) {
   const key = getSearchMarkerKey(item);
   if (searchMarkers.some(entry => entry.key === key)) return false;
@@ -1843,14 +1861,20 @@ function addSearchMarker(item) {
     position: latlng,
     map,
     zIndex:2000 + searchMarkers.length,
-    title:String(item.title || '검색 위치'),
+    title:String(item.title || '검색 위치') + ' — 우클릭하여 핀 삭제',
     icon:{
       content:'<span class="search-map-pin" style="--pin-color:' + color + '"></span>',
       anchor:new naver.maps.Point(15, 38)
     }
   });
 
-  searchMarkers.push({ key, marker, color, latlng });
+  const entry = { key, marker, color, latlng, rightClickListener:null };
+  entry.rightClickListener = naver.maps.Event.addListener(marker, 'rightclick', (event) => {
+    event?.domEvent?.preventDefault?.();
+    event?.domEvent?.stopPropagation?.();
+    removeSearchMarker(key);
+  });
+  searchMarkers.push(entry);
   searchMarkersVisible = true;
   searchMarkers.forEach(entry => entry.marker.setMap(map));
   updateAddressMarkerToggle();
