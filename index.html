@@ -1087,6 +1087,22 @@ button,input,select,textarea{ font-family:var(--font-primary); }
 body.ui-hidden .top-navigation{ min-height:48px; padding:6px 12px; }
 body.ui-hidden #TOGGLE_UI_VISIBILITY{ box-shadow:var(--shadow-popover); }
 </style>
+<script>
+(() => {
+  const originalGetContext = HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = function(type, options){
+    const isWebGlContext = type === 'webgl' || type === 'webgl2' || type === 'experimental-webgl';
+    if(!isWebGlContext){
+      return Reflect.apply(originalGetContext, this, [type, options]);
+    }
+
+    return Reflect.apply(originalGetContext, this, [type, {
+      ...(options || {}),
+      preserveDrawingBuffer: true
+    }]);
+  };
+})();
+</script>
 <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=htcml1d5g3&submodules=gl,geocoder&callback=initMap"></script>
 <!-- topojson-client library for converting TopoJSON to GeoJSON. Even though
      시군구 데이터를 GeoJSON 형식으로 분할하여 사용하지만, 시도 데이터는 TopoJSON
