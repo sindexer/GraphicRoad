@@ -3007,6 +3007,20 @@ function hasVisibleMapPixels(context, width, height){
   return false;
 }
 
+function getMapPixelSignature(context, width, height){
+  return [
+    [.18, .22],
+    [.50, .22],
+    [.82, .22],
+    [.34, .70],
+    [.68, .70]
+  ].map(([xRatio, yRatio]) => {
+    const x = Math.min(width - 1, Math.floor(width * xRatio));
+    const y = Math.min(height - 1, Math.floor(height * yRatio));
+    return Array.from(context.getImageData(x, y, 1, 1).data).join(',');
+  }).join('|');
+}
+
 function drawMapAttribution(context, width, height, scale){
   const selection = document.getElementById('THEME_SELECT')?.value;
   const darkBackground = selection === 'DARK' || selection === 'BLUE' || selection === 'BLUENOSB';
@@ -3029,6 +3043,8 @@ async function exportVisibleMapDirectly(){
   const originalLabel = button.textContent;
   button.disabled = true;
   button.textContent = '저장 중...';
+  button.dataset.exportStatus = 'running';
+  delete button.dataset.exportSignature;
 
   try {
     closeControlPanels();
@@ -3077,8 +3093,12 @@ async function exportVisibleMapDirectly(){
     document.body.appendChild(link);
     link.click();
     link.remove();
+    button.dataset.exportStatus = 'success';
+    button.dataset.exportTheme = document.getElementById('THEME_SELECT')?.value || 'NORMAL';
+    button.dataset.exportSignature = getMapPixelSignature(context, canvas.width, canvas.height);
     setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
   } catch (error) {
+    button.dataset.exportStatus = 'error';
     console.error('Direct map PNG export failed', error);
     if (error?.message === 'DIRECT_MAP_CAPTURE_UNAVAILABLE') {
       alert('이 브라우저에서는 지도를 바로 저장할 수 없습니다. 다른 최신 브라우저에서 다시 시도해 주세요.');
