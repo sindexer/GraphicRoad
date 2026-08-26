@@ -48,6 +48,55 @@ html, body {height:100%; margin:0}
 #mapWrap {position:relative; width:100%; height:100%}
 #map {width:100%; height:100%; position:relative; isolation:isolate}
 
+body.world-map-notice-open{ overflow:hidden; }
+.world-map-notice{
+  position:fixed;
+  z-index:5000;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-sizing:border-box;
+  padding:16px;
+  overflow:auto;
+  background:rgba(15,23,42,.66);
+  backdrop-filter:blur(3px);
+}
+.world-map-notice[hidden]{ display:none; }
+.world-map-notice-panel{
+  width:min(840px, calc(100vw - 32px), calc(100vh - 104px));
+  min-width:0;
+  overflow:hidden;
+  border:1px solid rgba(255,255,255,.72);
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 24px 72px rgba(15,23,42,.32);
+}
+.world-map-notice-close{
+  display:block;
+  width:100%;
+  height:56px;
+  border:0;
+  border-bottom:1px solid rgba(255,255,255,.24);
+  background:var(--primary-normal, #3366ff);
+  color:#fff;
+  font-size:18px;
+  font-weight:800;
+  letter-spacing:.02em;
+  cursor:pointer;
+}
+.world-map-notice-close:hover{ background:var(--primary-strong, #2851cc); }
+.world-map-notice-close:focus-visible{
+  outline:3px solid #fff;
+  outline-offset:-6px;
+}
+.world-map-notice-image{
+  display:block;
+  width:100%;
+  height:auto;
+  background:#fff;
+}
+
 /* ============ Kraken design system — map control chrome ============ */
 .top-navigation{
   position:absolute;
@@ -1110,7 +1159,7 @@ body.ui-hidden #TOGGLE_UI_VISIBILITY{ box-shadow:var(--shadow-popover); }
      topojson.feature() 호출을 건너뜁니다. -->
 <script src="https://unpkg.com/topojson-client@3"></script>
 </head>
-<body>
+<body class="world-map-notice-open">
 <div id="mapWrap">
 <div id="map"></div>
 <nav id="TOP_NAVIGATION" class="top-navigation" aria-label="지도 도구">
@@ -1246,6 +1295,31 @@ body.ui-hidden #TOGGLE_UI_VISIBILITY{ box-shadow:var(--shadow-popover); }
 </div>
 </div>
 </div>
+<div id="WORLD_MAP_NOTICE" class="world-map-notice" role="dialog" aria-modal="true" aria-label="세계지도 사용 안내">
+<div class="world-map-notice-panel">
+<button id="CLOSE_WORLD_MAP_NOTICE" class="world-map-notice-close" type="button">닫기</button>
+<img class="world-map-notice-image" src="Popup_Worldmap.png" alt="구글 지도 스타일 JSON을 복사해 구글 Vector에서 세계지도로 사용하는 방법 안내">
+</div>
+</div>
+<script>
+(() => {
+  const notice = document.getElementById('WORLD_MAP_NOTICE');
+  const closeButton = document.getElementById('CLOSE_WORLD_MAP_NOTICE');
+  if (!notice || !closeButton) return;
+
+  const closeNotice = () => {
+    notice.hidden = true;
+    document.body.classList.remove('world-map-notice-open');
+    document.getElementById('addressInput')?.focus({ preventScroll:true });
+  };
+
+  closeButton.addEventListener('click', closeNotice);
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !notice.hidden) closeNotice();
+  });
+  closeButton.focus({ preventScroll:true });
+})();
+</script>
 <script>
 // theme style IDs
 const STYLE_WHITE = '7020740f-78b0-448e-804e-0d702f5db72e';
