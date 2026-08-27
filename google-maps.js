@@ -121,7 +121,7 @@
       const config = await loadConfig();
       if (!isCurrent()) return false;
       await loadSdk(config);
-      const { Map: GoogleMap } = await google.maps.importLibrary('maps');
+      const { Map: GoogleMap, MaxZoomService } = await google.maps.importLibrary('maps');
       if (!isCurrent()) return false;
       if (authenticationFailed) throw failure('AUTH');
       this.closeInfo();
@@ -147,8 +147,12 @@
         };
         if (definition.mapIdSetting) options.mapId = config[definition.mapIdSetting];
         const map = new GoogleMap(element, options);
-        record = { map, element };
+        record = { map, element, satellite: definition.mapTypeId === 'satellite', coverageSequence: 0 };
         this.records.set(theme, record);
+        if (record.satellite) {
+          this.maxZoomService ||= new MaxZoomService();
+          map.addListener('idle', () => this.updateSatelliteLimit(record));
+        }
         map.addListener('click', () => this.closeInfo());
         map.addListener('rightclick', event => {
           if (this.enabled && this.active === record && event.latLng) {
@@ -163,8 +167,35 @@
       }
       this.active = record;
       this.enabled = true;
+      this.updateSatelliteLimit(record);
       this.syncMarkers();
       return true;
+    }
+
+    async updateSatelliteLimit(record) {
+      if (!record.satellite || !this.enabled || this.active !== record) return;
+      const center = validPosition(record.map.getCenter());
+      if (!center) return;
+      const key = markerKey(center);
+      if (record.coverageKey === key) return;
+      record.coverageKey = key;
+      const sequence = ++record.coverageSequence;
+      try {
+        const result = await this.maxZoomService.getMaxZoomAtLatLng(center);
+        if (sequence !== record.coverageSequence) return;
+        const currentCenter = validPosition(record.map.getCenter());
+        if (!this.enabled || this.active !== record || !currentCenter || markerKey(currentCenter) !== key) {
+          record.coverageKey = null;
+          return;
+        }
+        if (!Number.isFinite(result.zoom)) throw new Error('Invalid imagery limit');
+        const maxZoom = Math.max(2, Math.min(22, result.zoom));
+        record.map.setOptions({ maxZoom });
+        if (record.map.getZoom() > maxZoom) record.map.setZoom(maxZoom);
+      } catch {
+        // Keep the last usable limit; retry on the next map interaction.
+        if (sequence === record.coverageSequence) record.coverageKey = null;
+      }
     }
 
     hide() {

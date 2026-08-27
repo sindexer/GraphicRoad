@@ -25,12 +25,13 @@ class Element {
   remove() { if (this.parent) this.parent.children = this.parent.children.filter(child => child !== this); }
 }
 
-function environment({ fetchConfig = async () => ({ ok: true, json: async () => config }), places = [], geocoding = [] } = {}) {
+function environment({ fetchConfig = async () => ({ ok: true, json: async () => config }), places = [], geocoding = [], maxZoom = async () => ({ zoom: 15 }) } = {}) {
   const constructed = [];
   const queries = [];
   const requests = [];
   const scripts = [];
   const notices = [];
+  const coverageRequests = [];
   let context;
   class LatLng {
     constructor(position, lng) { this.position = typeof position === 'number' ? { lat: position, lng } : position; }
@@ -48,10 +49,9 @@ function environment({ fetchConfig = async () => ({ ok: true, json: async () => 
     getZoom() { return this.options.zoom; }
     setCenter(center) { this.options.center = center; }
     setZoom(zoom) {
-      // Model a location whose satellite coverage ends before roadmap zoom.
-      const mapTypeMax = this.options.mapTypeId === 'satellite' ? 16 : 22;
-      this.options.zoom = Math.min(zoom, this.options.maxZoom ?? mapTypeMax);
+      this.options.zoom = Math.min(zoom, this.options.maxZoom ?? 22);
     }
+    setOptions(options) { Object.assign(this.options, options); this.setZoom(this.options.zoom); }
     panTo(center) { this.options.center = center; }
   }
   class OverlayView {
@@ -71,11 +71,14 @@ function environment({ fetchConfig = async () => ({ ok: true, json: async () => 
     open() { this.opened = true; }
     close() { this.opened = false; }
   }
+  class MaxZoomService {
+    getMaxZoomAtLatLng(position) { coverageRequests.push(position); return maxZoom(position); }
+  }
   const maps = {
     Map, LatLng, OverlayView, InfoWindow, ControlPosition: { RIGHT_BOTTOM: 9 },
     event: { trigger() {} },
     async importLibrary(name) {
-      if (name === 'maps') return { Map };
+      if (name === 'maps') return { Map, MaxZoomService };
       if (name === 'places') return { Place: { searchByText: async request => {
         queries.push(request);
         return { places };
@@ -105,7 +108,7 @@ function environment({ fetchConfig = async () => ({ ok: true, json: async () => 
   vm.runInContext(source, context);
   const container = new Element();
   const provider = new context.GraphicRoadGoogle.Provider(container);
-  return { context, container, provider, constructed, requests, scripts, queries, notices, LatLng };
+  return { context, container, provider, constructed, requests, scripts, queries, notices, coverageRequests, LatLng };
 }
 
 test('all inline scripts and the provider parse; production sources contain no API keys', () => {
@@ -166,14 +169,35 @@ test('satellite switching and search respect the SDK imagery limit', async () =>
   const env = environment();
   const view = { center: { lat: 37.5, lng: 127 }, zoom: 20 };
   await env.provider.activate('GOOGLE_SATELLITE', view, () => true);
-  assert.equal(env.provider.getView().zoom, 16);
+  await new Promise(setImmediate);
+  assert.equal(env.provider.getView().zoom, 15);
   env.provider.panTo({ lat: 37.56, lng: 126.97 });
-  assert.equal(env.provider.getView().zoom, 16);
+  assert.equal(env.provider.getView().zoom, 15);
   assert.equal(env.provider.getView().center.lat, 37.56);
   await env.provider.activate('GOOGLE_BASIC', view, () => true);
   assert.equal(env.provider.getView().zoom, 20);
   await env.provider.activate('GOOGLE_SATELLITE', view, () => true);
-  assert.equal(env.provider.getView().zoom, 16);
+  assert.equal(env.provider.getView().zoom, 15);
+  assert.equal(env.coverageRequests.length, 1, 'zooming at the same center reuses its limit');
+});
+
+test('satellite coverage updates for new locations and ignores stale responses', async () => {
+  const pending = [];
+  const env = environment({ maxZoom: () => new Promise(resolve => pending.push(resolve)) });
+  await env.provider.activate('GOOGLE_SATELLITE', { center: { lat: 37, lng: 127 }, zoom: 20 }, () => true);
+  const record = env.provider.active;
+  env.provider.panTo({ lat: 35, lng: 135 });
+  const updated = env.provider.updateSatelliteLimit(record);
+  pending[1]({ zoom: 19 });
+  await updated;
+  pending[0]({ zoom: 15 });
+  await Promise.resolve();
+  assert.equal(record.map.options.maxZoom, 19);
+  env.provider.panTo({ lat: 36, lng: 128 });
+  const lowerCoverage = env.provider.updateSatelliteLimit(record);
+  pending[2]({ zoom: 14 });
+  await lowerCoverage;
+  assert.equal(record.map.getZoom(), 14);
 });
 
 test('configuration/network errors are retryable and auth failures notify the host', async () => {
@@ -246,6 +270,7 @@ test('deployment injects configuration without logging it and publishes only all
   let built = run(env);
   assert.equal(built.status, 0, built.stderr);
   assert.equal((built.stdout + built.stderr).includes(config.apiKey), false);
+  assert.match(await readFile(new URL('_site/index.html', root), 'utf8'), /src="google-maps\.js\?v=[a-f\d]{12}"/);
   assert.deepEqual(JSON.parse(await readFile(new URL('_site/google-maps-config.json', root), 'utf8')), config);
   await writeFile(new URL('_site/not-for-publishing.env', root), 'example private data');
   built = run(env);

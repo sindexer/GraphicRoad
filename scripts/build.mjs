@@ -1,6 +1,7 @@
 import { cp, mkdir, readFile, writeFile, lstat, realpath, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 
 // Allowlist the published files. Never upload the checkout, .git, tests,
 // local configuration, archives, or environment files as a Pages artifact.
@@ -38,6 +39,12 @@ await mkdir(output);
 for (const name of ['index.html', 'google-maps.js', 'Popup_Worldmap.png', 'data']) {
   await cp(path.join(root, name), path.join(output, name), { recursive: true });
 }
+// Browsers must not keep an older provider script after a new deployment.
+const providerHash = createHash('sha256').update(await readFile(path.join(output, 'google-maps.js'))).digest('hex').slice(0, 12);
+const htmlPath = path.join(output, 'index.html');
+await writeFile(htmlPath, (await readFile(htmlPath, 'utf8')).replace(
+  'src="google-maps.js"', `src="google-maps.js?v=${providerHash}"`
+));
 // This browser key is deliberately present only in the built site. Google Cloud
 // HTTP-referrer and API restrictions are the actual runtime security boundary.
 await writeFile(path.join(output, 'google-maps-config.json'), JSON.stringify(config));
