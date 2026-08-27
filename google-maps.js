@@ -135,7 +135,9 @@
         element.setAttribute('aria-label', definition.label);
         this.container.appendChild(element);
         const options = {
-          center, zoom, minZoom: 2, maxZoom: 22,
+          // Keep the SDK's per-map maximum. Forcing 22 also overrides the
+          // available satellite imagery limit and produces blank tiles.
+          center, zoom, minZoom: 2,
           tilt: 0, heading: 0, disableDefaultUI: true,
           zoomControl: true, scaleControl: true, clickableIcons: false,
           gestureHandling: 'greedy', keyboardShortcuts: true,

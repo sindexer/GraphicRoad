@@ -38,12 +38,20 @@ function environment({ fetchConfig = async () => ({ ok: true, json: async () => 
     lng() { return this.position.lng; }
   }
   class Map {
-    constructor(element, options) { this.element = element; this.options = options; this.events = {}; constructed.push(this); }
+    constructor(element, options) {
+      this.element = element; this.options = options; this.events = {};
+      this.setZoom(options.zoom);
+      constructed.push(this);
+    }
     addListener(name, callback) { this.events[name] = callback; }
     getCenter() { return new LatLng(this.options.center); }
     getZoom() { return this.options.zoom; }
     setCenter(center) { this.options.center = center; }
-    setZoom(zoom) { this.options.zoom = zoom; }
+    setZoom(zoom) {
+      // Model a location whose satellite coverage ends before roadmap zoom.
+      const mapTypeMax = this.options.mapTypeId === 'satellite' ? 16 : 22;
+      this.options.zoom = Math.min(zoom, this.options.maxZoom ?? mapTypeMax);
+    }
     panTo(center) { this.options.center = center; }
   }
   class OverlayView {
@@ -152,6 +160,20 @@ test('a canceled slow selection never creates or activates a stale map', async (
   assert.equal(await second, true);
   assert.equal(env.constructed.length, 1);
   assert.equal(env.constructed[0].options.mapId, config.blueMapId);
+});
+
+test('satellite switching and search respect the SDK imagery limit', async () => {
+  const env = environment();
+  const view = { center: { lat: 37.5, lng: 127 }, zoom: 20 };
+  await env.provider.activate('GOOGLE_SATELLITE', view, () => true);
+  assert.equal(env.provider.getView().zoom, 16);
+  env.provider.panTo({ lat: 37.56, lng: 126.97 });
+  assert.equal(env.provider.getView().zoom, 16);
+  assert.equal(env.provider.getView().center.lat, 37.56);
+  await env.provider.activate('GOOGLE_BASIC', view, () => true);
+  assert.equal(env.provider.getView().zoom, 20);
+  await env.provider.activate('GOOGLE_SATELLITE', view, () => true);
+  assert.equal(env.provider.getView().zoom, 16);
 });
 
 test('configuration/network errors are retryable and auth failures notify the host', async () => {
