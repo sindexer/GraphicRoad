@@ -1,0 +1,7 @@
+# Browser configuration is generated from GitHub Actions secrets at deploy time.
+google-maps-config.json
+_site/
+.env
+.env.*
+.private/
+node_modules/

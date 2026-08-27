@@ -47,6 +47,23 @@
 html, body {height:100%; margin:0}
 #mapWrap {position:relative; width:100%; height:100%}
 #map {width:100%; height:100%; position:relative; isolation:isolate}
+#googleMap {position:absolute; inset:0; isolation:isolate; background:#e9edf0}
+#googleMap[hidden], .google-map-surface[hidden] {display:none !important}
+.google-map-surface {position:absolute; inset:0}
+body.google-map-active #map {visibility:hidden; pointer-events:none}
+body.google-map-active .buttons {display:none !important}
+.google-search-pin {position:absolute; transform:translate(-50%, -100%)}
+.google-address-info {font-family:var(--font-primary); font-size:13px; max-width:280px}
+.map-provider-status {
+  position:absolute; z-index:1140; left:50%; top:128px; transform:translateX(-50%);
+  max-width:calc(100vw - 48px); box-sizing:border-box; padding:12px 18px;
+  border:1px solid var(--line-normal-normal); border-radius:12px; background:#fff;
+  color:var(--label-normal); box-shadow:var(--shadow-popover);
+  font:13px/1.5 var(--font-primary); text-align:center;
+}
+.map-provider-status[hidden], body.exporting-map .map-provider-status {display:none !important}
+.search-attributions {padding:8px 14px; border-top:1px solid var(--line-normal-neutral); font:12px var(--font-primary)}
+.search-attributions a {color:inherit}
 
 body.world-map-notice-open{ overflow:hidden; }
 .world-map-notice{
@@ -1141,7 +1158,7 @@ body.ui-hidden #TOGGLE_UI_VISIBILITY{ box-shadow:var(--shadow-popover); }
   const originalGetContext = HTMLCanvasElement.prototype.getContext;
   HTMLCanvasElement.prototype.getContext = function(type, options){
     const isWebGlContext = type === 'webgl' || type === 'webgl2' || type === 'experimental-webgl';
-    if(!isWebGlContext){
+    if(!isWebGlContext || !this.classList.contains('mapboxgl-canvas')){
       return Reflect.apply(originalGetContext, this, [type, options]);
     }
 
@@ -1152,6 +1169,7 @@ body.ui-hidden #TOGGLE_UI_VISIBILITY{ box-shadow:var(--shadow-popover); }
   };
 })();
 </script>
+<script src="google-maps.js"></script>
 <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=htcml1d5g3&submodules=gl,geocoder&callback=initMap"></script>
 <!-- topojson-client library for converting TopoJSON to GeoJSON. Even though
      시군구 데이터를 GeoJSON 형식으로 분할하여 사용하지만, 시도 데이터는 TopoJSON
@@ -1162,6 +1180,8 @@ body.ui-hidden #TOGGLE_UI_VISIBILITY{ box-shadow:var(--shadow-popover); }
 <body class="world-map-notice-open">
 <div id="mapWrap">
 <div id="map"></div>
+<div id="googleMap" hidden></div>
+<div id="MAP_PROVIDER_STATUS" class="map-provider-status" role="status" aria-live="polite" hidden></div>
 <nav id="TOP_NAVIGATION" class="top-navigation" aria-label="지도 도구">
 <div class="brand-theme-controls">
 <div class="site-logo" aria-label="MAP JS">MAP_JS</div>
@@ -1175,6 +1195,9 @@ body.ui-hidden #TOGGLE_UI_VISIBILITY{ box-shadow:var(--shadow-popover); }
 <option value="SATELLITE">위성지도</option>
 <option value="TERRAIN">지형도</option>
 <option value="HYBRID">겹쳐보기</option>
+<option value="GOOGLE_BASIC">Basic_Goggle</option>
+<option value="GOOGLE_BLUE">Blue_Google</option>
+<option value="GOOGLE_SATELLITE">Satellite_Goggle</option>
 </select>
 </div>
 <button id="EXPORT_MAP" type="button" class="control-btn export-map-button" title="UI를 제외한 현재 지도 화면을 PNG로 바로 저장합니다" aria-label="UI를 제외한 현재 지도 화면을 PNG로 바로 저장">Export</button>
@@ -1569,7 +1592,13 @@ const BASE_OPTIONS = {
 };
 
 let map;
-let recreating = false;
+let currentMapProvider = 'naver';
+let activeTheme = 'NORMAL';
+let lastNaverTheme = 'NORMAL';
+let themeSwitchSequence = 0;
+let searchSequence = 0;
+let pendingSearchQuery = null;
+let googleProvider = null;
 let searchMarkers = [];
 let searchMarkersVisible = true;
 const usedSearchMarkerColors = new Set();
@@ -2141,6 +2170,7 @@ function getSearchMarkerKey(item) {
 }
 
 function isSearchMarkerAdded(item) {
+  if (isGoogleMode()) return googleProvider?.hasMarker(item) || false;
   const key = getSearchMarkerKey(item);
   return searchMarkers.some(entry => entry.key === key);
 }
@@ -2177,6 +2207,11 @@ function removeSearchMarker(key) {
 }
 
 function addSearchMarker(item) {
+  if (isGoogleMode()) {
+    if (!googleProvider || item.provider !== 'google') return false;
+    const color = SEARCH_MARKER_COLORS[googleProvider.markerCount % SEARCH_MARKER_COLORS.length];
+    return googleProvider.addMarker(item, color);
+  }
   const key = getSearchMarkerKey(item);
   if (searchMarkers.some(entry => entry.key === key)) return false;
 
@@ -2209,10 +2244,11 @@ function addSearchMarker(item) {
 function updateAddressMarkerToggle() {
   const button = document.getElementById('toggleAddressMarker');
   if (!button) return;
-  const count = searchMarkers.length;
+  const count = isGoogleMode() ? (googleProvider?.markerCount || 0) : searchMarkers.length;
+  const visible = isGoogleMode() ? (googleProvider?.markersVisible ?? true) : searchMarkersVisible;
   button.disabled = count === 0;
-  button.textContent = (searchMarkersVisible ? '핀 숨김' : '핀 표시') + ' (' + count + ')';
-  button.setAttribute('aria-label', (searchMarkersVisible ? '검색 핀 모두 숨기기' : '검색 핀 모두 표시하기') + ', 현재 ' + count + '개');
+  button.textContent = (visible ? '핀 숨김' : '핀 표시') + ' (' + count + ')';
+  button.setAttribute('aria-label', (visible ? '검색 핀 모두 숨기기' : '검색 핀 모두 표시하기') + ', 현재 ' + count + '개');
 }
 
 function hideSearchResults() {
@@ -2312,6 +2348,10 @@ function bindAddressMarkerToggle() {
   const button = document.getElementById('toggleAddressMarker');
   button?.addEventListener('click', () => {
     hideSearchResults();
+    if (isGoogleMode()) {
+      googleProvider?.toggleMarkers();
+      return;
+    }
     if (!searchMarkers.length) return;
     searchMarkersVisible = !searchMarkersVisible;
     searchMarkers.forEach(entry => entry.marker.setMap(searchMarkersVisible ? map : null));
@@ -2420,6 +2460,29 @@ function renderSearchResults(results) {
       '</button>' +
       '</div>';
   }).join('');
+  if (isGoogleMode()) {
+    const attribution = document.createElement('div');
+    attribution.className = 'search-attributions';
+    attribution.setAttribute('translate', 'no');
+    attribution.textContent = 'Google Maps';
+    const seen = new Set();
+    results.flatMap(item => item.attributions || []).forEach(entry => {
+      if (!entry.provider || seen.has(entry.provider)) return;
+      seen.add(entry.provider);
+      attribution.append(' · ');
+      try {
+        const url = new URL(entry.providerURI);
+        if (!['https:', 'http:'].includes(url.protocol)) throw new Error('UNSAFE_URL');
+        const link = document.createElement('a');
+        link.href = url.href;
+        link.textContent = entry.provider;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        attribution.append(link);
+      } catch { attribution.append(entry.provider); }
+    });
+    list.append(attribution);
+  }
   list.classList.add('is-open');
   list.querySelectorAll('.search-result-main').forEach(button => {
     button.addEventListener('click', () => selectSearchResult(Number(button.dataset.index)));
@@ -2443,20 +2506,44 @@ function selectSearchResult(index) {
     row.classList.toggle('is-selected', rowIndex === index);
   });
   rightClickInfoWindow?.close();
+  if (isGoogleMode()) {
+    if (item.provider === 'google') googleProvider?.panTo(item);
+    return;
+  }
   const latlng = new naver.maps.LatLng(item.lat, item.lng);
   map.morph(latlng, 17);
 }
 
 async function moveToAddress(query) {
-  rightClickInfoWindow?.close();
+  if (pendingSearchQuery === query) return;
+  const sequence = ++searchSequence;
+  const provider = currentMapProvider;
+  pendingSearchQuery = query;
+  closeMapInfo();
   showSearchStatus('검색 중...');
-  const [naverResults, poiResults] = await Promise.all([
-    geocodeNaver(query),
-    searchOpenStreetMap(query)
-  ]);
-  const results = dedupeSearchResults([...naverResults, ...poiResults]);
-  renderSearchResults(results);
-  if (results.length === 1) selectSearchResult(0);
+  try {
+    let results;
+    if (provider === 'google') {
+      if (!googleProvider?.enabled) throw new Error('GOOGLE_NOT_READY');
+      results = await googleProvider.search(query);
+    } else {
+      const [naverResults, poiResults] = await Promise.all([
+        geocodeNaver(query), searchOpenStreetMap(query)
+      ]);
+      results = dedupeSearchResults([...naverResults, ...poiResults]);
+    }
+    if (sequence !== searchSequence || provider !== currentMapProvider) return;
+    renderSearchResults(results);
+    if (results.length === 1) selectSearchResult(0);
+  } catch {
+    if (sequence === searchSequence) {
+      showSearchStatus(provider === 'google'
+        ? '구글 검색을 사용할 수 없습니다. Geocoding API·Places API (New) 설정을 확인해 주세요.'
+        : '검색하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    }
+  } finally {
+    if (sequence === searchSequence) pendingSearchQuery = null;
+  }
 }
 
 function bindAddressSearch() {
@@ -2942,7 +3029,7 @@ function setUiVisible(visible) {
     closeControlPanels();
     hideSearchResults();
     setSearchHistoryOpen(false);
-    rightClickInfoWindow?.close();
+    closeMapInfo();
   }
 }
 
@@ -2959,18 +3046,120 @@ function bindUiVisibilityToggle() {
 function bindThemeSelector(){
   const select = document.getElementById('THEME_SELECT');
   if (!select) return;
-  select.addEventListener('change', () => {
-    const selection = select.value;
-    if (selection === 'WHITE') switchToTheme(STYLE_WHITE, selection);
-    else if (selection === 'BLUENOSB') switchToTheme(STYLE_BLUE_NOSB, selection);
-    else if (selection === 'BLUE') switchToTheme(STYLE_BLUE, selection);
-    else if (selection === 'DARK') switchToTheme(STYLE_DARK, selection);
-    else if (selection === 'SATELLITE') switchToType(naver.maps.MapTypeId.SATELLITE, selection);
-    else if (selection === 'TERRAIN') switchToType(naver.maps.MapTypeId.TERRAIN, selection);
-    else if (selection === 'HYBRID') switchToType(naver.maps.MapTypeId.HYBRID, selection);
-    else switchToType(naver.maps.MapTypeId.NORMAL, 'NORMAL');
+  select.addEventListener('change', () => selectMapTheme(select.value));
+  window.addEventListener('graphic-road-google-auth-failure', () => {
+    if (!isGoogleMode()) return;
+    selectMapTheme(lastNaverTheme);
+    showMapProviderStatus('구글 지도 인증에 실패했습니다. API 키의 웹사이트·API 제한과 결제 설정을 확인해 주세요.');
   });
   select.value = 'NORMAL';
+}
+
+function isGoogleMode() { return currentMapProvider === 'google'; }
+
+function closeMapInfo() {
+  rightClickInfoWindow?.close();
+  googleProvider?.closeInfo();
+}
+
+function showMapProviderStatus(message = '') {
+  const element = document.getElementById('MAP_PROVIDER_STATUS');
+  if (!element) return;
+  element.textContent = message;
+  element.hidden = !message;
+}
+
+function getCurrentMapView() {
+  if (isGoogleMode() && googleProvider?.enabled) return googleProvider.getView();
+  // A rejected Naver key must not prevent users from opening a Google map.
+  try {
+    const center = map?.getCenter();
+    if (center) return { center: { lat: center.lat(), lng: center.lng() }, zoom: map.getZoom() };
+  } catch { /* The Naver renderer may not be initialized yet. */ }
+  return { center: { lat: 37.5666103, lng: 126.9783882 }, zoom: 15 };
+}
+
+function setMapProvider(provider) {
+  currentMapProvider = provider;
+  const googleMode = provider === 'google';
+  document.body.classList.toggle('google-map-active', googleMode);
+  document.getElementById('googleMap').hidden = !googleMode;
+  document.getElementById('map').setAttribute('aria-hidden', String(googleMode));
+  document.getElementById('map').inert = googleMode;
+  const controls = document.querySelector('.buttons');
+  controls.inert = googleMode;
+  controls.setAttribute('aria-hidden', String(googleMode));
+  const exportButton = document.getElementById('EXPORT_MAP');
+  exportButton.title = googleMode
+    ? '현재 탭을 선택하여 Google 저작권 표시를 포함한 지도 화면을 PNG로 저장합니다'
+    : 'UI를 제외한 현재 지도 화면을 PNG로 바로 저장합니다';
+  exportButton.setAttribute('aria-label', exportButton.title);
+  updateAddressMarkerToggle();
+}
+
+async function selectMapTheme(selection) {
+  const sequence = ++themeSwitchSequence;
+  const view = getCurrentMapView();
+  const select = document.getElementById('THEME_SELECT');
+  const exportButton = document.getElementById('EXPORT_MAP');
+  const searchButton = document.querySelector('#addressSearch button[type="submit"]');
+  const previousTheme = activeTheme;
+  searchSequence += 1;
+  pendingSearchQuery = null;
+  activeSearchResults = [];
+  document.getElementById('searchResults').replaceChildren();
+  closeControlPanels();
+  hideSearchResults();
+  setSearchHistoryOpen(false);
+  closeMapInfo();
+  if (GraphicRoadGoogle.isTheme(selection)) {
+    if (!googleProvider) {
+      googleProvider = new GraphicRoadGoogle.Provider(document.getElementById('googleMap'), () => {
+        updateAddressMarkerToggle(); updateSearchResultAddButtons();
+      });
+    }
+    setMapProvider('google');
+    showMapProviderStatus('구글 지도를 불러오는 중입니다…');
+    exportButton.disabled = true;
+    searchButton.disabled = true;
+    try {
+      const activated = await googleProvider.activate(selection, view, () => sequence === themeSwitchSequence);
+      if (!activated || sequence !== themeSwitchSequence) return;
+      activeTheme = selection;
+      showMapProviderStatus();
+    } catch (error) {
+      if (sequence !== themeSwitchSequence) return;
+      const fallback = GraphicRoadGoogle.isTheme(previousTheme) ? lastNaverTheme : previousTheme;
+      await selectMapTheme(fallback);
+      showMapProviderStatus(GraphicRoadGoogle.errorMessage(error));
+    } finally {
+      if (sequence === themeSwitchSequence) {
+        exportButton.disabled = false;
+        searchButton.disabled = false;
+        updateAddressMarkerToggle();
+      }
+    }
+  } else {
+    googleProvider?.hide();
+    setMapProvider('naver');
+    const camera = view?.center ? {
+      center: new naver.maps.LatLng(view.center.lat, view.center.lng),
+      zoom: Math.max(BASE_OPTIONS.minZoom, Math.min(BASE_OPTIONS.maxZoom, view.zoom))
+    } : {};
+    if (selection === 'WHITE') switchToTheme(STYLE_WHITE, selection, camera);
+    else if (selection === 'BLUENOSB') switchToTheme(STYLE_BLUE_NOSB, selection, camera);
+    else if (selection === 'BLUE') switchToTheme(STYLE_BLUE, selection, camera);
+    else if (selection === 'DARK') switchToTheme(STYLE_DARK, selection, camera);
+    else if (selection === 'SATELLITE') switchToType(naver.maps.MapTypeId.SATELLITE, selection, camera);
+    else if (selection === 'TERRAIN') switchToType(naver.maps.MapTypeId.TERRAIN, selection, camera);
+    else if (selection === 'HYBRID') switchToType(naver.maps.MapTypeId.HYBRID, selection, camera);
+    else switchToType(naver.maps.MapTypeId.NORMAL, 'NORMAL', camera);
+    activeTheme = select.value;
+    lastNaverTheme = activeTheme;
+    exportButton.disabled = false;
+    searchButton.disabled = false;
+    showMapProviderStatus();
+  }
 }
 
 function getMapExportFilename(){
@@ -3231,13 +3420,15 @@ function drawCapturedMapFrame(video, mapElement){
 
 async function captureVisibleMapAsPng(){
   const button = document.getElementById('EXPORT_MAP');
-  const mapElement = document.getElementById('map');
+  const mapElement = document.getElementById(isGoogleMode() ? 'googleMap' : 'map');
   if (!button || !mapElement || !map) return;
 
   const originalLabel = button.textContent;
   let captureStream = null;
   button.disabled = true;
   button.textContent = '현재 탭 선택';
+  const themeSelect = document.getElementById('THEME_SELECT');
+  themeSelect.disabled = true;
 
   try {
     if (!navigator.mediaDevices?.getDisplayMedia) {
@@ -3246,7 +3437,7 @@ async function captureVisibleMapAsPng(){
     closeControlPanels();
     hideSearchResults();
     setSearchHistoryOpen(false);
-    rightClickInfoWindow?.close();
+    closeMapInfo();
     document.body.classList.add('exporting-map');
     fillCanvasOverlay?.requestDraw();
 
@@ -3255,7 +3446,9 @@ async function captureVisibleMapAsPng(){
       audio:false,
       preferCurrentTab:true,
       selfBrowserSurface:'include',
-      surfaceSwitching:'exclude'
+      surfaceSwitching:'exclude',
+      monitorTypeSurfaces:'exclude',
+      systemAudio:'exclude'
     });
     const track = captureStream.getVideoTracks()[0];
     const displaySurface = track?.getSettings?.().displaySurface;
@@ -3295,6 +3488,7 @@ async function captureVisibleMapAsPng(){
     document.body.classList.remove('exporting-map');
     button.disabled = false;
     button.textContent = originalLabel;
+    themeSelect.disabled = false;
   }
 }
 
@@ -3421,7 +3615,10 @@ async function exportVisibleMapDirectly(){
 }
 
 function bindMapExport(){
-  document.getElementById('EXPORT_MAP')?.addEventListener('click', exportVisibleMapDirectly);
+  document.getElementById('EXPORT_MAP')?.addEventListener('click', () => {
+    if (isGoogleMode()) captureVisibleMapAsPng();
+    else exportVisibleMapDirectly();
+  });
 }
 function initMap(){
   createMap({ mapTypeId: naver.maps.MapTypeId.NORMAL, customStyleId: null });
@@ -3453,40 +3650,38 @@ function createMap(extraOptions = {}){
 }
 
 function recreate(options = {}, doneActiveId = null){
-  if (recreating) return;
-  recreating = true;
-  const center = map.getCenter();
-  const zoom = map.getZoom();
+  const previousMap = map;
+  const view = getCurrentMapView();
+  const center = new naver.maps.LatLng(view.center.lat, view.center.lng);
+  const zoom = view.zoom;
   const wrap = document.getElementById('mapWrap');
   const old = document.getElementById('map');
   fillCanvasOverlay?.setMap(null);
+  rightClickInfoWindow?.close();
+  searchMarkers.forEach(entry => entry.marker.setMap(null));
+  try { previousMap.destroy?.(); } catch { /* Uninitialized renderer. */ }
   const fresh = document.createElement('div');
   fresh.id = 'map'; fresh.style.width = '100%'; fresh.style.height = '100%';
   wrap.replaceChild(fresh, old);
   createMap(Object.assign({ center, zoom }, options));
   if (doneActiveId) setActive(doneActiveId);
-  setTimeout(()=>{ recreating = false; }, 80);
+  const createdMap = map;
+  setTimeout(() => {
+    if (map === createdMap) restoreAllOverlaysOnNewMap();
+  }, 100);
 }
-
-// recreate 을 오버레이 복원 기능으로 래핑합니다. 이 코드는 recreate 정의 이후에 위치해야 합니다.
-const __recreateOrig = recreate;
-recreate = function(options = {}, doneActiveId = null){
-  __recreateOrig(options, doneActiveId);
-  // 새 지도가 준비된 직후, 기존 오버레이를 복원합니다.
-  setTimeout(restoreAllOverlaysOnNewMap, 100);
-};
 
 function setActive(id){
   const select = document.getElementById('THEME_SELECT');
   if (select) select.value = id;
 }
 
-function switchToTheme(styleId, btnId){
-  recreate({ mapTypeId: naver.maps.MapTypeId.NORMAL, customStyleId: styleId }, btnId);
+function switchToTheme(styleId, btnId, camera = {}){
+  recreate({ ...camera, mapTypeId: naver.maps.MapTypeId.NORMAL, customStyleId: styleId }, btnId);
 }
 
-function switchToType(typeId, btnId){
-  recreate({ mapTypeId: typeId, customStyleId: null }, btnId);
+function switchToType(typeId, btnId, camera = {}){
+  recreate({ ...camera, mapTypeId: typeId, customStyleId: null }, btnId);
 }
 </script>
 </body>
