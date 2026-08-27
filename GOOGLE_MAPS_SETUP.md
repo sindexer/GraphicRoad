@@ -6,6 +6,12 @@ Selecting a Google theme hides the entire boundary toolbar and its popovers.
 Returning to Naver restores the saved boundary settings. Each provider keeps
 its own search results and pins; Google data is not copied onto a Naver map.
 
+Satellite currently has a conservative zoom ceiling of 15: live Seoul imagery
+was available at 15 but returned missing-image tiles at 16 and 17. The maximum
+imagery service can further lower the limit for areas with less coverage.
+Roadmap themes keep their normal zoom range. Raise this ceiling only after
+checking actual satellite tiles with this deployment's key and region settings.
+
 ## Security
 
 - Never commit the API key or `google-maps-config.json`.

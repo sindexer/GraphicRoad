@@ -192,7 +192,8 @@ test('satellite coverage updates for new locations and ignores stale responses',
   await updated;
   pending[0]({ zoom: 15 });
   await Promise.resolve();
-  assert.equal(record.map.options.maxZoom, 19);
+  assert.equal(record.map.options.maxZoom, 15, 'metadata cannot override the verified imagery ceiling');
+  assert.equal(record.element.attributes['data-imagery-reported-max-zoom'], '19');
   env.provider.panTo({ lat: 36, lng: 128 });
   const lowerCoverage = env.provider.updateSatelliteLimit(record);
   pending[2]({ zoom: 14 });

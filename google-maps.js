@@ -8,7 +8,9 @@
   const THEMES = Object.freeze({
     GOOGLE_BASIC: { label: 'Basic_Goggle', mapIdSetting: 'basicMapId' },
     GOOGLE_BLUE: { label: 'Blue_Google', mapIdSetting: 'blueMapId' },
-    GOOGLE_SATELLITE: { label: 'Satellite_Goggle', mapTypeId: 'satellite' }
+    // Live Korean satellite tiles are available through zoom 15 for this
+    // deployment. Keep a conservative ceiling even if metadata reports more.
+    GOOGLE_SATELLITE: { label: 'Satellite_Goggle', mapTypeId: 'satellite', maxZoom: 15 }
   });
   const MESSAGES = Object.freeze({
     CONFIG: '구글 지도 배포 설정이 준비되지 않았습니다. 기존 지도를 이용해 주세요.',
@@ -128,15 +130,14 @@
       this.records.forEach(record => { record.element.hidden = true; });
       let record = this.records.get(theme);
       const center = validPosition(view?.center) || { lat: 37.5666103, lng: 126.9783882 };
-      const zoom = Math.max(2, Math.min(22, Number(view?.zoom) || 15));
+      const zoom = Math.max(2, Math.min(definition.maxZoom || 22, Number(view?.zoom) || 15));
       if (!record) {
         const element = document.createElement('div');
         element.className = 'google-map-surface';
         element.setAttribute('aria-label', definition.label);
         this.container.appendChild(element);
         const options = {
-          // Keep the SDK's per-map maximum. Forcing 22 also overrides the
-          // available satellite imagery limit and produces blank tiles.
+          // Never force a higher zoom than the available imagery supports.
           center, zoom, minZoom: 2,
           tilt: 0, heading: 0, disableDefaultUI: true,
           zoomControl: true, scaleControl: true, clickableIcons: false,
@@ -145,9 +146,10 @@
           zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_BOTTOM },
           mapTypeId: definition.mapTypeId || 'roadmap'
         };
+        if (definition.maxZoom) options.maxZoom = definition.maxZoom;
         if (definition.mapIdSetting) options.mapId = config[definition.mapIdSetting];
         const map = new GoogleMap(element, options);
-        record = { map, element, satellite: definition.mapTypeId === 'satellite', coverageSequence: 0 };
+        record = { map, element, satellite: definition.mapTypeId === 'satellite', zoomCeiling: definition.maxZoom || 22, coverageSequence: 0 };
         this.records.set(theme, record);
         if (record.satellite) {
           this.maxZoomService ||= new MaxZoomService();
@@ -189,7 +191,8 @@
           return;
         }
         if (!Number.isFinite(result.zoom)) throw new Error('Invalid imagery limit');
-        const maxZoom = Math.max(2, Math.min(22, result.zoom));
+        record.element.setAttribute('data-imagery-reported-max-zoom', String(result.zoom));
+        const maxZoom = Math.max(2, Math.min(record.zoomCeiling, result.zoom));
         record.map.setOptions({ maxZoom });
         if (record.map.getZoom() > maxZoom) record.map.setZoom(maxZoom);
       } catch {
