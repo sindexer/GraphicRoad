@@ -404,6 +404,7 @@
       if (!entry) return;
       entry.overlay.setMap(null);
       entry.earthMarker?.remove();
+      entry.earthPopover?.remove();
       this.markers.delete(key);
       if (!this.markers.size) this.markersVisible = true;
       this.closeInfo();
@@ -416,33 +417,37 @@
         entry.overlay.setMap(record && !record.earth ? record.map : null);
         if (record?.earth) {
           if (!entry.earthMarker) {
-            const { Marker3DInteractiveElement, PinElement, AltitudeMode } = this.earthLibrary;
+            const { Marker3DInteractiveElement, PinElement, AltitudeMode, PopoverElement } = this.earthLibrary;
+            const content = document.createElement('div');
+            content.className = 'google-address-info';
+            const title = document.createElement('p');
+            title.textContent = entry.title;
+            const remove = document.createElement('button');
+            remove.type = 'button'; remove.textContent = '핀 삭제';
+            remove.addEventListener('click', () => this.removeMarker(key));
+            content.append(title, remove);
+            const popover = new PopoverElement({ open: false });
+            popover.appendChild(content);
             const marker = new Marker3DInteractiveElement({
               position: entry.position, altitudeMode: AltitudeMode.CLAMP_TO_GROUND,
-              title: entry.title + ' — 클릭하여 핀 삭제', drawsWhenOccluded: true
+              title: entry.title + ' — 클릭하여 핀 삭제', drawsWhenOccluded: true,
+              gmpPopoverTargetElement: popover
             });
             marker.appendChild(new PinElement({ background: entry.color, borderColor: '#ffffff', glyphColor: '#ffffff' }));
-            marker.addEventListener('gmp-click', event => {
-              event.stopPropagation();
-              const content = document.createElement('div');
-              content.className = 'google-address-info';
-              const title = document.createElement('p');
-              title.textContent = entry.title;
-              const remove = document.createElement('button');
-              remove.type = 'button'; remove.textContent = '핀 삭제';
-              remove.addEventListener('click', () => this.removeMarker(key));
-              content.append(title, remove);
-              this.showEarthInfo(entry.position, content);
-            });
             marker.addEventListener('keydown', event => {
               if (event.key === 'Delete' || event.key === 'Backspace') {
                 event.preventDefault(); event.stopPropagation(); this.removeMarker(key);
               }
             });
             entry.earthMarker = marker;
+            entry.earthPopover = popover;
           }
           if (entry.earthMarker.parentNode !== record.map) record.map.appendChild(entry.earthMarker);
-        } else entry.earthMarker?.remove();
+          if (entry.earthPopover.parentNode !== record.map) record.map.appendChild(entry.earthPopover);
+        } else {
+          entry.earthMarker?.remove();
+          entry.earthPopover?.remove();
+        }
       });
     }
 
@@ -489,6 +494,7 @@
       this.infoWindow?.close();
       this.earthInfo?.remove();
       this.earthInfo = null;
+      this.markers.forEach(entry => { if (entry.earthPopover) entry.earthPopover.open = false; });
     }
 
     showEarthInfo(position, content) {
