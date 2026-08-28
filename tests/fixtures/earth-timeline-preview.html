@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Timeline local test fixture</title>
+<link rel="stylesheet" href="../../earth-timeline.css">
+<style>html,body{margin:0;height:100%;font-family:Arial,sans-serif}#mapWrap{height:100%;position:relative}#googleMap{position:absolute;inset:54px 0 0;background:#263945;color:#d3e6ec;padding:24px;box-sizing:border-box}.top-navigation{display:flex;align-items:center;justify-content:space-between;height:54px;padding:0 14px}.right-controls{display:flex;gap:5px}.control-btn{height:34px;border:0;border-radius:8px;padding:0 12px}#MOCK_POSE{white-space:pre-wrap;font:12px monospace}#ATTRIBUTION{position:absolute;bottom:4px;right:12px;font-size:12px}</style>
+<script src="../../earth-timeline-core.js"></script><script src="../../earth-timeline.js"></script></head>
+<body class="earth-map-active"><div id="mapWrap"><nav class="top-navigation"><strong>LOCAL CAMERA MOCK · NO GOOGLE REQUESTS</strong><div class="right-controls"><button id="EARTH_TIMELINE_TOGGLE" type="button" class="control-btn" aria-expanded="false" aria-controls="EARTH_TIMELINE">타임라인</button><button id="GOOGLEMAP" class="control-btn">구글Map</button><button id="MOCK_SWITCH" class="control-btn">다른 지도 테스트</button></div></nav><div id="googleMap"><p>UI 검증 전용. 실제 Google 3D 렌더링이 아닙니다.</p><output id="MOCK_POSE" aria-label="테스트 카메라"></output><span id="ATTRIBUTION">Attribution layout test</span></div><section id="EARTH_TIMELINE" role="region" aria-label="어스 카메라 타임라인" hidden></section></div>
+<script>
+(() => {
+  const C = GraphicRoadTimelineCore;
+  let pose = C.normalizeCamera({});
+  const subscribers = new Set();
+  const output = document.getElementById('MOCK_POSE');
+  const provider = {
+    getEarthCamera: () => C.copy(pose), stopEarthAnimation() {},
+    subscribeEarthCamera(callback) { subscribers.add(callback); return () => subscribers.delete(callback); },
+    setEarthCamera(camera, mode) {
+      pose = C.copy(camera);
+      output.textContent = mode + '\n' + JSON.stringify(pose, null, 2);
+      subscribers.forEach(callback => callback(pose));
+      return true;
+    }
+  };
+  const editor = new GraphicRoadEarthTimeline.Controller({ button: document.getElementById('EARTH_TIMELINE_TOGGLE'), root: document.getElementById('EARTH_TIMELINE'), getProvider: () => provider });
+  editor.setAvailable(true);
+  document.getElementById('MOCK_SWITCH').addEventListener('click', () => {
+    editor.setAvailable(!editor.available);
+    document.body.classList.toggle('earth-map-active', editor.available);
+  });
+})();
+</script></body></html>

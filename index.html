@@ -1122,6 +1122,9 @@ body.ui-hidden #TOGGLE_UI_VISIBILITY{ box-shadow:var(--shadow-popover); }
 })();
 </script>
 <script src="google-maps.js"></script>
+<link rel="stylesheet" href="earth-timeline.css">
+<script src="earth-timeline-core.js"></script>
+<script src="earth-timeline.js"></script>
 <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=htcml1d5g3&submodules=gl,geocoder&callback=initMap"></script>
 <!-- topojson-client library for converting TopoJSON to GeoJSON. Even though
      시군구 데이터를 GeoJSON 형식으로 분할하여 사용하지만, 시도 데이터는 TopoJSON
@@ -1134,6 +1137,7 @@ body.ui-hidden #TOGGLE_UI_VISIBILITY{ box-shadow:var(--shadow-popover); }
 <div id="map"></div>
 <div id="googleMap" hidden></div>
 <div id="MAP_PROVIDER_STATUS" class="map-provider-status" role="status" aria-live="polite" hidden></div>
+<section id="EARTH_TIMELINE" role="region" aria-label="어스 카메라 타임라인" hidden></section>
 <nav id="TOP_NAVIGATION" class="top-navigation" aria-label="지도 도구">
 <div class="brand-theme-controls">
 <div class="site-logo" aria-label="MAP JS">MAP_JS</div>
@@ -1168,6 +1172,7 @@ body.ui-hidden #TOGGLE_UI_VISIBILITY{ box-shadow:var(--shadow-popover); }
 <div id="searchResults" class="search-results" aria-live="polite"></div>
 </form>
 <div class="right-controls">
+<button id="EARTH_TIMELINE_TOGGLE" type="button" class="control-btn" aria-expanded="false" aria-controls="EARTH_TIMELINE" hidden>타임라인</button>
 <input id="GOOGLEMAP" type="button" value="구글Map" class="control-btn" onclick="window.open('https://www.google.com/maps/@25.2723225,41.6800099,6811525m/data=!3m1!1e3?entry=ttu&amp;g_ep=EgoyMDI2MDgwMi4wIKXMDSoASAFQAw%3D%3D','_blank','noopener,noreferrer')">
 <input id="NAVERMAP" type="button" value="네이버Map" class="control-btn" onclick="window.open('https://map.naver.com/p?c=12.56,0,0,0,dh','_blank','noopener,noreferrer')">
 <input id="KAKAOMAP" type="button" value="카카오Map" class="control-btn" onclick="window.open('https://map.kakao.com/','_blank','noopener,noreferrer')">
@@ -1291,6 +1296,7 @@ let themeSwitchSequence = 0;
 let searchSequence = 0;
 let pendingSearchQuery = null;
 let googleProvider = null;
+let earthTimeline = null;
 let searchMarkers = [];
 let searchMarkersVisible = true;
 const usedSearchMarkerColors = new Set();
@@ -2202,6 +2208,7 @@ function renderSearchResults(results) {
 }
 
 function selectSearchResult(index) {
+  earthTimeline?.pauseForNavigation();
   const item = activeSearchResults[index];
   if (!item) return;
   document.querySelectorAll('.search-result').forEach((row, rowIndex) => {
@@ -2722,6 +2729,7 @@ function bindWeightHandlers() {
 }
 
 function setUiVisible(visible) {
+  if (!visible) earthTimeline?.close(false);
   const button = document.getElementById('TOGGLE_UI_VISIBILITY');
   document.body.classList.toggle('ui-hidden', !visible);
   if (!button) return;
@@ -2799,7 +2807,19 @@ function setMapProvider(provider) {
   updateAddressMarkerToggle();
 }
 
+function setEarthTimelineAvailable(available) {
+  const button = document.getElementById('EARTH_TIMELINE_TOGGLE');
+  button.hidden = !available;
+  document.body.classList.toggle('earth-map-active', available);
+  if (available && !earthTimeline) {
+    earthTimeline = new GraphicRoadEarthTimeline.Controller({ button,
+      root: document.getElementById('EARTH_TIMELINE'), getProvider: () => googleProvider });
+  }
+  earthTimeline?.setAvailable(available);
+}
+
 async function selectMapTheme(selection) {
+  setEarthTimelineAvailable(false);
   const sequence = ++themeSwitchSequence;
   const view = getCurrentMapView();
   const select = document.getElementById('THEME_SELECT');
@@ -2828,6 +2848,7 @@ async function selectMapTheme(selection) {
       const activated = await googleProvider.activate(selection, view, () => sequence === themeSwitchSequence);
       if (!activated || sequence !== themeSwitchSequence) return;
       activeTheme = selection;
+      setEarthTimelineAvailable(selection === 'GOOGLE_EARTH');
       showMapProviderStatus();
     } catch (error) {
       if (sequence !== themeSwitchSequence) return;
@@ -3117,6 +3138,7 @@ function drawCapturedMapFrame(video, mapElement){
 }
 
 async function captureVisibleMapAsPng(){
+  earthTimeline?.close(false);
   const button = document.getElementById('EXPORT_MAP');
   const mapElement = document.getElementById(isGoogleMode() ? 'googleMap' : 'map');
   if (!button || !mapElement || !map) return;

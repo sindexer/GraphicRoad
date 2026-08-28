@@ -62,6 +62,13 @@ function environment() {
   const context = vm.createContext({
     document, naver, googleStub, cameras, setTimeout, clearTimeout, console,
     URL, URLSearchParams, Map, Set,
+    GraphicRoadEarthTimeline: { Controller: class {
+      constructor({ button }) { this.button = button; this.closed = 0; }
+      setAvailable(value) { this.available = value; this.button.hidden = !value; if (!value) this.close(); }
+      close() { this.closed++; }
+      pause() { this.paused = true; }
+      pauseForNavigation() { this.pause(); }
+    } },
     GraphicRoadGoogle: {
       isTheme: value => ['GOOGLE_DEFAULT', 'GOOGLE_BASIC', 'GOOGLE_BLUE', 'GOOGLE_SATELLITE', 'GOOGLE_EARTH'].includes(value),
       errorMessage: () => 'safe configuration error'
@@ -113,6 +120,29 @@ test('Naver restores controls, retained boundary choices and the latest Google c
   assert.equal(env.cameras[0].center.lng(), 135);
   assert.equal(env.cameras[0].zoom, 11);
   assert.equal(env.element('THEME_SELECT').value, 'WHITE');
+});
+
+test('timeline is placed left of Google Map, enabled only after Earth loads, and closes on switching', async () => {
+  assert.match(html, /id="EARTH_TIMELINE_TOGGLE"[^>]*hidden>타임라인<\/button>\s*<input id="GOOGLEMAP"/);
+  const env = environment();
+  await env.select('GOOGLE_EARTH');
+  assert.equal(env.element('EARTH_TIMELINE_TOGGLE').hidden, false);
+  const timeline = vm.runInContext('earthTimeline', env.context);
+  assert.equal(timeline.available, true);
+  env.context.setUiVisible(false);
+  assert.ok(timeline.closed > 0);
+  await env.select('GOOGLE_SATELLITE');
+  assert.equal(timeline.available, false);
+  assert.equal(env.element('EARTH_TIMELINE_TOGGLE').hidden, true);
+  assert.equal(env.document.body.classList.contains('earth-map-active'), false);
+  let finish;
+  env.googleStub.activate = () => new Promise(resolve => { finish = resolve; });
+  const pending = env.select('GOOGLE_EARTH');
+  assert.equal(env.element('EARTH_TIMELINE_TOGGLE').hidden, true);
+  await env.select('NORMAL');
+  finish(true);
+  await pending;
+  assert.equal(env.element('EARTH_TIMELINE_TOGGLE').hidden, true);
 });
 
 test('failed Google load restores the previous Naver selection and usable buttons', async () => {

@@ -36,22 +36,25 @@ if (existingOutput) {
   await rm(output, { recursive: true });
 }
 await mkdir(output);
-for (const name of ['index.html', 'google-maps.js', 'data']) {
+const assets = ['google-maps.js', 'earth-timeline-core.js', 'earth-timeline.js', 'earth-timeline.css'];
+for (const name of ['index.html', ...assets, 'data']) {
   await cp(path.join(root, name), path.join(output, name), { recursive: true });
 }
-// Browsers must not keep an older provider script after a new deployment.
-const providerHash = createHash('sha256').update(await readFile(path.join(output, 'google-maps.js'))).digest('hex').slice(0, 12);
+// Keep the editor, its math, styles, and provider on the same deployment.
 const htmlPath = path.join(output, 'index.html');
-await writeFile(htmlPath, (await readFile(htmlPath, 'utf8')).replace(
-  'src="google-maps.js"', `src="google-maps.js?v=${providerHash}"`
-));
+let html = await readFile(htmlPath, 'utf8');
+for (const name of assets) {
+  const hash = createHash('sha256').update(await readFile(path.join(output, name))).digest('hex').slice(0, 12);
+  html = html.replace(`"${name}"`, `"${name}?v=${hash}"`);
+}
+await writeFile(htmlPath, html);
 // This browser key is deliberately present only in the built site. Google Cloud
 // HTTP-referrer and API restrictions are the actual runtime security boundary.
 await writeFile(path.join(output, 'google-maps-config.json'), JSON.stringify(config));
 await writeFile(path.join(output, '.nojekyll'), '');
 
 // Catch accidental source embedding without printing a key or its value.
-for (const name of ['index.html', 'google-maps.js']) {
+for (const name of ['index.html', ...assets]) {
   if ((await readFile(path.join(output, name), 'utf8')).includes(config.apiKey)) {
     console.error('Browser key found in source instead of generated configuration.');
     process.exit(1);

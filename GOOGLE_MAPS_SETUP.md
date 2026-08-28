@@ -96,6 +96,54 @@ user action and all capture tracks are stopped afterward. Browsers without
 Google's included copyright notices (including `©2026 Google`) must remain
 visible on the map and in exports; they are not optional UI controls.
 
+## Earth camera timeline
+
+Select **어스_G**, wait for its 3D scene, then press the purple **타임라인**
+button immediately left of **구글Map**. The panel resizes the map above it;
+Google's logo and attribution remain visible. The button is hidden in other
+themes. Closing the panel, hiding the UI, exporting a PNG, switching themes,
+manual map navigation, or hiding the browser tab stops playback.
+
+The editor captures the current camera into eight starting keys at time zero.
+Move the playhead, navigate the map or edit camera numbers, then press
+**◆ 키프레임 추가** to capture the pose. A channel's diamond captures only
+that channel. Editing a numeric field at an existing key updates that key;
+otherwise the change is a preview until captured. Commit numbers with Enter
+or by leaving the field. Drag keys horizontally (snapped to FPS), or select
+one and edit its time/value. Delete and undo/redo are available.
+
+- **피벗 기준 회전**: animate center latitude/longitude/altitude, heading,
+  tilt, roll, range, and FOV. Camera position is derived by Google.
+- **카메라 위치 이동**: animate cameraPosition latitude/longitude/altitude,
+  heading, tilt, roll, range, and FOV. The pivot is derived by Google.
+- Changing the coordinate basis starts a new project after confirmation;
+  it never reinterprets existing position keys as pivot keys.
+- Positions use geographic degrees and altitude in meters, not Cartesian XYZ.
+  Heading and roll are unwrapped: 0 to 360 makes a full turn. Longitude uses
+  the shorter path across the date line. SDK terrain/collision constraints
+  can still limit the rendered camera.
+- Choose a key with a following key to edit that segment's cubic Bezier
+  timing curve using handles, numeric control points, or presets. The value
+  graph displays the resulting selected-channel animation.
+- Duration: 1–600 seconds; 24/25/30/60 FPS; maximum 2,000 channel keys. Real
+  rendering speed depends on the device and network. There is no video or
+  image-sequence renderer; the existing Export button still saves one PNG.
+
+**저장** downloads a camera-only JSON project; **불러오기** validates a local
+file before replacing the current project. The editor keeps projects in memory,
+not in browser storage or on a server. Save before reloading or closing the tab.
+JSON includes no browser key, SDK configuration, or authentication information.
+Invalid, oversized (>1 MB), non-finite, and duplicate-frame imports are rejected.
+
+Playback updates the already-open Map3DElement via requestAnimationFrame; it
+does not initialize new maps or reload the SDK for each frame. This is a custom
+camera editor, not the Google Earth Studio application. Normal Google 3D usage
+and billing still apply; this editor does not implement a monthly usage cap.
+
+For UI-only development without Google requests, serve the repository and open
+`/tests/fixtures/earth-timeline-preview.html`. This explicitly labeled mock is
+excluded from the published artifact; it does not verify real 3D rendering.
+
 ## References
 
 - https://developers.google.com/maps/api-security-best-practices

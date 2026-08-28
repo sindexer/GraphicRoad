@@ -86,11 +86,13 @@ function environment({ fetchConfig = async () => ({ ok: true, json: async () => 
   class Map3DElement extends Element {
     constructor(options) {
       super('gmp-map-3d'); Object.assign(this, options); earthMaps.push(this);
+      this.cameraPosition = { lat: 38.1, lng: 129, altitude: 3500000 };
       queueMicrotask(() => {
         if (earthLoad === 'ready') this.events['gmp-steadychange']?.({ isSteady: true });
         if (earthLoad === 'error') this.events['gmp-error']?.({ message: 'private SDK request URL' });
       });
     }
+    stopCameraAnimation() { this.stopped = true; }
   }
   class Marker3DInteractiveElement extends Element {
     constructor(options) { super('gmp-marker-3d-interactive'); Object.assign(this, options); }
@@ -471,6 +473,52 @@ test('switching away cancels an unfinished Earth scene and ignores late events',
   }
 });
 
+test('Earth camera adapter writes exactly one coordinate basis and keeps the same scene', async () => {
+  const env = environment();
+  assert.equal(env.provider.getEarthCamera(), null);
+  await env.provider.activate('GOOGLE_EARTH', {}, () => true);
+  const scene = env.earthMaps[0];
+  const initial = env.provider.getEarthCamera();
+  assert.equal(initial.pivotLat, 38.1);
+  assert.equal(initial.cameraAlt, 3500000);
+  const position = scene.cameraPosition;
+  assert.equal(env.provider.setEarthCamera({ ...initial, pivotLat: 35, heading: 360, tilt: 60, roll: 10, fov: 45 }, 'orbit'), true);
+  assert.equal(scene.center.lat, 35);
+  assert.equal(scene.cameraPosition, position, 'orbit must not write cameraPosition');
+  assert.equal(scene.heading, 360);
+  assert.equal(scene.roll, 10);
+  const center = scene.center;
+  assert.equal(env.provider.setEarthCamera({ ...initial, cameraLat: 36, cameraAlt: 9000, range: 2000 }, 'camera'), true);
+  assert.equal(scene.cameraPosition.lat, 36);
+  assert.equal(scene.cameraPosition.altitude, 9000);
+  assert.equal(scene.center, center, 'position mode must not write center');
+  assert.equal(scene.range, 2000);
+  for (let i = 0; i < 120; i++) env.provider.setEarthCamera({ ...initial, heading: i }, 'orbit');
+  assert.equal(env.earthMaps.length, 1);
+  assert.equal(env.requests.length, 1);
+  assert.equal(env.scripts.length, 1);
+});
+
+test('Earth camera updates reject invalid input and unsubscribe safely', async () => {
+  const env = environment();
+  await env.provider.activate('GOOGLE_EARTH', {}, () => true);
+  const scene = env.earthMaps[0];
+  const initial = env.provider.getEarthCamera();
+  assert.equal(env.provider.setEarthCamera({ ...initial, tilt: NaN }), false);
+  assert.equal(env.provider.setEarthCamera(initial, 'invalid'), false);
+  assert.equal(env.provider.setEarthCamera(null), false);
+  assert.equal(scene.tilt, initial.tilt);
+  env.provider.setEarthCamera({ ...initial, tilt: 300, range: -10, fov: 100 });
+  assert.equal(scene.tilt, 90); assert.equal(scene.range, 1); assert.equal(scene.fov, 80);
+  let updates = 0;
+  const unsubscribe = env.provider.subscribeEarthCamera(camera => { updates++; assert.equal(camera.fov, 80); });
+  scene.events['gmp-fovchange'](); assert.equal(updates, 1);
+  unsubscribe(); assert.equal(scene.events['gmp-fovchange'], undefined);
+  env.provider.hide(); assert.equal(scene.stopped, true);
+  assert.equal(env.provider.setEarthCamera(initial), false);
+  assert.equal(env.provider.getEarthCamera(), null);
+});
+
 test('deployment injects configuration without logging it and publishes only allowed files', async () => {
   const root = new URL('../', import.meta.url);
   const env = { ...process.env, GOOGLE_MAPS_BROWSER_KEY: config.apiKey,
@@ -482,12 +530,16 @@ test('deployment injects configuration without logging it and publishes only all
   assert.equal(built.status, 0, built.stderr);
   assert.equal((built.stdout + built.stderr).includes(config.apiKey), false);
   assert.match(await readFile(new URL('_site/index.html', root), 'utf8'), /src="google-maps\.js\?v=[a-f\d]{12}"/);
+  const builtHtml = await readFile(new URL('_site/index.html', root), 'utf8');
+  for (const file of ['earth-timeline-core.js', 'earth-timeline.js', 'earth-timeline.css']) {
+    assert.match(builtHtml, new RegExp(file.replaceAll('.', '\\.') + '\\?v=[a-f\\d]{12}'));
+  }
   assert.deepEqual(JSON.parse(await readFile(new URL('_site/google-maps-config.json', root), 'utf8')), config);
   await writeFile(new URL('_site/not-for-publishing.env', root), 'example private data');
   built = run(env);
   assert.equal(built.status, 0, built.stderr);
   assert.deepEqual((await readdir(new URL('_site/', root))).sort(),
-    ['.nojekyll', 'data', 'google-maps-config.json', 'google-maps.js', 'index.html'].sort());
+    ['.nojekyll', 'data', 'earth-timeline-core.js', 'earth-timeline.js', 'earth-timeline.css', 'google-maps-config.json', 'google-maps.js', 'index.html'].sort());
   const invalid = run({ ...env, GOOGLE_MAPS_BROWSER_KEY: '' });
   assert.equal(invalid.status, 1);
   assert.equal((invalid.stdout + invalid.stderr).includes(config.apiKey), false);

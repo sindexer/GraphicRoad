@@ -307,10 +307,65 @@
     }
 
     hide() {
+      this.stopEarthAnimation();
       this.cancelEarthLoad?.();
       this.enabled = false;
       this.closeInfo();
       this.syncMarkers();
+    }
+
+    getEarthCamera() {
+      if (!this.enabled || !this.active?.earth) return null;
+      const map = this.active.map;
+      const pivot = validPosition(map.center);
+      const position = validPosition(map.cameraPosition);
+      if (!pivot || !position) return null;
+      const finite = (value, fallback) => Number.isFinite(value) ? value : fallback;
+      return {
+        pivotLat: pivot.lat, pivotLng: pivot.lng, pivotAlt: finite(map.center.altitude, 0),
+        cameraLat: position.lat, cameraLng: position.lng, cameraAlt: finite(map.cameraPosition.altitude, 0),
+        heading: finite(map.heading, 0), tilt: finite(map.tilt, 0), roll: finite(map.roll, 0),
+        range: finite(map.range, 1000), fov: finite(map.fov, 35)
+      };
+    }
+
+    setEarthCamera(camera, mode = 'orbit') {
+      if (!this.enabled || !this.active?.earth || !['orbit', 'camera'].includes(mode)) return false;
+      const basis = mode === 'camera' ? 'camera' : 'pivot';
+      const limits = { [`${basis}Lat`]: [-85, 85], [`${basis}Lng`]: [-180, 180],
+        [`${basis}Alt`]: [-1000, 63170000], heading: [-36000, 36000], tilt: [0, 90],
+        roll: [-36000, 36000], range: [1, 63170000], fov: [5, 80] };
+      if (!camera || Object.keys(limits).some(key => !Number.isFinite(camera[key]))) return false;
+      const values = Object.fromEntries(Object.entries(limits).map(([key, [min, max]]) =>
+        [key, Math.max(min, Math.min(max, camera[key]))]));
+      const map = this.active.map;
+      // The SDK derives center from cameraPosition (or vice versa). Writing
+      // both in one frame would silently override the pivot animation.
+      map.heading = values.heading;
+      map.tilt = values.tilt;
+      map.roll = values.roll;
+      map.range = values.range;
+      map.fov = values.fov;
+      map[mode === 'camera' ? 'cameraPosition' : 'center'] = {
+        lat: values[`${basis}Lat`], lng: values[`${basis}Lng`], altitude: values[`${basis}Alt`]
+      };
+      return true;
+    }
+
+    stopEarthAnimation() {
+      if (this.active?.earth) this.active.map.stopCameraAnimation?.();
+    }
+
+    subscribeEarthCamera(callback) {
+      if (!this.enabled || !this.active?.earth) return () => {};
+      const record = this.active;
+      const events = ['gmp-camerapositionchange', 'gmp-centerchange', 'gmp-headingchange',
+        'gmp-tiltchange', 'gmp-rollchange', 'gmp-rangechange', 'gmp-fovchange', 'gmp-steadychange'];
+      const update = () => {
+        if (this.enabled && this.active === record) callback(this.getEarthCamera());
+      };
+      events.forEach(name => record.map.addEventListener(name, update));
+      return () => events.forEach(name => record.map.removeEventListener(name, update));
     }
 
     getView() {

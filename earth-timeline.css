@@ -1,0 +1,96 @@
+/* Scoped editor styles. Resizing the map keeps Google's attribution visible. */
+:root { --earth-timeline-height: min(420px, 57vh); }
+body.earth-map-active .top-navigation { grid-template-columns: auto minmax(160px, 1fr) auto; gap: 10px; }
+body.earth-map-active .address-search { width: 100%; min-width: 0; }
+body.earth-map-active .search-input-shell { width: auto; min-width: 80px; flex: 1; }
+body.earth-map-active .address-search input { width: 100%; min-width: 0; }
+.right-controls #EARTH_TIMELINE_TOGGLE { background: #6d28ff; color: #fff; border: 1px solid #6d28ff; padding: 0 13px; font-weight: 650; }
+.right-controls #EARTH_TIMELINE_TOGGLE:hover { background: #5420ce; }
+.right-controls #EARTH_TIMELINE_TOGGLE[aria-expanded="true"] { background: #4f1bbb; box-shadow: 0 0 0 2px #dfcfff; }
+#EARTH_TIMELINE_TOGGLE[hidden], #EARTH_TIMELINE[hidden], #EARTH_TIMELINE [hidden] { display: none !important; }
+body.earth-timeline-open #googleMap { bottom: var(--earth-timeline-height); }
+#EARTH_TIMELINE { position: absolute; inset: auto 0 0; height: var(--earth-timeline-height); z-index: 1145; display: flex; flex-direction: column; background: #161820; color: #e2e0e9; border-top: 1px solid #504168; box-shadow: 0 -8px 30px #0002; font-family: var(--font-primary, sans-serif); font-size: 11px; color-scheme: dark; }
+#EARTH_TIMELINE * { box-sizing: border-box; }
+#EARTH_TIMELINE button, #EARTH_TIMELINE select, #EARTH_TIMELINE input { font-family: inherit; font-size: 11px; letter-spacing: normal; }
+#EARTH_TIMELINE button { min-height: 28px; border: 1px solid #44414f; border-radius: 5px; background: #292a35; color: #e5e0ef; padding: 4px 9px; cursor: pointer; white-space: nowrap; }
+#EARTH_TIMELINE button:hover:not(:disabled) { background: #393547; border-color: #a587d7; }
+#EARTH_TIMELINE button:disabled, #EARTH_TIMELINE select:disabled, #EARTH_TIMELINE input:disabled { opacity: .4; cursor: default; }
+#EARTH_TIMELINE :focus-visible { outline: 2px solid #bc9aff; outline-offset: 2px; }
+#EARTH_TIMELINE input[type="number"], #EARTH_TIMELINE select { border: 1px solid #454250; border-radius: 4px; background: #11131b; color: #eee8fa; height: 26px; padding: 3px 5px; min-width: 0; }
+#EARTH_TIMELINE input[type="number"] { font-variant-numeric: tabular-nums; }
+#EARTH_TIMELINE .et-primary { background: #6d28ff; border-color: #9161ff; min-width: 69px; }
+#EARTH_TIMELINE .et-key-button { color: #dcc2ff; border-color: #7854ac; background: #352747; }
+.et-header { display: flex; align-items: center; gap: 18px; min-height: 46px; padding: 7px 12px; border-bottom: 1px solid #36323f; background: #20212a; overflow-x: auto; flex-shrink: 0; }
+.et-title { display: flex; align-items: center; gap: 7px; white-space: nowrap; letter-spacing: 1px; }
+.et-title strong { font-size: 12px; }
+.et-title strong span { font-weight: 400; margin-left: 4px; letter-spacing: 0; color: #aaa1b9; }
+.et-orbit { color: #b696ff; font-size: 20px; }
+.et-transport, .et-actions { display: flex; align-items: center; gap: 5px; }
+.et-actions { margin-left: auto; }
+#ET_TIMECODE { color: #65e0d4; font: 13px ui-monospace, monospace; font-variant-numeric: tabular-nums; padding: 0 6px; }
+.et-check { display: flex; align-items: center; gap: 4px; white-space: nowrap; color: #bbb3c8; }
+.et-check input { accent-color: #a684ef; margin: 0; }
+.et-body { display: grid; grid-template-columns: 236px minmax(300px, 1fr) 300px; min-height: 0; flex: 1; overflow: auto; }
+.et-body > section { min-height: 0; padding: 10px 12px; }
+.et-inspector { overflow-y: auto; border-right: 1px solid #36323f; }
+.et-mode { display: flex; flex-direction: column; gap: 5px; color: #b6afc4; }
+.et-mode select { width: 100%; }
+#ET_FIELDS fieldset { border: 0; padding: 0; margin: 10px 0 0; }
+#ET_FIELDS { display: flex; flex-direction: column; }
+#ET_FIELDS fieldset:nth-child(2) { order: 4; }
+#EARTH_TIMELINE[data-mode="camera"] #ET_FIELDS fieldset:nth-child(2) { order: 0; }
+#EARTH_TIMELINE[data-mode="camera"] #ET_FIELDS fieldset:nth-child(1) { order: 4; }
+#ET_FIELDS legend { color: #ada1bf; font-size: 9px; letter-spacing: .5px; margin-bottom: 6px; padding: 0; }
+.et-field { display: grid; grid-template-columns: 82px minmax(0, 1fr) 12px 22px; gap: 3px; align-items: center; margin: 3px 0; }
+.et-field label { font-size: 10px; color: #d5cfe0; }
+.et-field > span { color: #8d839b; font-size: 9px; text-align: center; }
+#EARTH_TIMELINE .et-field button { min-height: 24px; padding: 0; color: #ba93ff; border-color: transparent; background: transparent; }
+.et-field input { width: 100%; }
+#EARTH_TIMELINE .et-derived input { color: #8d8599; background: #1d1e27; border-color: #30303b; }
+.et-sequencer { overflow-y: auto; }
+.et-section-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 27px; margin-bottom: 4px; }
+.et-section-head strong { color: #dcd3e8; font-weight: 550; white-space: nowrap; }
+.et-settings { display: flex; align-items: center; gap: 5px; color: #aaa0b8; }
+.et-settings label { display: flex; align-items: center; gap: 4px; }
+#ET_DURATION { width: 51px; }
+#ET_FPS { width: 46px; }
+#ET_TRACKS { display: block; width: 100%; height: 219px; touch-action: none; user-select: none; }
+#ET_TRACKS [data-key], #ET_GRAPH [data-key] { cursor: ew-resize; }
+#ET_TRACKS [data-track] { cursor: pointer; }
+.et-svg-label { font: 11px sans-serif; fill: #c3b8d3; }
+.et-svg-time { font: 10px ui-monospace, monospace; fill: #a29aad; }
+.et-scrubber { display: flex; align-items: center; gap: 7px; margin-top: 7px; color: #a69ab8; }
+#ET_SCRUB { flex: 1; min-width: 50px; accent-color: #ac82fc; height: 14px; }
+#ET_TIME { width: 70px; }
+.et-help { color: #a79db5; font-size: 10px; line-height: 1.55; margin: 7px 0 0; }
+.et-curve { border-left: 1px solid #36323f; overflow-y: auto; }
+#ET_CHANNEL { max-width: 156px; }
+.et-graph-tabs { display: flex; gap: 5px; margin-top: 6px; }
+#EARTH_TIMELINE .et-graph-tabs button { min-height: 24px; padding: 2px 8px; font-size: 10px; background: transparent; border-color: transparent; color: #a99fb8; }
+#EARTH_TIMELINE .et-graph-tabs button[aria-pressed="true"] { color: #d8baff; background: #372845; }
+#ET_GRAPH { display: block; width: 100%; height: 132px; margin: 4px 0; touch-action: none; user-select: none; }
+#ET_GRAPH [data-handle] { cursor: grab; }
+#ET_GRAPH [data-handle]:active { cursor: grabbing; }
+#ET_PRESET { width: 100%; }
+.et-handles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 6px; }
+.et-handles label { display: flex; align-items: center; gap: 3px; color: #aa9fb7; font-size: 9px; }
+.et-handles input { width: 100%; }
+.et-key-detail { display: flex; align-items: flex-end; gap: 6px; margin-top: 8px; }
+.et-key-detail label { display: flex; flex: 1; flex-direction: column; min-width: 0; gap: 4px; color: #b1a6bf; font-size: 10px; }
+.et-key-detail input { width: 100%; }
+.et-footer { display: flex; justify-content: space-between; gap: 14px; min-height: 25px; padding: 5px 12px; border-top: 1px solid #36323f; background: #20212a; color: #ada1be; font-size: 10px; flex-shrink: 0; }
+.et-footer > span:last-child { color: #83768f; white-space: nowrap; }
+@media (max-width: 1200px) {
+  body.earth-map-active .top-navigation { grid-template-columns: auto 1fr; }
+  body.earth-map-active .right-controls { grid-column: 1 / -1; justify-content: flex-end; }
+  .et-header { gap: 8px; }
+  .et-title strong span { display: none; }
+  .et-body { grid-template-columns: 218px minmax(300px, 1fr) 280px; }
+}
+@media (max-width: 850px) {
+  :root { --earth-timeline-height: min(440px, 59vh); }
+  .et-title { display: none; }
+  .et-footer > span:last-child { display: none; }
+  body.earth-map-active .top-navigation { overflow-x: auto; }
+  body.earth-map-active .right-controls { justify-content: flex-start; }
+}
