@@ -36,7 +36,7 @@ if (existingOutput) {
   await rm(output, { recursive: true });
 }
 await mkdir(output);
-const assets = ['earth-navigation.js', 'google-maps.js', 'earth-timeline-core.js', 'earth-timeline.js', 'earth-timeline.css'];
+const assets = ['google-maps.js', 'earth-timeline-core.js', 'earth-timeline.js', 'earth-timeline.css'];
 for (const name of ['index.html', ...assets, 'data']) {
   await cp(path.join(root, name), path.join(output, name), { recursive: true });
 }

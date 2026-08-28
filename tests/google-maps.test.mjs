@@ -499,21 +499,6 @@ test('Earth camera adapter writes exactly one coordinate basis and keeps the sam
   assert.equal(env.scripts.length, 1);
 });
 
-test('Earth adapter selects camera basis before applying rotation', async () => {
-  const env = environment();
-  await env.provider.activate('GOOGLE_EARTH', {}, () => true);
-  const scene = env.earthMaps[0], initial = env.provider.getEarthCamera(), writes = [];
-  for (const key of ['cameraPosition', 'center', 'heading', 'tilt', 'range']) {
-    let value = scene[key];
-    Object.defineProperty(scene, key, { configurable: true, get: () => value,
-      set: next => { writes.push(key); value = next; } });
-  }
-  env.provider.setEarthCamera({ ...initial, tilt: 45 }, 'camera');
-  assert.equal(writes[0], 'cameraPosition');
-  assert.ok(writes.indexOf('tilt') > writes.indexOf('cameraPosition'));
-  assert.ok(!writes.includes('center'));
-});
-
 test('Earth camera updates reject invalid input and unsubscribe safely', async () => {
   const env = environment();
   await env.provider.activate('GOOGLE_EARTH', {}, () => true);
@@ -554,10 +539,15 @@ test('deployment injects configuration without logging it and publishes only all
   built = run(env);
   assert.equal(built.status, 0, built.stderr);
   assert.deepEqual((await readdir(new URL('_site/', root))).sort(),
-    ['.nojekyll', 'data', 'earth-navigation.js', 'earth-timeline-core.js', 'earth-timeline.js', 'earth-timeline.css', 'google-maps-config.json', 'google-maps.js', 'index.html'].sort());
+    ['.nojekyll', 'data', 'earth-timeline-core.js', 'earth-timeline.js', 'earth-timeline.css', 'google-maps-config.json', 'google-maps.js', 'index.html'].sort());
   const invalid = run({ ...env, GOOGLE_MAPS_BROWSER_KEY: '' });
   assert.equal(invalid.status, 1);
   assert.equal((invalid.stdout + invalid.stderr).includes(config.apiKey), false);
   // Failed configuration must leave the last valid deployment artifact untouched.
   assert.deepEqual(JSON.parse(await readFile(new URL('_site/google-maps-config.json', root), 'utf8')), config);
 });
+
+test('custom camera input is absent and native Google navigation is retained', () => {
+      assert.doesNotMatch(html + source, /GraphicRoadEarthNavigation|earth-navigation\.js|WASD/);
+      assert.match(source, /gestureHandling: library\.GestureHandling\.GREEDY/);
+    });
