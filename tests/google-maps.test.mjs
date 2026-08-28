@@ -128,24 +128,30 @@ test('configuration fails closed and never includes invalid credential values in
   }
 });
 
-test('Google loads lazily, uses the fixed Google origin, and reuses each of the three maps', async () => {
+test('Google loads lazily, uses the fixed Google origin, and reuses each of the four maps', async () => {
   const env = environment();
   const view = { center: { lat: 37.5, lng: 127 }, zoom: 15 };
   assert.equal(env.requests.length, 0);
   await env.provider.activate('GOOGLE_BASIC', view, () => true);
   await env.provider.activate('GOOGLE_BLUE', view, () => true);
   await env.provider.activate('GOOGLE_SATELLITE', view, () => true);
+  await env.provider.activate('GOOGLE_DEFAULT', view, () => true);
   await env.provider.activate('GOOGLE_BASIC', { center: { lat: 35, lng: 135 }, zoom: 10 }, () => true);
+  await env.provider.activate('GOOGLE_DEFAULT', { center: { lat: 35, lng: 135 }, zoom: 10 }, () => true);
   assert.equal(env.requests.length, 1);
   assert.equal(env.scripts.length, 1);
   const url = new URL(env.scripts[0].src);
   assert.equal(url.origin + url.pathname, 'https://maps.googleapis.com/maps/api/js');
   assert.equal(url.searchParams.get('auth_referrer_policy'), 'origin');
-  assert.equal(env.constructed.length, 3);
+  assert.equal(env.constructed.length, 4);
   assert.equal(env.constructed[0].options.mapId, config.basicMapId);
   assert.equal(env.constructed[1].options.mapId, config.blueMapId);
   assert.equal(env.constructed[2].options.mapTypeId, 'satellite');
   assert.equal(env.constructed[2].options.mapId, undefined);
+  assert.equal(env.constructed[3].options.mapTypeId, 'roadmap');
+  assert.equal(env.constructed[3].options.mapId, undefined);
+  assert.equal(env.constructed[3].options.styles, undefined);
+  assert.equal(env.constructed[3].element.attributes['aria-label'], 'Google Map');
   assert.equal(env.provider.getView().zoom, 10);
   assert.equal(env.provider.getView().center.lng, 135);
   assert.equal(env.container.children.filter(element => !element.hidden).length, 1);
@@ -235,6 +241,8 @@ test('pins survive Google style changes and visibility changes without duplicati
   assert.equal(marker.map, null);
   await env.provider.activate('GOOGLE_SATELLITE', {}, () => true);
   assert.equal(marker.map, env.constructed[2]);
+  await env.provider.activate('GOOGLE_DEFAULT', {}, () => true);
+  assert.equal(marker.map, env.constructed[3]);
   env.provider.removeMarker('37.500000,127.000000');
   assert.equal(env.provider.markerCount, 0);
 });
@@ -277,7 +285,7 @@ test('deployment injects configuration without logging it and publishes only all
   built = run(env);
   assert.equal(built.status, 0, built.stderr);
   assert.deepEqual((await readdir(new URL('_site/', root))).sort(),
-    ['.nojekyll', 'Popup_Worldmap.png', 'data', 'google-maps-config.json', 'google-maps.js', 'index.html'].sort());
+    ['.nojekyll', 'data', 'google-maps-config.json', 'google-maps.js', 'index.html'].sort());
   const invalid = run({ ...env, GOOGLE_MAPS_BROWSER_KEY: '' });
   assert.equal(invalid.status, 1);
   assert.equal((invalid.stdout + invalid.stderr).includes(config.apiKey), false);

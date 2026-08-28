@@ -65,55 +65,6 @@ body.google-map-active .buttons {display:none !important}
 .search-attributions {padding:8px 14px; border-top:1px solid var(--line-normal-neutral); font:12px var(--font-primary)}
 .search-attributions a {color:inherit}
 
-body.world-map-notice-open{ overflow:hidden; }
-.world-map-notice{
-  position:fixed;
-  z-index:5000;
-  inset:0;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  box-sizing:border-box;
-  padding:16px;
-  overflow:auto;
-  background:rgba(15,23,42,.66);
-  backdrop-filter:blur(3px);
-}
-.world-map-notice[hidden]{ display:none; }
-.world-map-notice-panel{
-  width:min(840px, calc(100vw - 32px), calc(100vh - 104px));
-  min-width:0;
-  overflow:hidden;
-  border:1px solid rgba(255,255,255,.72);
-  border-radius:16px;
-  background:#fff;
-  box-shadow:0 24px 72px rgba(15,23,42,.32);
-}
-.world-map-notice-close{
-  display:block;
-  width:100%;
-  height:56px;
-  border:0;
-  border-bottom:1px solid rgba(255,255,255,.24);
-  background:var(--primary-normal, #3366ff);
-  color:#fff;
-  font-size:18px;
-  font-weight:800;
-  letter-spacing:.02em;
-  cursor:pointer;
-}
-.world-map-notice-close:hover{ background:var(--primary-strong, #2851cc); }
-.world-map-notice-close:focus-visible{
-  outline:3px solid #fff;
-  outline-offset:-6px;
-}
-.world-map-notice-image{
-  display:block;
-  width:100%;
-  height:auto;
-  background:#fff;
-}
-
 /* ============ Kraken design system — map control chrome ============ */
 .top-navigation{
   position:absolute;
@@ -1177,7 +1128,7 @@ body.ui-hidden #TOGGLE_UI_VISIBILITY{ box-shadow:var(--shadow-popover); }
      topojson.feature() 호출을 건너뜁니다. -->
 <script src="https://unpkg.com/topojson-client@3"></script>
 </head>
-<body class="world-map-notice-open">
+<body>
 <div id="mapWrap">
 <div id="map"></div>
 <div id="googleMap" hidden></div>
@@ -1187,17 +1138,16 @@ body.ui-hidden #TOGGLE_UI_VISIBILITY{ box-shadow:var(--shadow-popover); }
 <div class="site-logo" aria-label="MAP JS">MAP_JS</div>
 <div class="theme-control">
 <select id="THEME_SELECT" class="theme-select" aria-label="지도 테마 선택">
-<option value="NORMAL">일반지도</option>
-<option value="WHITE">Basic</option>
-<option value="BLUENOSB">Blue(Subway X)</option>
-<option value="BLUE">Blue</option>
-<option value="DARK">Dark</option>
-<option value="SATELLITE">위성지도</option>
-<option value="TERRAIN">지형도</option>
-<option value="HYBRID">겹쳐보기</option>
-<option value="GOOGLE_BASIC">Basic_Goggle</option>
-<option value="GOOGLE_BLUE">Blue_Google</option>
-<option value="GOOGLE_SATELLITE">Satellite_Goggle</option>
+<option value="NORMAL">Naver Map</option>
+<option value="WHITE">기본_N</option>
+<option value="BLUENOSB">블루_N (지하철 X)</option>
+<option value="BLUE">블루_N</option>
+<option value="DARK">흰블_N</option>
+<option value="SATELLITE">위성_N</option>
+<option value="GOOGLE_DEFAULT">Google Map</option>
+<option value="GOOGLE_BASIC">기본_G</option>
+<option value="GOOGLE_BLUE">블루_G</option>
+<option value="GOOGLE_SATELLITE">위성_G</option>
 </select>
 </div>
 <button id="EXPORT_MAP" type="button" class="control-btn export-map-button" title="UI를 제외한 현재 지도 화면을 PNG로 바로 저장합니다" aria-label="UI를 제외한 현재 지도 화면을 PNG로 바로 저장">Export</button>
@@ -1216,8 +1166,6 @@ body.ui-hidden #TOGGLE_UI_VISIBILITY{ box-shadow:var(--shadow-popover); }
 <div id="searchResults" class="search-results" aria-live="polite"></div>
 </form>
 <div class="right-controls">
-<input id="GOOGLEJSONCOPY" type="button" value="구글Json복사" class="control-btn" title="구글 지도 스타일 JSON을 클립보드에 복사합니다" onclick="copyGoogleStyleJson(this)">
-<input id="GOOGLEVECTOR" type="button" value="구글Vector" class="control-btn" onclick="window.open('https://mapstyle.withgoogle.com/','_blank','noopener,noreferrer')">
 <input id="GOOGLEMAP" type="button" value="구글Map" class="control-btn" onclick="window.open('https://www.google.com/maps/@25.2723225,41.6800099,6811525m/data=!3m1!1e3?entry=ttu&amp;g_ep=EgoyMDI2MDgwMi4wIKXMDSoASAFQAw%3D%3D','_blank','noopener,noreferrer')">
 <input id="NAVERMAP" type="button" value="네이버Map" class="control-btn" onclick="window.open('https://map.naver.com/p?c=12.56,0,0,0,dh','_blank','noopener,noreferrer')">
 <input id="KAKAOMAP" type="button" value="카카오Map" class="control-btn" onclick="window.open('https://map.kakao.com/','_blank','noopener,noreferrer')">
@@ -1318,270 +1266,12 @@ body.ui-hidden #TOGGLE_UI_VISIBILITY{ box-shadow:var(--shadow-popover); }
 </div>
 </div>
 </div>
-<div id="WORLD_MAP_NOTICE" class="world-map-notice" role="dialog" aria-modal="true" aria-label="세계지도 사용 안내">
-<div class="world-map-notice-panel">
-<button id="CLOSE_WORLD_MAP_NOTICE" class="world-map-notice-close" type="button">닫기</button>
-<img class="world-map-notice-image" src="Popup_Worldmap.png?v=2" alt="구글 지도 스타일 JSON을 복사해 구글 Vector에서 세계지도로 사용하는 방법 안내">
-</div>
-</div>
-<script>
-(() => {
-  const notice = document.getElementById('WORLD_MAP_NOTICE');
-  const closeButton = document.getElementById('CLOSE_WORLD_MAP_NOTICE');
-  if (!notice || !closeButton) return;
-
-  const closeNotice = () => {
-    notice.hidden = true;
-    document.body.classList.remove('world-map-notice-open');
-    document.getElementById('addressInput')?.focus({ preventScroll:true });
-  };
-
-  closeButton.addEventListener('click', closeNotice);
-  document.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && !notice.hidden) closeNotice();
-  });
-  closeButton.focus({ preventScroll:true });
-})();
-</script>
 <script>
 // theme style IDs
 const STYLE_WHITE = '7020740f-78b0-448e-804e-0d702f5db72e';
 const STYLE_DARK = '2a9d2f05-79b2-4590-92ee-9f30d52af0bc';
 const STYLE_BLUE = '13737385-1d14-471f-89a0-7725f38c4a0f';
 const STYLE_BLUE_NOSB = '91ec720a-a3e2-4d1e-8b9d-ed094c40d998'; // new
-
-const GOOGLE_STYLE_CONFIG = [
-  {
-    elementType: 'labels',
-    stylers: [
-      { visibility: 'off' }
-    ]
-  },
-  {
-    featureType: 'administrative.land_parcel',
-    stylers: [
-      { visibility: 'off' }
-    ]
-  },
-  {
-    featureType: 'administrative.neighborhood',
-    stylers: [
-      { visibility: 'off' }
-    ]
-  },
-  {
-    featureType: 'landscape',
-    elementType: 'geometry.fill',
-    stylers: [
-      { color: '#d4d9f2' }
-    ]
-  },
-  {
-    featureType: 'landscape.man_made',
-    elementType: 'geometry.fill',
-    stylers: [
-      { color: '#bec9ee' }
-    ]
-  },
-  {
-    featureType: 'landscape.man_made',
-    elementType: 'geometry.stroke',
-    stylers: [
-      { weight: 0.5 }
-    ]
-  },
-  {
-    featureType: 'poi',
-    elementType: 'geometry.fill',
-    stylers: [
-      { color: '#c3ccee' }
-    ]
-  },
-  {
-    featureType: 'poi.business',
-    stylers: [
-      { visibility: 'off' }
-    ]
-  },
-  {
-    featureType: 'poi.park',
-    elementType: 'geometry.fill',
-    stylers: [
-      { color: '#cad1eb' }
-    ]
-  },
-  {
-    featureType: 'poi.park',
-    elementType: 'labels.text',
-    stylers: [
-      { visibility: 'off' }
-    ]
-  },
-  {
-    featureType: 'poi.school',
-    elementType: 'geometry.fill',
-    stylers: [
-      { color: '#b9c3e9' }
-    ]
-  },
-  {
-    featureType: 'poi.sports_complex',
-    elementType: 'geometry.fill',
-    stylers: [
-      { color: '#a9b4df' }
-    ]
-  },
-  {
-    featureType: 'road.arterial',
-    elementType: 'geometry.fill',
-    stylers: [
-      { color: '#edf0fd' }
-    ]
-  },
-  {
-    featureType: 'road.arterial',
-    elementType: 'geometry.stroke',
-    stylers: [
-      { color: '#e4e8fb' }
-    ]
-  },
-  {
-    featureType: 'road.highway',
-    elementType: 'geometry.fill',
-    stylers: [
-      { color: '#e4e8fb' }
-    ]
-  },
-  {
-    featureType: 'road.highway',
-    elementType: 'geometry.stroke',
-    stylers: [
-      { color: '#a6b1e3' }
-    ]
-  },
-  {
-    featureType: 'road.highway.controlled_access',
-    elementType: 'geometry.fill',
-    stylers: [
-      { color: '#e4e8fb' }
-    ]
-  },
-  {
-    featureType: 'road.highway.controlled_access',
-    elementType: 'geometry.stroke',
-    stylers: [
-      { color: '#e4e8fb' }
-    ]
-  },
-  {
-    featureType: 'road.local',
-    elementType: 'geometry.fill',
-    stylers: [
-      { color: '#e0e4f5' }
-    ]
-  },
-  {
-    featureType: 'road.local',
-    elementType: 'geometry.stroke',
-    stylers: [
-      { color: '#c6cdec' }
-    ]
-  },
-  {
-    featureType: 'transit',
-    elementType: 'geometry.stroke',
-    stylers: [
-      { color: '#a9b4df' }
-    ]
-  },
-  {
-    featureType: 'transit.line',
-    elementType: 'geometry.fill',
-    stylers: [
-      { color: '#bec5e4' }
-    ]
-  },
-  {
-    featureType: 'transit.station',
-    elementType: 'geometry.fill',
-    stylers: [
-      { color: '#bec5e4' }
-    ]
-  },
-  {
-    featureType: 'transit.station',
-    elementType: 'geometry.stroke',
-    stylers: [
-      { color: '#c5ccec' }
-    ]
-  },
-  {
-    featureType: 'transit.station.rail',
-    elementType: 'geometry.fill',
-    stylers: [
-      { color: '#a1acd3' }
-    ]
-  },
-  {
-    featureType: 'transit.station.rail',
-    elementType: 'geometry.stroke',
-    stylers: [
-      { color: '#a1acd3' }
-    ]
-  },
-  {
-    featureType: 'water',
-    elementType: 'geometry.fill',
-    stylers: [
-      { color: '#b1bbe1' }
-    ]
-  }
-];
-
-const GOOGLE_JSON_COPY_LABEL = '구글Json복사';
-
-function setGoogleJsonCopyResult(button, copySucceeded) {
-  button.value = copySucceeded ? '복사됨' : '복사실패';
-  button.dataset.copyStatus = copySucceeded ? 'success' : 'error';
-  setTimeout(() => {
-    button.value = GOOGLE_JSON_COPY_LABEL;
-    delete button.dataset.copyStatus;
-  }, 1600);
-}
-
-function copyTextWithTemporaryTextArea(text) {
-  const textArea = document.createElement('textarea');
-  textArea.value = text;
-  textArea.setAttribute('readonly', '');
-  textArea.style.position = 'fixed';
-  textArea.style.opacity = '0';
-  document.body.appendChild(textArea);
-  textArea.select();
-  try {
-    return document.execCommand('copy');
-  } finally {
-    textArea.remove();
-  }
-}
-
-async function copyGoogleStyleJson(button) {
-  const jsonText = JSON.stringify(GOOGLE_STYLE_CONFIG, null, 2);
-  let copySucceeded = false;
-  button.value = '복사 중...';
-
-  try {
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(jsonText);
-      copySucceeded = true;
-    } else {
-      copySucceeded = copyTextWithTemporaryTextArea(jsonText);
-    }
-  } catch (error) {
-    console.error('Google style JSON copy failed', error);
-  }
-
-  setGoogleJsonCopyResult(button, copySucceeded);
-}
 
 const BASE_OPTIONS = {
   gl: true,
@@ -3151,8 +2841,6 @@ async function selectMapTheme(selection) {
     else if (selection === 'BLUE') switchToTheme(STYLE_BLUE, selection, camera);
     else if (selection === 'DARK') switchToTheme(STYLE_DARK, selection, camera);
     else if (selection === 'SATELLITE') switchToType(naver.maps.MapTypeId.SATELLITE, selection, camera);
-    else if (selection === 'TERRAIN') switchToType(naver.maps.MapTypeId.TERRAIN, selection, camera);
-    else if (selection === 'HYBRID') switchToType(naver.maps.MapTypeId.HYBRID, selection, camera);
     else switchToType(naver.maps.MapTypeId.NORMAL, 'NORMAL', camera);
     activeTheme = select.value;
     lastNaverTheme = activeTheme;
@@ -3187,8 +2875,6 @@ function canvasToPngBlob(canvas){
 function getStaticMapTypeForExport(){
   const selection = document.getElementById('THEME_SELECT')?.value;
   if (selection === 'SATELLITE') return 'satellite_base';
-  if (selection === 'HYBRID') return 'satellite';
-  if (selection === 'TERRAIN') return 'terrain';
   return 'basic';
 }
 

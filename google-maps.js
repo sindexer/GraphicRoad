@@ -6,11 +6,12 @@
   'use strict';
 
   const THEMES = Object.freeze({
-    GOOGLE_BASIC: { label: 'Basic_Goggle', mapIdSetting: 'basicMapId' },
-    GOOGLE_BLUE: { label: 'Blue_Google', mapIdSetting: 'blueMapId' },
+    GOOGLE_DEFAULT: { label: 'Google Map', mapTypeId: 'roadmap' },
+    GOOGLE_BASIC: { label: '기본_G', mapIdSetting: 'basicMapId' },
+    GOOGLE_BLUE: { label: '블루_G', mapIdSetting: 'blueMapId' },
     // Live Korean satellite tiles are available through zoom 15 for this
     // deployment. Keep a conservative ceiling even if metadata reports more.
-    GOOGLE_SATELLITE: { label: 'Satellite_Goggle', mapTypeId: 'satellite', maxZoom: 15 }
+    GOOGLE_SATELLITE: { label: '위성_G', mapTypeId: 'satellite', maxZoom: 15 }
   });
   const MESSAGES = Object.freeze({
     CONFIG: '구글 지도 배포 설정이 준비되지 않았습니다. 기존 지도를 이용해 주세요.',

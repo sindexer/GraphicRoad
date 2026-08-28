@@ -7,6 +7,20 @@ const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const hostSource = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)]
   .map(match => match[1]).find(script => script.includes('const STYLE_WHITE'));
 
+test('the menu has the requested labels and obsolete features are removed', () => {
+  const menu = html.match(/<select id="THEME_SELECT"[^>]*>([\s\S]*?)<\/select>/)[1];
+  const options = [...menu.matchAll(/<option value="([^"]+)">([^<]+)<\/option>/g)]
+    .map(([, value, label]) => [value, label]);
+  assert.deepEqual(options, [
+    ['NORMAL', 'Naver Map'], ['WHITE', '기본_N'],
+    ['BLUENOSB', '블루_N (지하철 X)'], ['BLUE', '블루_N'],
+    ['DARK', '흰블_N'], ['SATELLITE', '위성_N'],
+    ['GOOGLE_DEFAULT', 'Google Map'], ['GOOGLE_BASIC', '기본_G'],
+    ['GOOGLE_BLUE', '블루_G'], ['GOOGLE_SATELLITE', '위성_G']
+  ]);
+  assert.doesNotMatch(html, /GOOGLEJSONCOPY|GOOGLEVECTOR|GOOGLE_STYLE_CONFIG|copyGoogleStyleJson|copyTextWithTemporaryTextArea|world-map-notice|WORLD_MAP_NOTICE|Popup_Worldmap|mapstyle\.withgoogle|TERRAIN|HYBRID/);
+});
+
 function environment() {
   const elements = new Map();
   function element(id) {
@@ -43,13 +57,13 @@ function environment() {
     search: async () => []
   };
   const naver = { maps: { LatLng, OverlayView: function() {}, MapTypeId: {
-    NORMAL: 'normal', SATELLITE: 'satellite', TERRAIN: 'terrain', HYBRID: 'hybrid'
+    NORMAL: 'normal', SATELLITE: 'satellite'
   } } };
   const context = vm.createContext({
     document, naver, googleStub, cameras, setTimeout, clearTimeout, console,
     URL, URLSearchParams, Map, Set,
     GraphicRoadGoogle: {
-      isTheme: value => ['GOOGLE_BASIC', 'GOOGLE_BLUE', 'GOOGLE_SATELLITE'].includes(value),
+      isTheme: value => ['GOOGLE_DEFAULT', 'GOOGLE_BASIC', 'GOOGLE_BLUE', 'GOOGLE_SATELLITE'].includes(value),
       errorMessage: () => 'safe configuration error'
     }
   });
@@ -68,9 +82,9 @@ function environment() {
   return { context, document, element, googleStub, select, cameras };
 }
 
-test('all three Google themes hide boundary controls and close open popovers', async () => {
+test('all four Google themes hide boundary controls and close open popovers', async () => {
   const env = environment();
-  for (const theme of ['GOOGLE_BASIC', 'GOOGLE_BLUE', 'GOOGLE_SATELLITE']) {
+  for (const theme of ['GOOGLE_DEFAULT', 'GOOGLE_BASIC', 'GOOGLE_BLUE', 'GOOGLE_SATELLITE']) {
     env.element('LINE_WEIGHT_PANEL').classList.add('is-open');
     env.element('FILL_REGION_PANEL').classList.add('is-open');
     await env.select(theme);

@@ -36,7 +36,7 @@ if (existingOutput) {
   await rm(output, { recursive: true });
 }
 await mkdir(output);
-for (const name of ['index.html', 'google-maps.js', 'Popup_Worldmap.png', 'data']) {
+for (const name of ['index.html', 'google-maps.js', 'data']) {
   await cp(path.join(root, name), path.join(output, name), { recursive: true });
 }
 // Browsers must not keep an older provider script after a new deployment.

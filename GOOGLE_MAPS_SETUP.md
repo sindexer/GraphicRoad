@@ -1,7 +1,9 @@
 # Google Maps deployment
 
-The existing Naver themes remain available. Google themes are `Basic_Goggle`,
-`Blue_Google`, and `Satellite_Goggle` (names preserved as requested).
+Naver themes are `Naver Map`, `기본_N`, `블루_N (지하철 X)`, `블루_N`,
+`흰블_N`, and `위성_N`. Google themes are `Google Map`, `기본_G`, `블루_G`,
+and `위성_G`. `Google Map` uses the default roadmap with no custom style or
+map ID. The two styled Google themes retain their existing Cloud map IDs.
 Selecting a Google theme hides the entire boundary toolbar and its popovers.
 Returning to Naver restores the saved boundary settings. Each provider keeps
 its own search results and pins; Google data is not copied onto a Naver map.
