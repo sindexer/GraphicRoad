@@ -15,7 +15,7 @@ function setup() {
   const provider = { getEarthCamera: () => ({ ...pose }), setEarthCamera: (p, m) => { pose = p; mode = m; }, stopEarthAnimation() {} };
   const c = new context.window.GraphicRoadEarthNavigation.Controller(element, provider, () => active);
   const event = extra => ({ button: 2, buttons: 2, pointerId: 1, pointerType: 'mouse', clientX: 0, clientY: 0, composedPath: () => [], preventDefault() {}, stopPropagation() {}, ...extra });
-  return { c, event, frames, api: context.window.GraphicRoadEarthNavigation, pose: () => pose, mode: () => mode, deactivate: () => active = false };
+  return { c, event, frames, provider, events, api: context.window.GraphicRoadEarthNavigation, pose: () => pose, mode: () => mode, deactivate: () => active = false };
 }
 test('translation follows heading and altitude, wraps longitude, stays finite at poles', () => {
   const { api, pose } = setup();
@@ -27,11 +27,11 @@ test('translation follows heading and altitude, wraps longitude, stays finite at
 });
 test('RMB rotates in place; Alt LMB rotates around pivot; Alt RMB dollies', () => {
   const { c, event, pose, mode } = setup();
-  c.down(event()); c.move(event({ clientX: 20, clientY: 20 }));
+  c.down(event()); c.move(event({ clientX: 20, clientY: 20 })); c.flush();
   assert.equal(pose().heading, 4); assert.equal(pose().cameraLat, 0); assert.equal(mode(), 'camera');
-  c.move(event({ buttons: 1, altKey: true, clientX: 40, clientY: 30 }));
+  c.move(event({ buttons: 1, altKey: true, clientX: 40, clientY: 30 })); c.flush();
   assert.equal(mode(), 'orbit'); assert.equal(pose().heading, 0);
-  c.move(event({ buttons: 2, altKey: true, clientX: 60, clientY: 40 }));
+  c.move(event({ buttons: 2, altKey: true, clientX: 60, clientY: 40 })); c.flush();
   assert.ok(pose().range > 1000); c.reset();
 });
 test('flight requires RMB, uses physical key codes and stops on release/inactive viewport', () => {
@@ -49,4 +49,30 @@ test('wheel changes fly speed only during RMB and interactive controls are exclu
   const lat = pose().cameraLat;
   c.down(event()); c.wheel(event({ deltaY: -100 })); assert.ok(c.speed > 1); assert.equal(pose().cameraLat, lat);
   c.reset();
+});
+
+test('RMB preserves its starting position even when SDK reads lag or drift', () => {
+  const { c, event, provider, pose } = setup();
+  const initial = { ...pose() }; const writes = [];
+  c.down(event());
+  provider.getEarthCamera = () => ({ ...initial, cameraLat: 80, cameraLng: -150, cameraAlt: 500000 });
+  provider.setEarthCamera = (p, mode) => writes.push({ ...p, mode });
+  for (let i = 1; i <= 20; i++) c.move(event({ clientX: i, clientY: i }));
+  assert.equal(writes.length, 0, 'pointer events accumulate until the render frame');
+  c.tick(16);
+  assert.equal(writes.length, 1);
+  assert.ok(Math.abs(writes[0].heading - 4) < 1e-9);
+  assert.ok(Math.abs(writes[0].tilt - 86) < 1e-9);
+  for (const key of ['cameraLat','cameraLng','cameraAlt']) assert.equal(writes[0][key], initial[key]);
+  c.move(event({ clientX: 30, clientY: 30 })); c.up(event({ buttons: 0 }));
+  assert.equal(writes.length, 2, 'release flushes the final motion');
+  assert.equal(c.pose, null);
+});
+
+test('legacy mouse navigation is blocked only while the custom gesture is active', () => {
+  const { c, events, event } = setup(); let prevented = 0;
+  const mouse = event({ preventDefault: () => prevented++ });
+  events.mousemove(mouse); assert.equal(prevented, 0);
+  c.down(event()); events.mousemove(mouse); assert.equal(prevented, 1);
+  c.reset(); events.mousemove(mouse); assert.equal(prevented, 1);
 });

@@ -344,14 +344,16 @@
       const map = this.active.map;
       // The SDK derives center from cameraPosition (or vice versa). Writing
       // both in one frame would silently override the pivot animation.
+      // Select the coordinate basis BEFORE rotating. Otherwise the first look
+      // update rotates around the old center before switching to camera space.
+      map[mode === 'camera' ? 'cameraPosition' : 'center'] = {
+        lat: values[`${basis}Lat`], lng: values[`${basis}Lng`], altitude: values[`${basis}Alt`]
+      };
       map.heading = values.heading;
       map.tilt = values.tilt;
       map.roll = values.roll;
       map.range = values.range;
       map.fov = values.fov;
-      map[mode === 'camera' ? 'cameraPosition' : 'center'] = {
-        lat: values[`${basis}Lat`], lng: values[`${basis}Lng`], altitude: values[`${basis}Alt`]
-      };
       return true;
     }
 

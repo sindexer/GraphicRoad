@@ -499,6 +499,21 @@ test('Earth camera adapter writes exactly one coordinate basis and keeps the sam
   assert.equal(env.scripts.length, 1);
 });
 
+test('Earth adapter selects camera basis before applying rotation', async () => {
+  const env = environment();
+  await env.provider.activate('GOOGLE_EARTH', {}, () => true);
+  const scene = env.earthMaps[0], initial = env.provider.getEarthCamera(), writes = [];
+  for (const key of ['cameraPosition', 'center', 'heading', 'tilt', 'range']) {
+    let value = scene[key];
+    Object.defineProperty(scene, key, { configurable: true, get: () => value,
+      set: next => { writes.push(key); value = next; } });
+  }
+  env.provider.setEarthCamera({ ...initial, tilt: 45 }, 'camera');
+  assert.equal(writes[0], 'cameraPosition');
+  assert.ok(writes.indexOf('tilt') > writes.indexOf('cameraPosition'));
+  assert.ok(!writes.includes('center'));
+});
+
 test('Earth camera updates reject invalid input and unsubscribe safely', async () => {
   const env = environment();
   await env.provider.activate('GOOGLE_EARTH', {}, () => true);

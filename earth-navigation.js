@@ -20,7 +20,11 @@
       element.tabIndex = 0;
       element.setAttribute('aria-label', '3D 뷰포트: 우클릭+WASD 이동, Q/E 하강/상승, Alt+드래그 궤도 회전');
       const on = (target, name, handler, options = {}) => target.addEventListener(name, handler, options);
-      on(element, 'contextmenu', e => { if (isActive()) e.preventDefault(); });
+      on(element, 'contextmenu', e => { if (isActive()) this.consume(e); });
+      // Some SDK handlers use legacy mouse events rather than Pointer Events.
+      for (const name of ['mousedown', 'mousemove', 'mouseup']) {
+        on(element, name, e => { if (this.drag) this.consume(e); }, { capture: true });
+      }
       on(element, 'pointerdown', e => this.down(e), { capture: true });
       on(element, 'pointermove', e => this.move(e), { capture: true });
       on(element, 'pointerup', e => this.up(e), { capture: true });
@@ -36,7 +40,8 @@
     consume(e) { e.preventDefault(); e.stopPropagation(); }
     reset() {
       const id = this.drag?.id;
-      this.drag = null; this.keys.clear();
+      if (this.pendingPose && this.isActive()) this.flush();
+      this.drag = null; this.pose = null; this.pendingPose = false; this.keys.clear();
       if (this.frame !== null) cancelAnimationFrame(this.frame);
       this.frame = null;
       if (id !== undefined && this.element.hasPointerCapture(id)) this.element.releasePointerCapture(id);
@@ -46,6 +51,10 @@
       // Preserve clicks on markers, popovers, links and the SDK controls.
       if (e.composedPath().some(n => n.matches?.('button,a,input,select,textarea,[contenteditable="true"],gmp-marker-3d-interactive,gmp-popover'))) return;
       this.consume(e); this.provider.stopEarthAnimation(); this.element.focus({ preventScroll: true });
+      // The SDK derives cameraPosition asynchronously. Never feed its transient
+      // position back into the next mouse event during a continuous gesture.
+      if (!this.drag) this.pose = this.provider.getEarthCamera();
+      if (!this.pose) return;
       this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, buttons: e.buttons, alt: e.altKey };
       this.element.setPointerCapture(e.pointerId);
       this.last = performance.now();
@@ -61,7 +70,7 @@
       this.consume(e);
       const dx = e.clientX - this.drag.x, dy = e.clientY - this.drag.y;
       Object.assign(this.drag, { x: e.clientX, y: e.clientY, buttons: e.buttons, alt: e.altKey });
-      let p = this.provider.getEarthCamera(); if (!p) return;
+      let p = { ...this.pose }; if (!this.pose) return;
       const scale = Math.max(1, p.range) / Math.max(300, this.element.clientHeight);
       let mode = 'camera';
       if (e.altKey && (e.buttons & 1)) {
@@ -75,7 +84,14 @@
       } else if (e.buttons & 1) {
         p.heading += dx * .2; p = translate(p, -dy * scale, 0, 0);
       }
-      this.provider.setEarthCamera(p, mode);
+      this.pose = p;
+      this.mode = mode;
+      this.pendingPose = true;
+    }
+    flush() {
+      if (!this.pendingPose || !this.pose) return;
+      this.pendingPose = false;
+      this.provider.setEarthCamera(this.pose, this.mode);
     }
     wheel(e) {
       if (!this.isActive() || e.ctrlKey) return;
@@ -83,8 +99,12 @@
       const delta = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 300 : 1);
       if (this.drag?.buttons === 2 && !this.drag.alt) this.speed = clamp(this.speed * Math.exp(-delta * .002), .05, 20);
       else {
-        const p = this.provider.getEarthCamera();
-        if (p) this.provider.setEarthCamera(translate(p, -Math.sign(delta) * p.range * .1, 0, 0), 'camera');
+        const p = this.pose || this.provider.getEarthCamera();
+        if (p) {
+          const next = translate(p, -Math.sign(delta) * p.range * .1, 0, 0);
+          if (this.drag) { this.pose = next; this.mode = 'camera'; this.pendingPose = true; }
+          else this.provider.setEarthCamera(next, 'camera');
+        }
       }
     }
     key(e, pressed) {
@@ -99,15 +119,17 @@
       const dt = clamp((now - this.last) / 1000, 0, .05); this.last = now;
       const has = (...codes) => codes.some(code => this.keys.has(code)) ? 1 : 0;
       if ((this.drag.buttons & 2) && !this.drag.alt && this.keys.size) {
-        const p = this.provider.getEarthCamera();
+        const p = this.pose;
         if (p) {
           const f = has('KeyW','ArrowUp') - has('KeyS','ArrowDown');
           const r = has('KeyD','ArrowRight') - has('KeyA','ArrowLeft');
           const u = has('KeyE','PageUp') - has('KeyQ','PageDown');
           const amount = Math.max(10, p.range * .5) * this.speed * dt / Math.max(1, Math.hypot(f, r, u));
-          this.provider.setEarthCamera(translate(p, f * amount, r * amount, u * amount), 'camera');
+          this.pose = translate(p, f * amount, r * amount, u * amount);
+          this.mode = 'camera'; this.pendingPose = true;
         }
       }
+      this.flush();
       this.frame = requestAnimationFrame(time => this.tick(time));
     }
   }
