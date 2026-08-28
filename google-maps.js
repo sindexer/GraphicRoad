@@ -184,6 +184,7 @@
       } else {
         record.element.hidden = false;
         google.maps.event.trigger(record.map, 'resize');
+        this.resetSatelliteLimitForPosition(record, center);
         record.map.setCenter(center);
         record.map.setZoom(zoom);
       }
@@ -192,6 +193,14 @@
       this.updateSatelliteLimit(record);
       this.syncMarkers();
       return true;
+    }
+
+    resetSatelliteLimitForPosition(record, position) {
+      // A low imagery limit at the old location must not clamp a new search
+      // before the new location's metadata arrives. Keep the deployment cap.
+      if (record.satellite && record.coverageKey !== markerKey(position)) {
+        record.map.setOptions({ maxZoom: record.zoomCeiling });
+      }
     }
 
     async updateSatelliteLimit(record) {
@@ -236,6 +245,7 @@
       const position = validPosition(item);
       if (!position || !this.active) return;
       this.closeInfo();
+      this.resetSatelliteLimitForPosition(this.active, position);
       this.active.map.panTo(position);
       this.active.map.setZoom(17);
     }

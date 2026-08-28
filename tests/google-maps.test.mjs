@@ -233,6 +233,25 @@ test('satellite coverage updates for new locations and ignores stale responses',
   assert.equal(record.map.getZoom(), 14);
 });
 
+test('a low overview imagery limit does not clamp a later search or provider switch', async () => {
+  const env = environment({ maxZoom: async position => ({ zoom: position.lng === 129 ? 11 : 20 }) });
+  await env.provider.activate('GOOGLE_SATELLITE', {}, () => true);
+  await new Promise(setImmediate);
+  assert.equal(env.provider.active.map.options.maxZoom, 11);
+  env.provider.panTo({ lat: 37.56, lng: 126.97 });
+  assert.equal(env.provider.getView().zoom, 15);
+  await env.provider.updateSatelliteLimit(env.provider.active);
+  assert.equal(env.provider.active.map.options.maxZoom, 15);
+
+  await env.provider.activate('GOOGLE_SATELLITE', { center: { lat: 38.1, lng: 129 }, zoom: 6 }, () => true);
+  await new Promise(setImmediate);
+  assert.equal(env.provider.active.map.options.maxZoom, 11);
+  const cityView = { center: { lat: 37.56, lng: 126.97 }, zoom: 20 };
+  await env.provider.activate('GOOGLE_BASIC', cityView, () => true);
+  await env.provider.activate('GOOGLE_SATELLITE', cityView, () => true);
+  assert.equal(env.provider.getView().zoom, 15);
+});
+
 test('configuration/network errors are retryable and auth failures notify the host', async () => {
   let fail = true;
   const env = environment({ fetchConfig: async () => {
