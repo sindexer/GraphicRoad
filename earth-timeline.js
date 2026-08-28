@@ -4,7 +4,7 @@
   const C = window.GraphicRoadTimelineCore;
   const esc = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
   const number = (value, digits = 4) => Number(value.toFixed(digits)).toString();
-  const groups = { pivot: '3D PIVOT · 회전 중심', camera: '3D POSITION · 카메라 위치', rotation: '3D ROTATION · 회전', lens: 'LENS · 거리와 화각' };
+
 
   class Controller {
     constructor({ button, root, getProvider }) {
@@ -15,6 +15,8 @@
       this.opened = false;
       this.playing = false;
       this.time = 0;
+      this.zoom = 1;
+      this.viewStart = 0;
       this.channel = 'heading';
       this.selectedTime = null;
       this.undoStack = [];
@@ -25,6 +27,8 @@
       this.appliedUntil = 0;
       this.acceptCameraUpdates = false;
       this.build();
+      this.resizeObserver = new ResizeObserver(() => { if (this.opened) this.renderTracks(); });
+      this.resizeObserver.observe(this.$('ET_TRACKS'));
       button.addEventListener('click', () => this.opened ? this.close() : this.open());
       root.addEventListener('click', event => this.onClick(event));
       root.addEventListener('change', event => {
@@ -38,7 +42,12 @@
         }
       });
       root.addEventListener('input', event => {
-        if (event.target.id === 'ET_SCRUB') this.seek(Number(event.target.value));
+        if (event.target.id === 'ET_ZOOM' || event.target.id === 'ET_PAN') {
+          this.zoom = Number(this.$('ET_ZOOM').value);
+          const span = this.project.duration / this.zoom;
+          this.viewStart = Number(this.$('ET_PAN').value) / 100 * (this.project.duration - span);
+          this.renderTracks();
+        } else if (event.target.id === 'ET_SCRUB') this.seek(Number(event.target.value));
         else if (event.target.type === 'number') event.target.dataset.pendingEdit = 'true';
       });
       root.addEventListener('keydown', event => this.onKey(event));
@@ -67,7 +76,7 @@
     build() {
       this.root.innerHTML = `
         <header class="et-header">
-          <div class="et-title"><span class="et-orbit">◉</span><strong>EARTH <span>타임라인</span></strong></div>
+          <div class="et-title"><span class="et-orbit">▤</span><strong>타임라인 <span>· Earth Camera</span></strong></div>
           <div class="et-transport">
             <button type="button" data-action="back" title="이전 프레임" aria-label="이전 프레임">‹</button>
             <button type="button" data-action="play" id="ET_PLAY" class="et-primary" aria-label="애니메이션 재생">▶ 재생</button>
@@ -76,6 +85,7 @@
             <label class="et-check"><input id="ET_LOOP" type="checkbox">반복</label>
           </div>
           <div class="et-actions">
+            <button type="button" data-action="graph-toggle" id="ET_GRAPH_TOGGLE" aria-pressed="false">그래프 편집기</button>
             <button type="button" data-action="capture" class="et-key-button">◆ 키프레임 추가</button>
             <button type="button" data-action="undo" id="ET_UNDO" aria-label="실행 취소" title="실행 취소 (Ctrl+Z)">↶</button>
             <button type="button" data-action="redo" id="ET_REDO" aria-label="다시 실행" title="다시 실행 (Ctrl+Shift+Z)">↷</button>
@@ -87,19 +97,21 @@
           <input id="ET_FILE" type="file" accept=".json,application/json" hidden>
         </header>
         <div class="et-body">
-          <section class="et-inspector" aria-label="카메라 속성">
-            <label class="et-mode">카메라 제어 기준<select id="ET_MODE" aria-label="카메라 제어 기준"><option value="orbit">피벗 기준 회전</option><option value="camera">카메라 위치 이동</option></select></label>
-            <p class="et-help">위치와 피벗은 연동됩니다. 회색 값은 자동 계산됩니다.</p>
-            <div id="ET_FIELDS"></div>
-          </section>
-          <section class="et-sequencer" aria-label="키프레임 트랙">
-            <div class="et-section-head"><strong>키프레임</strong><div class="et-settings">
-              <label>길이 <input id="ET_DURATION" aria-label="타임라인 길이 초" type="number" min="1" max="600" step="1" value="10">초</label>
-              <select id="ET_FPS" aria-label="타임라인 FPS"><option>24</option><option>25</option><option selected>30</option><option>60</option></select><span>FPS</span>
-            </div></div>
-            <svg id="ET_TRACKS" viewBox="0 0 720 274" preserveAspectRatio="none" role="group" aria-label="카메라 키프레임 트랙"></svg>
-            <div class="et-scrubber"><label for="ET_SCRUB">시간</label><input id="ET_SCRUB" aria-label="재생 위치" type="range" min="0" max="10" step="0.033333" value="0"><input id="ET_TIME" aria-label="현재 시간 초" type="number" min="0" max="10" step="0.033333" value="0"><span>초</span></div>
-            <p class="et-help">시간 이동 → 지도 또는 숫자로 카메라 조절 → ◆ 추가<br>키를 드래그해 이동 · 선택 후 Delete로 삭제</p>
+          <section class="et-workspace" aria-label="카메라 속성과 키프레임">
+            <div class="et-workspace-toolbar">
+              <label class="et-mode">카메라 제어 기준<select id="ET_MODE" aria-label="카메라 제어 기준"><option value="orbit">피벗 기준 회전</option><option value="camera">카메라 위치 이동</option></select></label>
+              <div class="et-settings"><label>길이 <input id="ET_DURATION" aria-label="타임라인 길이 초" type="number" min="1" max="600" step="1" value="10">초</label><select id="ET_FPS" aria-label="타임라인 FPS"><option>24</option><option>25</option><option selected>30</option><option>60</option></select><span>FPS</span></div>
+            </div>
+            <div class="et-aligned-scroll">
+              <div class="et-aligned-tracks">
+                <section class="et-property-list" aria-label="카메라 속성"><div class="et-property-heading">카메라 속성 <span>값 · 키프레임</span></div><div id="ET_FIELDS"></div></section>
+                <svg id="ET_TRACKS" viewBox="0 0 720 274" preserveAspectRatio="none" role="group" aria-label="카메라 키프레임 트랙"></svg>
+              </div>
+            </div>
+            <div class="et-workspace-bottom">
+              <div class="et-view-controls"><label>확대 <select id="ET_ZOOM" aria-label="타임라인 확대"><option value="1">100%</option><option value="2">200%</option><option value="4">400%</option><option value="8">800%</option></select></label><label>보기 이동 <input id="ET_PAN" aria-label="타임라인 보기 이동" type="range" min="0" max="100" value="0"></label></div>
+              <div class="et-scrubber"><label for="ET_SCRUB">시간</label><input id="ET_SCRUB" aria-label="재생 위치" type="range" min="0" max="10" step="0.033333" value="0"><input id="ET_TIME" aria-label="현재 시간 초" type="number" min="0" max="10" step="0.033333" value="0"><span>초</span></div>
+            </div>
           </section>
           <section class="et-curve" aria-label="애니메이션 그래프">
             <div class="et-section-head"><strong>그래프 편집</strong><select id="ET_CHANNEL" aria-label="그래프 채널"></select></div>
@@ -273,6 +285,8 @@
 
     render() {
       const p = this.project;
+      this.viewStart = C.clamp(this.viewStart, 0, p.duration - p.duration / this.zoom);
+      this.$('ET_PAN').value = this.zoom === 1 ? 0 : this.viewStart / (p.duration - p.duration / this.zoom) * 100;
       this.root.dataset.mode = p.mode;
       this.$('ET_MODE').value = p.mode;
       this.$('ET_DURATION').value = p.duration;
@@ -281,8 +295,7 @@
       this.$('ET_SCRUB').step = this.$('ET_TIME').step = 1 / p.fps;
       this.$('ET_UNDO').disabled = !this.undoStack.length;
       this.$('ET_REDO').disabled = !this.redoStack.length;
-      const active = new Set(this.activeChannels().map(item => item.key));
-      this.$('ET_FIELDS').innerHTML = Object.entries(groups).map(([group, title]) => `<fieldset><legend>${title}</legend>${C.CHANNELS.filter(item => item.group === group).map(item => `<div class="et-field ${active.has(item.key) ? '' : 'et-derived'}"><label for="ET_FIELD_${item.key}">${esc(item.label)}</label><input id="ET_FIELD_${item.key}" data-channel="${item.key}" type="number" min="${item.min}" max="${item.max}" step="${item.step}" ${active.has(item.key) ? '' : 'readonly'}><span>${item.unit}</span>${active.has(item.key) ? `<button type="button" data-add="${item.key}" aria-label="${esc(item.label)} 키프레임 추가" title="이 채널 키프레임 추가">◆</button>` : '<span title="다른 카메라 값에서 자동 계산">↔</span>'}</div>`).join('')}</fieldset>`).join('');
+      this.$('ET_FIELDS').innerHTML = this.activeChannels().map(item => `<div class="et-field" data-property="${item.key}"><label for="ET_FIELD_${item.key}">${esc(item.label)}</label><input id="ET_FIELD_${item.key}" data-channel="${item.key}" type="number" min="${item.min}" max="${item.max}" step="${item.step}"><span>${item.unit}</span><button type="button" data-add="${item.key}" aria-label="${esc(item.label)} 키프레임 추가" title="현재 시간에 키프레임 추가">◆</button></div>`).join('');
       this.$('ET_CHANNEL').innerHTML = this.activeChannels().map(item => `<option value="${item.key}">${esc(item.label)}</option>`).join('');
       this.$('ET_CHANNEL').value = this.channel;
       this.renderTracks();
@@ -306,29 +319,35 @@
       if (document.activeElement !== this.$('ET_TIME')) this.$('ET_TIME').value = number(this.time, 3);
       const x = this.trackX(this.time);
       this.$('ET_PLAYHEAD')?.setAttribute('transform', `translate(${x} 0)`);
+      this.$('ET_PLAYHEAD')?.setAttribute('visibility', x < 12 || x > (this.trackWidth || 720) - 22 ? 'hidden' : 'visible');
     }
 
-    trackX(time) { return 130 + time / this.project.duration * 568; }
-    trackTime(x) { return C.snap((x - 130) / 568 * this.project.duration, this.project.fps, this.project.duration); }
+    trackX(time) { return 12 + (time - this.viewStart) / (this.project.duration / this.zoom) * ((this.trackWidth || 720) - 34); }
+    trackTime(x) { return C.snap(this.viewStart + (x - 12) / ((this.trackWidth || 720) - 34) * (this.project.duration / this.zoom), this.project.fps, this.project.duration); }
 
     renderTracks() {
       const tracks = this.activeChannels();
-      let svg = '<rect width="720" height="274" fill="#161820"/>';
+      const width = this.trackWidth = this.$('ET_TRACKS').clientWidth || 720;
+      this.$('ET_TRACKS').setAttribute('viewBox', `0 0 ${width} 274`);
+      let svg = `<rect width="${width}" height="274" fill="#161820"/>`;
       for (let i = 0; i <= 5; i++) {
-        const x = this.trackX(this.project.duration * i / 5);
-        svg += `<line x1="${x}" y1="26" x2="${x}" y2="274" stroke="#30333f"/><text x="${x}" y="17" text-anchor="middle" class="et-svg-time">${number(this.project.duration * i / 5, 2)}s</text>`;
+        const time = this.viewStart + this.project.duration / this.zoom * i / 5;
+        const x = this.trackX(time);
+        svg += `<line x1="${x}" y1="26" x2="${x}" y2="274" stroke="#30333f"/><text x="${x}" y="17" text-anchor="middle" class="et-svg-time">${number(time, 2)}s</text>`;
       }
       tracks.forEach((item, i) => {
-        const y = 43 + i * 29;
-        svg += `<rect x="0" y="${y - 13}" width="720" height="27" fill="${item.key === this.channel ? '#28213e' : i % 2 ? '#1b1d26' : '#161820'}" data-track="${item.key}"/>
-          <text x="10" y="${y + 4}" class="et-svg-label" data-track="${item.key}">${esc(item.label)}</text><line x1="130" y1="${y}" x2="698" y2="${y}" stroke="#373442"/>`;
+        const y = 42.5 + i * 29;
+        svg += `<rect x="0" y="${y - 14.5}" width="${width}" height="29" data-selected="${item.key === this.channel}" data-track="${item.key}"/>
+          <line x1="12" y1="${y}" x2="${width - 22}" y2="${y}" stroke="#373442"/>`;
         this.project.tracks[item.key].forEach(key => {
+          if (this.trackX(key.time) < 12 || this.trackX(key.time) > width - 22) return;
           const selected = item.key === this.channel && this.selectedTime !== null && Math.abs(key.time - this.selectedTime) < 0.5 / this.project.fps;
-          svg += `<path d="M0,-6 L6,0 L0,6 L-6,0 Z" transform="translate(${this.trackX(key.time)} ${y})" fill="${selected ? '#e4c4ff' : '#a78bfa'}" stroke="${selected ? '#ffffff' : '#a78bfa'}" data-key="${item.key}" data-time="${key.time}" tabindex="0" role="button" aria-label="${esc(item.label)} ${number(key.time, 3)}초 키프레임"/>`;
+          svg += `<path d="M0,-6 L6,0 L0,6 L-6,0 Z" transform="translate(${this.trackX(key.time)} ${y})" aria-pressed="${selected}" data-key="${item.key}" data-time="${key.time}" tabindex="0" role="button" aria-label="${esc(item.label)} ${number(key.time, 3)}초 키프레임"/>`;
         });
       });
       svg += '<g id="ET_PLAYHEAD" pointer-events="none"><line x1="0" y1="25" x2="0" y2="274" stroke="#60dfd4" stroke-width="1.5"/><path d="M-5,20 H5 V27 L0,32 L-5,27 Z" fill="#60dfd4"/></g>';
       this.$('ET_TRACKS').innerHTML = svg;
+      this.root.querySelectorAll('[data-property]').forEach(row => row.dataset.selected = String(row.dataset.property === this.channel));
       this.updatePlayhead();
     }
 
@@ -380,12 +399,23 @@
     }
 
     onClick(event) {
+      const property = event.target.closest('[data-property]');
+      if (property && event.target.tagName === 'LABEL') {
+        this.channel = property.dataset.property;
+        this.selectedTime = null;
+        this.$('ET_CHANNEL').value = this.channel;
+        this.renderTracks(); this.renderGraph();
+      }
       const add = event.target.closest('[data-add]');
       if (add) { this.capture(add.dataset.add); return; }
       const action = event.target.closest('[data-action]')?.dataset.action;
       if (!action) return;
       if (action === 'close') this.close();
       else if (action === 'play') this.play();
+      else if (action === 'graph-toggle') {
+        const shown = this.root.classList.toggle('et-show-graph');
+        this.$('ET_GRAPH_TOGGLE').setAttribute('aria-pressed', String(shown));
+      }
       else if (action === 'back' || action === 'next') this.seek(this.time + (action === 'back' ? -1 : 1) / this.project.fps);
       else if (action === 'capture') this.capture();
       else if (action === 'delete') this.deleteKey();
@@ -398,6 +428,11 @@
 
     onChange(event) {
       const input = event.target;
+      if (input.id === 'ET_ZOOM') {
+        this.zoom = Number(input.value);
+        this.viewStart = Number(this.$('ET_PAN').value) / 100 * (this.project.duration - this.project.duration / this.zoom);
+        this.renderTracks(); return;
+      }
       if (input.id === 'ET_FILE') { this.load(input.files?.[0]); input.value = ''; return; }
       if (input.id === 'ET_CHANNEL') {
         this.channel = input.value;

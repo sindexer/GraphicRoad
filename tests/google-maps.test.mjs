@@ -539,7 +539,7 @@ test('deployment injects configuration without logging it and publishes only all
   built = run(env);
   assert.equal(built.status, 0, built.stderr);
   assert.deepEqual((await readdir(new URL('_site/', root))).sort(),
-    ['.nojekyll', 'data', 'earth-timeline-core.js', 'earth-timeline.js', 'earth-timeline.css', 'google-maps-config.json', 'google-maps.js', 'index.html'].sort());
+    ['.nojekyll', 'data', 'earth-navigation.js', 'earth-timeline-core.js', 'earth-timeline.js', 'earth-timeline.css', 'google-maps-config.json', 'google-maps.js', 'index.html'].sort());
   const invalid = run({ ...env, GOOGLE_MAPS_BROWSER_KEY: '' });
   assert.equal(invalid.status, 1);
   assert.equal((invalid.stdout + invalid.stderr).includes(config.apiKey), false);

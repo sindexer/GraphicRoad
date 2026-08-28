@@ -140,7 +140,7 @@ function editor() {
   env.window = env;
   vm.runInContext(source, env); vm.runInContext(uiSource, env);
   const e = Object.create(env.GraphicRoadEarthTimeline.Controller.prototype);
-  Object.assign(e, { project: env.GraphicRoadTimelineCore.createProject(), time: 0, channel: 'heading', selectedTime: null,
+  Object.assign(e, { project: env.GraphicRoadTimelineCore.createProject(), time: 0, zoom: 1, viewStart: 0, channel: 'heading', selectedTime: null,
     pose: env.GraphicRoadTimelineCore.normalizeCamera({}), undoStack: [], redoStack: [], available: true, opened: true, frame: null, cameraFrame: null });
   const calls = [];
   const provider = { getEarthCamera: () => e.pose, setEarthCamera: (pose, mode) => { calls.push({ ...pose, mode }); return true; }, stopEarthAnimation() {} };
@@ -157,6 +157,33 @@ function editor() {
     const pending = [...callbacks.values()]; callbacks.clear(); pending.forEach(callback => callback(time));
   } };
 }
+
+test('zoomed time coordinates round trip and clamp at composition bounds', () => {
+  const { e } = editor();
+  e.zoom = 4; e.viewStart = 5; e.trackWidth = 1000;
+  near(e.trackX(5), 12); near(e.trackX(7.5), 978);
+  near(e.trackTime(e.trackX(6)), 6);
+  assert.equal(e.trackTime(-100000), 0); assert.equal(e.trackTime(100000), 10);
+});
+
+test('selecting a track label preserves playhead time', () => {
+  const { e } = editor(); e.time = 5;
+  e.onClick({ target: { tagName: 'LABEL', closest: selector => selector === '[data-property]' ? { dataset: { property: 'tilt' } } : null } });
+  assert.equal(e.time, 5); assert.equal(e.channel, 'tilt');
+});
+
+test('right-hand lanes contain keys but no duplicated property labels', () => {
+  const { e } = editor();
+  e.capture();
+  e.root.querySelectorAll = () => [];
+  Object.getPrototypeOf(e).renderTracks.call(e);
+  const svg = e.$('ET_TRACKS').innerHTML;
+  assert.doesNotMatch(svg, /et-svg-label/);
+  assert.equal((svg.match(/data-track=/g) || []).length, 8);
+  assert.equal((svg.match(/data-key=/g) || []).length, 8);
+  assert.match(svg, /translate\(12 42\.5\)/);
+  assert.match(uiSource, /et-aligned-scroll/);
+});
 
 test('capture, delete, undo and redo preserve all channel data', () => {
   const { e } = editor();
@@ -233,7 +260,7 @@ test('key drag moves the selected key, updates camera time, and never merges nei
   C.upsert(e.project, 'heading', 0, 0); C.upsert(e.project, 'heading', 10, 360);
   e.selectedTime = 0;
   e.drag = { type: 'key', startX: 0, remembered: false };
-  e.point = () => ({ x: 414, y: 50 });
+  e.point = () => ({ x: e.trackX(5), y: 50 });
   const svg = { hasPointerCapture: () => true };
   e.pointerMove({ pointerId: 1, clientX: 100 }, svg);
   assert.equal(e.selectedTime, 5); assert.equal(e.time, 5);

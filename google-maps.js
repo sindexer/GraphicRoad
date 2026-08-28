@@ -215,10 +215,12 @@
             mode: library.MapMode.SATELLITE,
             gestureHandling: library.GestureHandling.GREEDY,
             defaultUIHidden: false,
-            description: '어스_G 3D 지도. 지도 기본 컨트롤로 확대, 회전, 기울이기를 조절하세요.'
+            description: '어스_G 3D 지도. 우클릭+WASD 이동, Q/E 하강/상승, Alt+좌클릭 회전, 휠 전진/후진.'
           });
         } catch { throw failure('EARTH'); }
         record = { map, element, earth: true };
+        if (window.GraphicRoadEarthNavigation) record.navigation = new window.GraphicRoadEarthNavigation.Controller(
+          element, this, () => this.enabled && this.active === record && !element.hidden);
         // PopoverElement handles outside-click dismissal itself;
         // a map click handler can close a marker's freshly opened popover.
         // Rendering can fail after the SDK loads (for example, WebGL is
@@ -307,6 +309,7 @@
     }
 
     hide() {
+      this.active?.navigation?.reset();
       this.stopEarthAnimation();
       this.cancelEarthLoad?.();
       this.enabled = false;
