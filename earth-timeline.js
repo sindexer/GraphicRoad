@@ -112,7 +112,8 @@
             <p id="ET_CURVE_HINT" class="et-help"></p>
           </section>
         </div>
-        <footer class="et-footer"><span id="ET_STATUS" role="status" aria-live="polite">카메라만 애니메이션합니다. 프로젝트는 JSON으로 저장하세요.</span><span>CAMERA EDITOR · 로컬 프로젝트</span></footer>`;
+        <footer class="et-footer"><span id="ET_STATUS" role="status" aria-live="polite">카메라만 애니메이션합니다. 프로젝트는 JSON으로 저장하세요.</span><span>CAMERA EDITOR · 로컬 프로젝트</span></footer>
+        <dialog id="ET_CONFIRM" aria-labelledby="ET_CONFIRM_TITLE" aria-describedby="ET_CONFIRM_MESSAGE"><form method="dialog"><strong id="ET_CONFIRM_TITLE">타임라인 변경 확인</strong><p id="ET_CONFIRM_MESSAGE"></p><div><button type="submit" value="cancel" id="ET_CONFIRM_CANCEL">취소</button><button type="submit" value="confirm" class="et-primary">확인</button></div></form></dialog>`;
     }
 
     setAvailable(available) {
@@ -156,6 +157,7 @@
 
     close(returnFocus = true) {
       this.pause();
+      this.cancelConfirmation?.();
       this.unsubscribe?.();
       this.unsubscribe = null;
       if (this.cameraFrame !== null) cancelAnimationFrame(this.cameraFrame);
@@ -462,9 +464,25 @@
       this.$('ET_REDO').disabled = !this.redoStack.length;
     }
 
-    newProject(mode = this.project.mode) {
+    confirmAction(message) {
+      if (this.cancelConfirmation) return Promise.resolve(false);
+      const dialog = this.$('ET_CONFIRM');
+      this.$('ET_CONFIRM_MESSAGE').textContent = message;
+      dialog.returnValue = 'cancel';
+      return new Promise(resolve => {
+        this.cancelConfirmation = () => dialog.close('cancel');
+        dialog.addEventListener('close', () => {
+          this.cancelConfirmation = null;
+          resolve(dialog.returnValue === 'confirm');
+        }, { once: true });
+        dialog.showModal();
+        this.$('ET_CONFIRM_CANCEL').focus();
+      });
+    }
+
+    async newProject(mode = this.project.mode) {
       this.pause();
-      if (!window.confirm('현재 타임라인을 새로 만듭니다. 필요한 프로젝트는 먼저 저장해 주세요. 계속할까요?')) { this.render(); return; }
+      if (!await this.confirmAction('현재 타임라인을 새로 만듭니다. 필요한 프로젝트는 먼저 저장해 주세요. 계속할까요?')) { this.render(); return; }
       this.remember();
       this.project = C.createProject(this.getProvider()?.getEarthCamera() || this.pose, mode);
       this.pose = C.copy(this.project.base);
@@ -525,6 +543,7 @@
     }
 
     onKey(event) {
+      if (this.$('ET_CONFIRM')?.open) return;
       if (event.key === 'Enter' && event.target.type === 'number') {
         event.preventDefault(); event.target.blur(); return;
       }
@@ -574,7 +593,8 @@
       let project;
       try { project = C.validateProject(JSON.parse(await file.text())); }
       catch { this.setStatus('올바른 타임라인 JSON이 아닙니다. 기존 프로젝트는 유지됩니다.'); return; }
-      if (!window.confirm('현재 타임라인을 불러온 프로젝트로 바꿀까요? 저장하지 않은 변경은 사라집니다.')) return;
+      if (!this.opened || !this.available) return;
+      if (!await this.confirmAction('현재 타임라인을 불러온 프로젝트로 바꿀까요? 저장하지 않은 변경은 사라집니다.')) return;
       this.pause(); this.remember(); this.project = project;
       this.time = 0; this.channel = 'heading'; this.selectedTime = project.tracks.heading[0]?.time ?? null;
       this.render();

@@ -145,6 +145,7 @@ function editor() {
   const calls = [];
   const provider = { getEarthCamera: () => e.pose, setEarthCamera: (pose, mode) => { calls.push({ ...pose, mode }); return true; }, stopEarthAnimation() {} };
   e.getProvider = () => provider;
+  e.confirmAction = async () => true;
   e.$ = id => {
     if (!controls.has(id)) controls.set(id, { value: '', checked: false, setAttribute() {}, focus() {} });
     return controls.get(id);
@@ -252,4 +253,20 @@ test('changing FPS refuses collisions and duration cannot cut off keys', () => {
   C.upsert(e.project, 'heading', 10, 20);
   e.onChange({ target: { id: 'ET_DURATION', type: 'number', valueAsNumber: 4, dataset: {} } });
   assert.equal(e.project.duration, 10);
+});
+
+test('changing the camera basis requires confirmation and creates matching starting keys', async () => {
+  const { e } = editor();
+  e.capture(); const original = JSON.stringify(e.project);
+  e.confirmAction = async () => false;
+  await e.newProject('camera');
+  assert.equal(JSON.stringify(e.project), original);
+  e.confirmAction = async () => true;
+  await e.newProject('camera');
+  assert.equal(e.project.mode, 'camera');
+  assert.equal(e.project.tracks.cameraAlt.length, 1);
+  assert.equal(e.project.tracks.pivotAlt.length, 0);
+  e.restore(false);
+  assert.equal(e.project.mode, 'orbit');
+  assert.equal(JSON.stringify(e.project), original);
 });
