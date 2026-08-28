@@ -407,6 +407,9 @@ test('Earth pins retain their colors across renderers and can be hidden and dele
   assert.equal(entry.overlay.map, env.provider.active.map);
   await env.provider.activate('GOOGLE_EARTH', {}, () => true);
   entry.earthMarker.events['gmp-click']({ stopPropagation() {} });
+  // The renderer can also report the location click on the map. Let the
+  // native popover manage dismissal instead of closing it in that callback.
+  earth.events['gmp-click']?.({ position: item });
   assert.equal(env.provider.earthInfo.children[0].children[0].textContent, '<unsafe title>');
   const popover = env.provider.earthInfo;
   popover.children[0].children[1].events.click();

@@ -232,7 +232,8 @@
           });
         } catch { throw failure('EARTH'); }
         record = { map, element, earth: true };
-        map.addEventListener('gmp-click', () => this.closeInfo());
+        // PopoverElement handles outside-click dismissal itself;
+        // a map click handler can close a marker's freshly opened popover.
         // Rendering can fail after the SDK loads (for example, WebGL is
         // unavailable). Wait for the first completed scene, not just import.
         const ready = new Promise((resolve, reject) => {
