@@ -203,14 +203,14 @@ test('a canceled slow selection never creates or activates a stale map', async (
   assert.equal(env.constructed[0].options.mapId, config.blueMapId);
 });
 
-test('satellite first opens the East Asia overview using the WebGL renderer', async () => {
+test('satellite preserves the current camera on its first selection and keeps the WebGL renderer', async () => {
   const env = environment();
-  await env.provider.activate('GOOGLE_SATELLITE', { center: { lat: 37.5, lng: 127 }, zoom: 20 }, () => true);
+  const firstView = { center: { lat: 37.5, lng: 127 }, zoom: 13 };
+  await env.provider.activate('GOOGLE_SATELLITE', firstView, () => true);
   const map = env.constructed[0];
-  assert.equal(map.getZoom(), 6);
-  assert.deepEqual({ ...map.options.center }, { lat: 38.1, lng: 129 });
-  assert.deepEqual({ ...map.fittedBounds.bounds }, { north: 45.4, south: 30, west: 108, east: 150 });
-  assert.equal(map.fittedBounds.padding, 0);
+  assert.equal(map.getZoom(), firstView.zoom);
+  assert.deepEqual({ ...map.options.center }, firstView.center);
+  assert.equal(map.fittedBounds, undefined, 'do not replace the working view with an overview');
   assert.equal(map.options.renderingType, 'VECTOR');
   assert.equal(map.options.isFractionalZoomEnabled, false);
   assert.equal(map.options.tilt, 0);
@@ -230,7 +230,7 @@ test('satellite switching and search respect the SDK imagery limit', async () =>
   const view = { center: { lat: 37.5, lng: 127 }, zoom: 20 };
   await env.provider.activate('GOOGLE_SATELLITE', view, () => true);
   await new Promise(setImmediate);
-  assert.equal(env.provider.getView().zoom, 6);
+  assert.equal(env.provider.getView().zoom, 15);
   env.provider.panTo({ lat: 37.56, lng: 126.97 });
   assert.equal(env.provider.getView().zoom, 15);
   assert.equal(env.provider.getView().center.lat, 37.56);
@@ -266,7 +266,7 @@ test('satellite coverage updates for new locations and ignores stale responses',
 
 test('a low overview imagery limit does not clamp a later search or provider switch', async () => {
   const env = environment({ maxZoom: async position => ({ zoom: position.lng === 129 ? 11 : 20 }) });
-  await env.provider.activate('GOOGLE_SATELLITE', {}, () => true);
+  await env.provider.activate('GOOGLE_SATELLITE', { center: { lat: 38.1, lng: 129 }, zoom: 6 }, () => true);
   await new Promise(setImmediate);
   assert.equal(env.provider.active.map.options.maxZoom, 11);
   env.provider.panTo({ lat: 37.56, lng: 126.97 });

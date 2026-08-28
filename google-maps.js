@@ -5,23 +5,13 @@
 (() => {
   'use strict';
 
-  // Match the requested East Asia overview on the first satellite selection.
-  // fitBounds also keeps Korea and Japan visible on smaller browser windows.
-  const SATELLITE_INITIAL_VIEW = Object.freeze({
-    center: Object.freeze({ lat: 38.1, lng: 129 }),
-    zoom: 6,
-    bounds: Object.freeze({ north: 45.4, south: 30, west: 108, east: 150 })
-  });
   const THEMES = Object.freeze({
     GOOGLE_DEFAULT: { label: 'Google Map', mapTypeId: 'roadmap' },
     GOOGLE_BASIC: { label: '기본_G', mapIdSetting: 'basicMapId' },
     GOOGLE_BLUE: { label: '블루_G', mapIdSetting: 'blueMapId' },
     // Live Korean satellite tiles are available through zoom 15 for this
     // deployment. Keep a conservative ceiling even if metadata reports more.
-    GOOGLE_SATELLITE: {
-      label: '위성_G', mapTypeId: 'satellite', maxZoom: 15,
-      initialView: SATELLITE_INITIAL_VIEW
-    },
+    GOOGLE_SATELLITE: { label: '위성_G', mapTypeId: 'satellite', maxZoom: 15 },
     GOOGLE_EARTH: { label: '어스_G', earth: true }
   });
   const MESSAGES = Object.freeze({
@@ -144,10 +134,8 @@
       this.closeInfo();
       this.records.forEach(record => { record.element.hidden = true; });
       let record = this.records.get(theme);
-      const initialView = !record ? definition.initialView : null;
-      const camera = initialView || view;
-      const center = validPosition(camera?.center) || { lat: 37.5666103, lng: 126.9783882 };
-      const zoom = Math.max(2, Math.min(definition.maxZoom || 22, Number(camera?.zoom) || 15));
+      const center = validPosition(view?.center) || { lat: 37.5666103, lng: 126.9783882 };
+      const zoom = Math.max(2, Math.min(definition.maxZoom || 22, Number(view?.zoom) || 15));
       if (!record) {
         const element = document.createElement('div');
         element.className = 'google-map-surface';
@@ -184,7 +172,6 @@
             this.lookupAddress(event.latLng);
           }
         });
-        if (initialView?.bounds) map.fitBounds(initialView.bounds, 0);
       } else {
         record.element.hidden = false;
         google.maps.event.trigger(record.map, 'resize');

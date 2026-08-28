@@ -8,10 +8,10 @@ Selecting a Google theme hides the entire boundary toolbar and its popovers.
 Returning to Naver restores the saved boundary settings. Each provider keeps
 its own search results and pins; Google data is not copied onto a Naver map.
 
-The first selection of `위성_G` starts at an East Asia overview (zoom 6, centered
-near 38.1 N / 129 E), then fits 108–150 E / 30–45.4 N to the available window.
-Smaller windows may start farther out. Subsequent theme switches continue to
-share the current camera instead of repeatedly resetting to the overview.
+The first selection of `위성_G`, like later theme switches, preserves the current
+map center and zoom within the available imagery limit. There is no forced
+East Asia overview or initial fit-to-bounds. If no current view is available,
+the default is Seoul at zoom 15.
 Satellite requests Google's WebGL/vector renderer to avoid gaps between HTML
 raster tiles, with fractional zoom, tilt and rotation disabled. Google may fall
 back to raster when WebGL is unavailable; seams on those devices may depend on
