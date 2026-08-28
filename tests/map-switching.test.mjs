@@ -166,3 +166,24 @@ test('search results from the previous provider are discarded after a switch', a
   await pending;
   assert.equal(rendered, false);
 });
+
+test('Earth search results provide an accessible pin delete action without moving the camera', async () => {
+  const env = environment();
+  let removed;
+  let moved = false;
+  env.googleStub.hasMarker = () => true;
+  env.googleStub.removeMarker = key => { removed = key; };
+  env.context.selectSearchResult = () => { moved = true; };
+  await env.select('GOOGLE_EARTH');
+  vm.runInContext(`activeSearchResults = [{ lat: 35, lng: 135, provider: 'google' }];`, env.context);
+  const button = env.element('test-pin-action');
+  button.dataset = { addIndex: '0' };
+  env.document.querySelectorAll = selector => selector === '.search-result-add' ? [button] : [];
+  env.context.updateSearchResultAddButtons();
+  assert.equal(button.disabled, false);
+  assert.equal(button.textContent, '삭제');
+  assert.equal(button.attributes['aria-label'], '이 위치 핀 삭제');
+  env.context.toggleSearchResultMarker(0);
+  assert.equal(removed, '35.000000,135.000000');
+  assert.equal(moved, false);
+});

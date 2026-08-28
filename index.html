@@ -2126,9 +2126,25 @@ function updateSearchResultAddButtons() {
   document.querySelectorAll('.search-result-add').forEach(button => {
     const item = activeSearchResults[Number(button.dataset.addIndex)];
     const added = item && isSearchMarkerAdded(item);
-    button.disabled = Boolean(added);
-    button.textContent = added ? '추가됨' : '추가';
+    const removable = added && isGoogleMode() && activeTheme === 'GOOGLE_EARTH';
+    button.disabled = Boolean(added && !removable);
+    button.textContent = removable ? '삭제' : added ? '추가됨' : '추가';
+    button.setAttribute('aria-label', removable ? '이 위치 핀 삭제' : '이 위치 핀 추가');
   });
+}
+
+function toggleSearchResultMarker(index) {
+  const item = activeSearchResults[index];
+  if (!item) return;
+  // An HTML action remains accessible even when a 3D pin is behind terrain
+  // or difficult to select with a pointer in the photorealistic scene.
+  if (isGoogleMode() && activeTheme === 'GOOGLE_EARTH' && googleProvider?.hasMarker(item)) {
+    googleProvider.removeMarker(getSearchMarkerKey(item));
+  } else {
+    addSearchMarker(item);
+    selectSearchResult(index);
+  }
+  updateSearchResultAddButtons();
 }
 
 function renderSearchResults(results) {
@@ -2180,15 +2196,9 @@ function renderSearchResults(results) {
     button.addEventListener('click', () => selectSearchResult(Number(button.dataset.index)));
   });
   list.querySelectorAll('.search-result-add').forEach(button => {
-    button.addEventListener('click', () => {
-      const index = Number(button.dataset.addIndex);
-      const item = activeSearchResults[index];
-      if (!item) return;
-      addSearchMarker(item);
-      selectSearchResult(index);
-      updateSearchResultAddButtons();
-    });
+    button.addEventListener('click', () => toggleSearchResultMarker(Number(button.dataset.addIndex)));
   });
+  updateSearchResultAddButtons();
 }
 
 function selectSearchResult(index) {

@@ -36,7 +36,9 @@ tilt 35 degrees). Search moves to the result at range 3 km and tilt 60
 degrees. The built-in controls allow rotation, tilt, and zoom. Camera position
 and approximate zoom are shared when switching to/from 2D Google themes.
 Pins retain their colors; click a 3D pin to open its delete button, or focus
-it and press Delete/Backspace. The line/fill toolbar stays hidden.
+it and press Delete/Backspace. Search results also provide an accessible
+`삭제` button for an existing Earth pin, including pins obscured by buildings
+or terrain. The line/fill toolbar stays hidden.
 
 Initialization waits for the first rendered scene. A 3D initialization error
 or 45-second timeout restores the previous Naver theme with a safe message.
