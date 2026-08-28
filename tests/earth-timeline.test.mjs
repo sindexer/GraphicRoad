@@ -197,6 +197,55 @@ test('capture, delete, undo and redo preserve all channel data', () => {
   e.restore(true); assert.equal(e.project.tracks.heading.length, 1);
 });
 
+test('Space toggles playback from buttons and keys; repeats and text editing do not toggle', () => {
+  const {e} = editor();
+  let toggles = 0; e.play = () => toggles++;
+  const event = {key:' ',code:'Space',preventDefault(){},target:{tagName:'BUTTON'}};
+  e.onKey(event); e.onKey(event); assert.equal(toggles,2);
+  e.onKey({...event,repeat:true}); assert.equal(toggles,2);
+  e.onKey({...event,target:{tagName:'INPUT'}}); assert.equal(toggles,2);
+});
+
+test('batch easing affects incoming/outgoing handles of each selected key', () => {
+  const p = C.createProject();
+  for (const key of ['heading','tilt']) for (const time of [0,5,10]) C.upsert(p,key,time,time,C.PRESETS.linear);
+  const selection = [{channel:'heading',time:5},{channel:'tilt',time:5}];
+  C.easeKeys(p,selection,'in');
+  assert.deepEqual(plain(p.tracks.heading[0].easing),[0,0,.58,1]);
+  assert.deepEqual(plain(p.tracks.heading[1].easing),[0,0,1,1]);
+  C.easeKeys(p,selection,'out');
+  assert.deepEqual(plain(p.tracks.heading[1].easing),[.42,0,1,1]);
+  assert.deepEqual(plain(p.tracks.tilt[1].easing),[.42,0,1,1]);
+});
+
+test('group movement is atomic, keeps offsets and refuses collisions and bounds', () => {
+  const p = C.createProject();
+  C.upsert(p,'heading',0,0); C.upsert(p,'heading',5,90); C.upsert(p,'tilt',0,30);
+  let selected = [{channel:'heading',time:0},{channel:'tilt',time:0}];
+  assert.equal(C.moveKeys(p,selected,-1),null);
+  assert.equal(C.moveKeys(p,selected,5),null);
+  assert.equal(p.tracks.tilt[0].time,0);
+  selected = C.moveKeys(p,selected,2);
+  assert.equal(p.tracks.heading[0].time,2); assert.equal(p.tracks.tilt[0].time,2);
+  assert.equal(selected.length,2);
+});
+
+test('batch ease and delete each have a single undo step', () => {
+  const {e} = editor(); e.capture();
+  const before = JSON.stringify(e.project);
+  e.applyEase('both'); assert.equal(e.undoStack.length,2);
+  e.deleteKey(); assert.equal(Object.values(e.project.tracks).flat().length,0);
+  e.restore(false); assert.equal(Object.values(e.project.tracks).flat().length,8);
+  e.restore(false); assert.equal(JSON.stringify(e.project),before);
+});
+
+test('toolbar has one capture action and no obsolete bottom controls or project buttons', () => {
+  assert.equal((uiSource.match(/data-action="capture"/g)||[]).length,1);
+  assert.doesNotMatch(uiSource,/id="ET_(PAN|TIME|SCRUB)"|data-action="(?:save|load|new)"/);
+  assert.match(uiSource,/data-action="render-frame"/);
+  assert.match(uiSource,/data-action="render-preview"/);
+});
+
 test('playback updates the existing provider at selected FPS and stops at its end', () => {
   const { e, calls, tick, callbacks } = editor();
   C.upsert(e.project, 'heading', 0, 0, C.PRESETS.linear);

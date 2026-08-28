@@ -155,3 +155,28 @@ body.earth-timeline-open #googleMap { bottom: var(--earth-timeline-height); }
 .et-workspace-bottom { flex-shrink:0; padding:4px 12px 7px; background:#202020; border-top:1px solid #111; }
 .et-workspace-bottom .et-view-controls { border:0; padding:0; }
 .et-workspace-bottom .et-scrubber { margin-top:3px; }
+
+#EARTH_TIMELINE .et-header { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:10px; overflow:visible; min-height:48px; }
+.et-header-left { display:flex; align-items:center; gap:10px; min-width:0; }
+#EARTH_TIMELINE .et-header .et-actions { justify-self:end; margin:0; }
+#EARTH_TIMELINE .et-title { padding:8px 0; }
+.et-ease-buttons { display:flex; align-items:center; gap:5px; }
+#ET_SELECTION_COUNT { color:#90b7d5; min-width:54px; white-space:nowrap; }
+.et-render-menu { position:relative; }
+.et-render-menu summary { cursor:pointer; list-style:none; padding:6px 10px; border:1px solid #555; background:#303030; white-space:nowrap; }
+.et-render-menu > div { position:absolute; right:0; top:32px; z-index:20; display:grid; gap:5px; width:210px; padding:10px; background:#242424; border:1px solid #555; box-shadow:0 8px 24px #0008; }
+.et-render-menu p { color:#aaa; font-size:10px; margin:4px; line-height:1.5; }
+#EARTH_TIMELINE:focus { outline:none; }
+@media(max-width:1150px) {
+  #EARTH_TIMELINE .et-header { grid-template-columns:1fr auto 1fr; }
+  #EARTH_TIMELINE .et-title strong span { display:none; }
+  #EARTH_TIMELINE .et-header-left { gap:4px; }
+  #EARTH_TIMELINE .et-header .et-actions { gap:3px; }
+  #EARTH_TIMELINE .et-workspace-toolbar { flex-wrap:wrap; }
+}
+@media(max-width:800px) {
+  #EARTH_TIMELINE .et-header { grid-template-columns:1fr 1fr; }
+  #EARTH_TIMELINE .et-header .et-transport { grid-row:1; grid-column:1 / -1; justify-self:center; }
+  #EARTH_TIMELINE .et-header-left { grid-row:2; }
+  #EARTH_TIMELINE .et-header .et-actions { grid-row:2; }
+}

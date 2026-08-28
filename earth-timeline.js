@@ -19,6 +19,7 @@
       this.viewStart = 0;
       this.channel = 'heading';
       this.selectedTime = null;
+      this.selection = [];
       this.undoStack = [];
       this.redoStack = [];
       this.project = null;
@@ -27,6 +28,7 @@
       this.appliedUntil = 0;
       this.acceptCameraUpdates = false;
       this.build();
+      root.tabIndex = 0;
       this.resizeObserver = new ResizeObserver(() => { if (this.opened) this.renderTracks(); });
       this.resizeObserver.observe(this.$('ET_TRACKS'));
       button.addEventListener('click', () => this.opened ? this.close() : this.open());
@@ -42,22 +44,24 @@
         }
       });
       root.addEventListener('input', event => {
-        if (event.target.id === 'ET_ZOOM' || event.target.id === 'ET_PAN') {
-          this.zoom = Number(this.$('ET_ZOOM').value);
-          const span = this.project.duration / this.zoom;
-          this.viewStart = Number(this.$('ET_PAN').value) / 100 * (this.project.duration - span);
-          this.renderTracks();
-        } else if (event.target.id === 'ET_SCRUB') this.seek(Number(event.target.value));
-        else if (event.target.type === 'number') event.target.dataset.pendingEdit = 'true';
+        if (event.target.type === 'number') event.target.dataset.pendingEdit = 'true';
       });
       root.addEventListener('keydown', event => this.onKey(event));
+      this.$('ET_TRACKS').addEventListener('wheel', event => {
+        if (!this.project || (!event.shiftKey && !event.deltaX)) return;
+        event.preventDefault();
+        this.viewStart = C.clamp(this.viewStart + (event.deltaX || event.deltaY) / 500 * this.project.duration / this.zoom, 0, this.project.duration - this.project.duration / this.zoom);
+        this.renderTracks();
+      }, {passive:false});
       for (const svg of [this.$('ET_TRACKS'), this.$('ET_GRAPH')]) {
         svg.addEventListener('pointerdown', event => this.pointerDown(event, svg));
-        svg.addEventListener('pointermove', event => this.pointerMove(event, svg));
-        const finish = () => { this.drag = null; };
+        document.addEventListener('pointermove', event => { if (this.drag?.svg === svg) this.pointerMove(event, svg); });
+        const finish = () => { this.drag = null; this.$('ET_MARQUEE')?.remove(); };
         svg.addEventListener('pointerup', finish);
         svg.addEventListener('pointercancel', finish);
         svg.addEventListener('lostpointercapture', finish);
+        document.addEventListener('pointerup', event => { if (this.drag?.svg === svg && this.drag.pointerId === event.pointerId) finish(); });
+        document.addEventListener('pointercancel', event => { if (this.drag?.svg === svg && this.drag.pointerId === event.pointerId) finish(); });
       }
       // Manual map navigation, switching tabs, hiding UI, or closing the panel
       // must never leave a background animation competing with the user.
@@ -65,18 +69,36 @@
         document.getElementById('googleMap')?.addEventListener(event, () => this.pauseForNavigation(), { capture: true, passive: true });
       }
       document.addEventListener('visibilitychange', () => { if (document.hidden) this.pause(); });
+      window.addEventListener('blur', () => { this.drag = null; this.$('ET_MARQUEE')?.remove(); });
     }
 
     $(id) { return this.root.querySelector('#' + id); }
     activeChannels() { return C.channelsForMode(this.project.mode); }
     selected() { return this.selectedTime === null ? null : this.project?.tracks[this.channel].find(key => Math.abs(key.time - this.selectedTime) < 0.5 / this.project.fps); }
+    selectedEntries() {
+      const entries = this.selection?.length ? this.selection : this.selected() ? [{channel:this.channel,time:this.selectedTime}] : [];
+      return entries.filter(s => this.project.tracks[s.channel]?.some(f => Math.abs(f.time-s.time) < .5/this.project.fps));
+    }
+    updateSelectionUI() {
+      const count = this.selectedEntries().length;
+      this.$('ET_SELECTION_COUNT').textContent = `${count}개 선택`;
+      this.root.querySelectorAll('[data-ease]').forEach(button => { button.disabled = !count; });
+      this.root.querySelectorAll('#ET_TRACKS [data-key]').forEach(node => node.setAttribute('aria-pressed', String(this.selectedEntries().some(s => s.channel === node.dataset.key && s.time === Number(node.dataset.time)))));
+    }
+    applyEase(kind) {
+      const entries = this.selectedEntries();
+      if (!entries.length || !['both','in','out'].includes(kind)) return;
+      this.pause(); this.remember(); C.easeKeys(this.project, entries, kind);
+      this.seek(this.time); this.renderTracks(); this.renderGraph(); this.historyButtons();
+      this.setStatus(`${entries.length}개 키에 ${kind === 'both' ? 'Easy Ease' : kind === 'in' ? 'Ease In (도착 감속)' : 'Ease Out (출발 가속)'} 적용`);
+    }
     pauseForNavigation() { this.pause(); this.appliedUntil = 0; this.acceptCameraUpdates = true; }
     setStatus(message) { this.$('ET_STATUS').textContent = message; }
 
     build() {
       this.root.innerHTML = `
         <header class="et-header">
-          <div class="et-title"><span class="et-orbit">▤</span><strong>타임라인 <span>· Earth Camera</span></strong></div>
+          <div class="et-header-left"><div class="et-title"><span class="et-orbit">▤</span><strong>타임라인 <span>· Earth Camera</span></strong></div><button type="button" data-action="capture" class="et-key-button">◆ 키프레임 추가</button></div>
           <div class="et-transport">
             <button type="button" data-action="back" title="이전 프레임" aria-label="이전 프레임">‹</button>
             <button type="button" data-action="play" id="ET_PLAY" class="et-primary" aria-label="애니메이션 재생">▶ 재생</button>
@@ -86,31 +108,24 @@
           </div>
           <div class="et-actions">
             <button type="button" data-action="graph-toggle" id="ET_GRAPH_TOGGLE" aria-pressed="false">그래프 편집기</button>
-            <button type="button" data-action="capture" class="et-key-button">◆ 키프레임 추가</button>
             <button type="button" data-action="undo" id="ET_UNDO" aria-label="실행 취소" title="실행 취소 (Ctrl+Z)">↶</button>
             <button type="button" data-action="redo" id="ET_REDO" aria-label="다시 실행" title="다시 실행 (Ctrl+Shift+Z)">↷</button>
-            <button type="button" data-action="save">저장</button>
-            <button type="button" data-action="load">불러오기</button>
-            <button type="button" data-action="new">새로 만들기</button>
+<details class="et-render-menu"><summary>렌더 ▾</summary><div><button type="button" data-action="render-frame">현재 프레임 PNG</button><button type="button" data-action="render-preview">전체 구간 미리보기</button><p>PNG 출력 시 현재 탭 공유가 필요합니다.</p></div></details>
             <button type="button" data-action="close" class="et-close" aria-label="타임라인 닫기">✕</button>
           </div>
-          <input id="ET_FILE" type="file" accept=".json,application/json" hidden>
         </header>
         <div class="et-body">
           <section class="et-workspace" aria-label="카메라 속성과 키프레임">
             <div class="et-workspace-toolbar">
               <label class="et-mode">카메라 제어 기준<select id="ET_MODE" aria-label="카메라 제어 기준"><option value="orbit">피벗 기준 회전</option><option value="camera">카메라 위치 이동</option></select></label>
-              <div class="et-settings"><label>길이 <input id="ET_DURATION" aria-label="타임라인 길이 초" type="number" min="1" max="600" step="1" value="10">초</label><select id="ET_FPS" aria-label="타임라인 FPS"><option>24</option><option>25</option><option selected>30</option><option>60</option></select><span>FPS</span></div>
+<div class="et-ease-buttons"><span id="ET_SELECTION_COUNT" role="status">0개 선택</span><button type="button" data-ease="both">Easy Ease</button><button type="button" data-ease="in">Ease In</button><button type="button" data-ease="out">Ease Out</button></div>
+              <div class="et-settings"><label>확대 <select id="ET_ZOOM" aria-label="타임라인 확대"><option value="1">100%</option><option value="2">200%</option><option value="4">400%</option><option value="8">800%</option></select></label><label>길이 <input id="ET_DURATION" aria-label="타임라인 길이 초" type="number" min="1" max="600" step="1" value="10">초</label><select id="ET_FPS" aria-label="타임라인 FPS"><option>24</option><option>25</option><option selected>30</option><option>60</option></select><span>FPS</span></div>
             </div>
             <div class="et-aligned-scroll">
               <div class="et-aligned-tracks">
                 <section class="et-property-list" aria-label="카메라 속성"><div class="et-property-heading">카메라 속성 <span>값 · 키프레임</span></div><div id="ET_FIELDS"></div></section>
                 <svg id="ET_TRACKS" viewBox="0 0 720 274" preserveAspectRatio="none" role="group" aria-label="카메라 키프레임 트랙"></svg>
               </div>
-            </div>
-            <div class="et-workspace-bottom">
-              <div class="et-view-controls"><label>확대 <select id="ET_ZOOM" aria-label="타임라인 확대"><option value="1">100%</option><option value="2">200%</option><option value="4">400%</option><option value="8">800%</option></select></label><label>보기 이동 <input id="ET_PAN" aria-label="타임라인 보기 이동" type="range" min="0" max="100" value="0"></label></div>
-              <div class="et-scrubber"><label for="ET_SCRUB">시간</label><input id="ET_SCRUB" aria-label="재생 위치" type="range" min="0" max="10" step="0.033333" value="0"><input id="ET_TIME" aria-label="현재 시간 초" type="number" min="0" max="10" step="0.033333" value="0"><span>초</span></div>
             </div>
           </section>
           <section class="et-curve" aria-label="애니메이션 그래프">
@@ -124,7 +139,7 @@
             <p id="ET_CURVE_HINT" class="et-help"></p>
           </section>
         </div>
-        <footer class="et-footer"><span id="ET_STATUS" role="status" aria-live="polite">카메라만 애니메이션합니다. 프로젝트는 JSON으로 저장하세요.</span><span>CAMERA EDITOR · 로컬 프로젝트</span></footer>
+        <footer class="et-footer"><span id="ET_STATUS" role="status" aria-live="polite">빈 트랙 드래그: 박스 선택 · Shift: 추가 선택 · 시간 눈금: 재생 위치 · Space: 재생/정지</span><span>CAMERA EDITOR · 로컬 프로젝트</span></footer>
         <dialog id="ET_CONFIRM" aria-labelledby="ET_CONFIRM_TITLE" aria-describedby="ET_CONFIRM_MESSAGE"><form method="dialog"><strong id="ET_CONFIRM_TITLE">타임라인 변경 확인</strong><p id="ET_CONFIRM_MESSAGE"></p><div><button type="submit" value="cancel" id="ET_CONFIRM_CANCEL">취소</button><button type="submit" value="confirm" class="et-primary">확인</button></div></form></dialog>`;
     }
 
@@ -194,6 +209,7 @@
       if (!source.length) return;
       (redo ? this.undoStack : this.redoStack).push(C.copy(this.project));
       this.project = source.pop();
+      this.selection = [];
       this.time = Math.min(this.time, this.project.duration);
       if (!this.activeChannels().some(item => item.key === this.channel)) this.channel = 'heading';
       this.selectedTime = null;
@@ -269,15 +285,18 @@
       this.project = next;
       if (key) this.channel = key;
       this.selectedTime = this.time;
+      this.selection = channels.map(item => ({channel:item.key,time:this.time}));
       this.render();
       this.setStatus(`${number(this.time, 3)}초에 ${channels.length}개 채널의 키프레임을 저장했습니다.`);
     }
 
     deleteKey() {
-      if (!this.selected()) return;
+      const entries = this.selectedEntries();
+      if (!entries.length) return;
       this.pause();
       this.remember();
-      this.project.tracks[this.channel] = this.project.tracks[this.channel].filter(key => key !== this.selected());
+      for (const entry of entries) this.project.tracks[entry.channel] = this.project.tracks[entry.channel].filter(f => Math.abs(f.time-entry.time) >= .5/this.project.fps);
+      this.selection = [];
       this.selectedTime = null;
       this.render();
       this.seek(this.time);
@@ -286,13 +305,11 @@
     render() {
       const p = this.project;
       this.viewStart = C.clamp(this.viewStart, 0, p.duration - p.duration / this.zoom);
-      this.$('ET_PAN').value = this.zoom === 1 ? 0 : this.viewStart / (p.duration - p.duration / this.zoom) * 100;
+
       this.root.dataset.mode = p.mode;
       this.$('ET_MODE').value = p.mode;
       this.$('ET_DURATION').value = p.duration;
       this.$('ET_FPS').value = p.fps;
-      this.$('ET_SCRUB').max = this.$('ET_TIME').max = p.duration;
-      this.$('ET_SCRUB').step = this.$('ET_TIME').step = 1 / p.fps;
       this.$('ET_UNDO').disabled = !this.undoStack.length;
       this.$('ET_REDO').disabled = !this.redoStack.length;
       this.$('ET_FIELDS').innerHTML = this.activeChannels().map(item => `<div class="et-field" data-property="${item.key}"><label for="ET_FIELD_${item.key}">${esc(item.label)}</label><input id="ET_FIELD_${item.key}" data-channel="${item.key}" type="number" min="${item.min}" max="${item.max}" step="${item.step}"><span>${item.unit}</span><button type="button" data-add="${item.key}" aria-label="${esc(item.label)} 키프레임 추가" title="현재 시간에 키프레임 추가">◆</button></div>`).join('');
@@ -315,8 +332,6 @@
     updatePlayhead() {
       const frames = Math.round(this.time * this.project.fps);
       this.$('ET_TIMECODE').textContent = [Math.floor(frames / this.project.fps / 60), Math.floor(frames / this.project.fps) % 60, frames % this.project.fps].map(n => String(n).padStart(2, '0')).join(':');
-      this.$('ET_SCRUB').value = this.time;
-      if (document.activeElement !== this.$('ET_TIME')) this.$('ET_TIME').value = number(this.time, 3);
       const x = this.trackX(this.time);
       this.$('ET_PLAYHEAD')?.setAttribute('transform', `translate(${x} 0)`);
       this.$('ET_PLAYHEAD')?.setAttribute('visibility', x < 12 || x > (this.trackWidth || 720) - 22 ? 'hidden' : 'visible');
@@ -341,7 +356,7 @@
           <line x1="12" y1="${y}" x2="${width - 22}" y2="${y}" stroke="#373442"/>`;
         this.project.tracks[item.key].forEach(key => {
           if (this.trackX(key.time) < 12 || this.trackX(key.time) > width - 22) return;
-          const selected = item.key === this.channel && this.selectedTime !== null && Math.abs(key.time - this.selectedTime) < 0.5 / this.project.fps;
+          const selected = this.selectedEntries().some(s => s.channel === item.key && Math.abs(s.time-key.time) < .5/this.project.fps);
           svg += `<path d="M0,-6 L6,0 L0,6 L-6,0 Z" transform="translate(${this.trackX(key.time)} ${y})" aria-pressed="${selected}" data-key="${item.key}" data-time="${key.time}" tabindex="0" role="button" aria-label="${esc(item.label)} ${number(key.time, 3)}초 키프레임"/>`;
         });
       });
@@ -349,6 +364,7 @@
       this.$('ET_TRACKS').innerHTML = svg;
       this.root.querySelectorAll('[data-property]').forEach(row => row.dataset.selected = String(row.dataset.property === this.channel));
       this.updatePlayhead();
+      this.updateSelectionUI();
     }
 
     renderGraph() {
@@ -402,10 +418,12 @@
       const property = event.target.closest('[data-property]');
       if (property && event.target.tagName === 'LABEL') {
         this.channel = property.dataset.property;
-        this.selectedTime = null;
+        this.selectedTime = null; this.selection = [];
         this.$('ET_CHANNEL').value = this.channel;
         this.renderTracks(); this.renderGraph();
       }
+      const ease = event.target.closest('[data-ease]');
+      if (ease) { this.applyEase(ease.dataset.ease); return; }
       const add = event.target.closest('[data-add]');
       if (add) { this.capture(add.dataset.add); return; }
       const action = event.target.closest('[data-action]')?.dataset.action;
@@ -421,20 +439,24 @@
       else if (action === 'delete') this.deleteKey();
       else if (action === 'undo' || action === 'redo') this.restore(action === 'redo');
       else if (action === 'easing' || action === 'values') { this.graphMode = action; this.renderGraph(); }
-      else if (action === 'save') this.save();
-      else if (action === 'load') { this.pause(); this.$('ET_FILE').click(); }
-      else if (action === 'new') this.newProject();
+      else if (action === 'render-frame') {
+        this.pause();
+        const exportButton = document.getElementById('EXPORT_MAP');
+        if (exportButton && !exportButton.disabled) exportButton.click();
+        else this.setStatus('PNG 출력은 실제 지도 화면에서 사용할 수 있습니다.');
+      }
+      else if (action === 'render-preview') { this.$('ET_LOOP').checked = false; this.seek(0); this.play(); }
     }
 
     onChange(event) {
       const input = event.target;
       if (input.id === 'ET_ZOOM') {
         this.zoom = Number(input.value);
-        this.viewStart = Number(this.$('ET_PAN').value) / 100 * (this.project.duration - this.project.duration / this.zoom);
+        this.viewStart = C.clamp(this.time - this.project.duration / this.zoom / 2, 0, this.project.duration - this.project.duration / this.zoom);
         this.renderTracks(); return;
       }
-      if (input.id === 'ET_FILE') { this.load(input.files?.[0]); input.value = ''; return; }
       if (input.id === 'ET_CHANNEL') {
+        this.selection = [];
         this.channel = input.value;
         this.selectedTime = this.project.tracks[this.channel].find(key => key.time >= this.time)?.time ?? this.project.tracks[this.channel].at(-1)?.time ?? null;
         this.renderTracks(); this.renderGraph(); return;
@@ -448,7 +470,7 @@
         Object.values(next.tracks).forEach(track => track.forEach(key => { key.time = C.snap(key.time, next.fps, next.duration); }));
         try { C.validateProject(next); }
         catch { input.value = this.project.fps; this.setStatus('프레임 간격이 겹칩니다. 가까운 키를 옮긴 후 FPS를 바꾸세요.'); return; }
-        this.remember(); this.project = next; this.selectedTime = null;
+        this.remember(); this.project = next; this.selectedTime = null; this.selection = [];
         this.render(); this.seek(this.time); return;
       }
       if (input.id === 'ET_PRESET') {
@@ -461,7 +483,7 @@
       if (input.type !== 'number') return;
       const value = input.valueAsNumber;
       if (!Number.isFinite(value)) { this.render(); return; }
-      if (input.id === 'ET_TIME') { this.seek(value); return; }
+
       if (input.dataset.channel) {
         const key = input.dataset.channel;
         if (!this.activeChannels().some(item => item.key === key)) return;
@@ -470,6 +492,8 @@
         const next = C.clamp(value, definition.min, definition.max);
         const existing = this.project.tracks[key].find(frame => Math.abs(frame.time - this.time) < 0.5 / this.project.fps);
         if (existing) { this.remember(); existing.value = next; this.selectedTime = existing.time; }
+        this.selection = existing ? [{channel:key,time:existing.time}] : [];
+        if (!existing) this.selectedTime = null;
         this.channel = key;
         this.apply({ ...this.pose, [key]: next });
         this.render();
@@ -490,6 +514,7 @@
         const frame = C.moveKey(this.project, this.channel, this.selectedTime,
           input.id === 'ET_KEY_TIME' ? value : this.selectedTime, input.id === 'ET_KEY_VALUE' ? value : undefined);
         this.selectedTime = frame.time;
+        this.selection = [{channel:this.channel,time:frame.time}];
         this.render(); this.seek(frame.time);
       }
     }
@@ -517,11 +542,12 @@
 
     async newProject(mode = this.project.mode) {
       this.pause();
-      if (!await this.confirmAction('현재 타임라인을 새로 만듭니다. 필요한 프로젝트는 먼저 저장해 주세요. 계속할까요?')) { this.render(); return; }
+      if (!await this.confirmAction('현재 타임라인을 새로 만듭니다. 기존 키프레임이 초기화됩니다. 계속할까요?')) { this.render(); return; }
       this.remember();
       this.project = C.createProject(this.getProvider()?.getEarthCamera() || this.pose, mode);
       this.pose = C.copy(this.project.base);
       this.activeChannels().forEach(item => C.upsert(this.project, item.key, 0, this.pose[item.key]));
+      this.selection = [];
       this.time = 0; this.selectedTime = 0; this.channel = 'heading';
       this.setStatus('현재 카메라를 시작 키프레임으로 만들었습니다.');
       this.render();
@@ -539,6 +565,12 @@
       if (target?.dataset.key) {
         this.channel = target.dataset.key;
         this.selectedTime = Number(target.dataset.time);
+        const entry = {channel:this.channel,time:this.selectedTime};
+        const entries = this.selection || [];
+        const contains = entries.some(s => s.channel === entry.channel && s.time === entry.time);
+        this.selection = event.shiftKey ? (contains ? entries.filter(s => s.channel !== entry.channel || s.time !== entry.time) : [...entries,entry]) : contains ? entries : [entry];
+        if (!this.selection.length) this.selectedTime = null;
+        if (this.selectedTime === null) { this.renderTracks(); this.renderGraph(); return; }
         this.seek(this.selectedTime);
         this.drag = { type: svg.id === 'ET_TRACKS' ? 'key' : 'selection', startX: event.clientX, remembered: false };
       } else if (target?.dataset.handle !== undefined && this.selected()) {
@@ -546,26 +578,56 @@
       } else if (svg.id === 'ET_TRACKS') {
         if (target?.dataset.track) this.channel = target.dataset.track;
         this.selectedTime = null;
-        this.seek(this.trackTime(this.point(event, svg).x));
-        this.drag = { type: 'scrub' };
+        const point = this.point(event, svg);
+        if (point.y <= 28) {
+          this.seek(this.trackTime(point.x)); this.drag = { type:'scrub' };
+        } else {
+          const initial = event.shiftKey ? [...(this.selection || [])] : [];
+          this.selection = initial;
+          this.drag = {type:'box',start:point,initial};
+        }
       } else return;
       event.preventDefault();
+      this.root.focus?.({preventScroll:true});
+      this.drag.svg = svg; this.drag.pointerId = event.pointerId;
       svg.setPointerCapture(event.pointerId);
       this.$('ET_CHANNEL').value = this.channel;
-      this.renderTracks(); this.renderGraph();
+      // Do not remove the pointer-down target before capture becomes active.
+      this.updateSelectionUI(); this.renderGraph();
     }
 
     pointerMove(event, svg) {
-      if (!this.drag || !svg.hasPointerCapture(event.pointerId)) return;
+      if (!this.drag || (this.drag.pointerId !== undefined && this.drag.pointerId !== event.pointerId)) return;
       const point = this.point(event, svg);
+      if (this.drag.type === 'box') {
+        const x = Math.min(point.x,this.drag.start.x), y = Math.min(point.y,this.drag.start.y);
+        const width = Math.abs(point.x-this.drag.start.x), height = Math.abs(point.y-this.drag.start.y);
+        const found = [...this.drag.initial];
+        this.activeChannels().forEach((item,i) => this.project.tracks[item.key].forEach(f => {
+          const fx = this.trackX(f.time), fy = 42.5+i*29;
+          if (fx >= 12 && fx <= (this.trackWidth || 720)-22 && fx >= x && fx <= x+width && fy >= y && fy <= y+height &&
+            !found.some(s => s.channel === item.key && s.time === f.time)) found.push({channel:item.key,time:f.time});
+        }));
+        this.selection = found;
+        this.selectedTime = found[0]?.time ?? null;
+        if (found.length) this.channel = found[0].channel;
+        this.$('ET_CHANNEL').value = this.channel;
+        this.renderTracks(); this.renderGraph();
+        const box = document.createElementNS('http://www.w3.org/2000/svg','rect');
+        for (const [key,value] of Object.entries({id:'ET_MARQUEE',x,y,width,height,fill:'#58a6ff22',stroke:'#58a6ff','pointer-events':'none'})) box.setAttribute(key,value);
+        svg.appendChild(box); return;
+      }
       if (this.drag.type === 'scrub') { this.seek(this.trackTime(point.x)); return; }
       if (this.drag.type === 'selection') return;
       if (this.drag.type === 'key' && Math.abs(event.clientX - this.drag.startX) < 3) return;
       if (!this.drag.remembered) { this.remember(); this.drag.remembered = true; }
       if (this.drag.type === 'key') {
-        const frame = C.moveKey(this.project, this.channel, this.selectedTime, this.trackTime(point.x));
-        this.selectedTime = frame.time;
-        this.seek(frame.time);
+        const delta = this.trackTime(point.x)-this.selectedTime;
+        const moved = C.moveKeys(this.project,this.selectedEntries(),delta);
+        if (!moved) return;
+        this.selection = moved;
+        this.selectedTime += delta;
+        this.seek(this.selectedTime);
         this.renderTracks();
       } else {
         const key = this.selected();
@@ -582,7 +644,12 @@
       if (event.key === 'Enter' && event.target.type === 'number') {
         event.preventDefault(); event.target.blur(); return;
       }
-      if (/INPUT|SELECT|TEXTAREA/.test(event.target.tagName)) return;
+      if (/INPUT|SELECT|TEXTAREA/.test(event.target.tagName) || event.target.isContentEditable) return;
+      if (event.code === 'Space' || event.key === ' ') {
+        event.preventDefault(); event.stopPropagation?.();
+        if (!event.repeat) this.play();
+        return;
+      }
       if (event.key === 'Escape') { this.close(); return; }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
         event.preventDefault(); this.restore(event.shiftKey); return;
@@ -594,13 +661,16 @@
       }
       if (target?.dataset.key) {
         this.channel = target.dataset.key; this.selectedTime = Number(target.dataset.time);
-        if (event.key === 'Enter' || event.key === ' ') {
+        if (event.key === 'Enter') {
           event.preventDefault(); this.seek(this.selectedTime); this.renderTracks(); this.renderGraph();
         } else if (['ArrowLeft', 'ArrowRight'].includes(event.key)) {
           event.preventDefault(); this.remember();
-          const frame = C.moveKey(this.project, this.channel, this.selectedTime, this.selectedTime + (event.key === 'ArrowLeft' ? -1 : 1) / this.project.fps);
-          this.selectedTime = frame.time; this.seek(frame.time); this.renderTracks(); this.renderGraph(); this.historyButtons();
-          this.$('ET_TRACKS').querySelector(`[data-key="${this.channel}"][data-time="${frame.time}"]`)?.focus();
+          const delta = (event.key === 'ArrowLeft' ? -1 : 1) / this.project.fps;
+          const moved = C.moveKeys(this.project,this.selectedEntries(),delta);
+          if (!moved) return;
+          this.selection = moved; this.selectedTime = C.snap(this.selectedTime+delta,this.project.fps,this.project.duration);
+          this.seek(this.selectedTime); this.renderTracks(); this.renderGraph(); this.historyButtons();
+          this.$('ET_TRACKS').querySelector(`[data-key="${this.channel}"][data-time="${this.selectedTime}"]`)?.focus();
         }
       } else if (target?.dataset.handle !== undefined && /^Arrow/.test(event.key) && this.selected()) {
         event.preventDefault(); this.pause(); this.remember();
@@ -610,7 +680,7 @@
         this.selected().easing[index] = C.clamp(this.selected().easing[index] + sign * 0.01, 0, 1);
         this.seek(this.time); this.renderGraph(); this.historyButtons();
         this.$('ET_GRAPH').querySelector(`[data-handle="${handle}"]`)?.focus();
-      } else if (event.key === ' ' && event.target.tagName !== 'BUTTON') { event.preventDefault(); this.play(); }
+      }
     }
 
     save() {
@@ -630,7 +700,7 @@
       catch { this.setStatus('올바른 타임라인 JSON이 아닙니다. 기존 프로젝트는 유지됩니다.'); return; }
       if (!this.opened || !this.available) return;
       if (!await this.confirmAction('현재 타임라인을 불러온 프로젝트로 바꿀까요? 저장하지 않은 변경은 사라집니다.')) return;
-      this.pause(); this.remember(); this.project = project;
+      this.pause(); this.remember(); this.project = project; this.selection = [];
       this.time = 0; this.channel = 'heading'; this.selectedTime = project.tracks.heading[0]?.time ?? null;
       this.render();
       if (this.opened && this.available) this.seek(0);

@@ -132,6 +132,29 @@
     return project;
   }
 
-  window.GraphicRoadTimelineCore = Object.freeze({ CHANNELS, PRESETS, clamp, copy, channel, channelsForMode,
+  function easeKeys(project, selection, kind) {
+    for (const entry of selection) {
+      const track = project.tracks[entry.channel];
+      const index = track?.findIndex(frame => Math.abs(frame.time - entry.time) < .5 / project.fps);
+      if (index === undefined || index < 0) continue;
+      // AE semantics: Ease In slows arrival; Ease Out slows departure.
+      if ((kind === 'in' || kind === 'both') && index > 0) track[index - 1].easing.splice(2, 2, .58, 1);
+      if (kind === 'out' || kind === 'both') track[index].easing.splice(0, 2, .42, 0);
+    }
+  }
+
+  function moveKeys(project, selection, delta) {
+    const entries = selection.map(s => ({ channel: s.channel, frame: project.tracks[s.channel]?.find(f => Math.abs(f.time - s.time) < .5 / project.fps) })).filter(s => s.frame);
+    if (!entries.length) return null;
+    delta = Math.round(delta * project.fps) / project.fps;
+    const selected = new Set(entries.map(s => s.frame));
+    if (entries.some(s => s.frame.time + delta < 0 || s.frame.time + delta > project.duration ||
+      project.tracks[s.channel].some(f => !selected.has(f) && Math.abs(f.time - (s.frame.time + delta)) < .5 / project.fps))) return null;
+    entries.forEach(s => { s.frame.time = snap(s.frame.time + delta, project.fps, project.duration); });
+    Object.values(project.tracks).forEach(track => track.sort((a,b) => a.time - b.time));
+    return entries.map(s => ({ channel:s.channel, time:s.frame.time }));
+  }
+
+  window.GraphicRoadTimelineCore = Object.freeze({ easeKeys, moveKeys, CHANNELS, PRESETS, clamp, copy, channel, channelsForMode,
     snap, normalizeCamera, createProject, cubic, easingAt, evaluateTrack, evaluate, upsert, moveKey, validateProject });
 })();
