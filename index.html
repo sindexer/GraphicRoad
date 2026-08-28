@@ -50,6 +50,7 @@ html, body {height:100%; margin:0}
 #googleMap {position:absolute; inset:0; isolation:isolate; background:#e9edf0}
 #googleMap[hidden], .google-map-surface[hidden] {display:none !important}
 .google-map-surface {position:absolute; inset:0}
+.google-earth-surface > gmp-map-3d {display:block; width:100%; height:100%}
 body.google-map-active #map {visibility:hidden; pointer-events:none}
 body.google-map-active .buttons {display:none !important}
 .google-search-pin {position:absolute; transform:translate(-50%, -100%)}
@@ -1148,6 +1149,7 @@ body.ui-hidden #TOGGLE_UI_VISIBILITY{ box-shadow:var(--shadow-popover); }
 <option value="GOOGLE_BASIC">기본_G</option>
 <option value="GOOGLE_BLUE">블루_G</option>
 <option value="GOOGLE_SATELLITE">위성_G</option>
+<option value="GOOGLE_EARTH">어스_G</option>
 </select>
 </div>
 <button id="EXPORT_MAP" type="button" class="control-btn export-map-button" title="UI를 제외한 현재 지도 화면을 PNG로 바로 저장합니다" aria-label="UI를 제외한 현재 지도 화면을 PNG로 바로 저장">Export</button>

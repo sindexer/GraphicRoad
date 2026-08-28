@@ -2,7 +2,7 @@
 
 Naver themes are `Naver Map`, `기본_N`, `블루_N (지하철 X)`, `블루_N`,
 `흰블_N`, and `위성_N`. Google themes are `Google Map`, `기본_G`, `블루_G`,
-and `위성_G`. `Google Map` uses the default roadmap with no custom style or
+`위성_G`, and `어스_G`. `Google Map` uses the default roadmap with no custom style or
 map ID. The two styled Google themes retain their existing Cloud map IDs.
 Selecting a Google theme hides the entire boundary toolbar and its popovers.
 Returning to Naver restores the saved boundary settings. Each provider keeps
@@ -22,6 +22,31 @@ was available at 15 but returned missing-image tiles at 16 and 17. The maximum
 imagery service can further lower the limit for areas with less coverage.
 Roadmap themes keep their normal zoom range. Raise this ceiling only after
 checking actual satellite tiles with this deployment's key and region settings.
+
+## Earth / 3D
+
+`어스_G` uses the official Maps JavaScript `maps3d` library and `Map3DElement`
+on the existing quarterly SDK channel. This is not an embedded Google Earth
+website. The default photorealistic satellite globe needs no additional map ID
+or API key. The 3D and marker libraries load only when this theme is selected;
+one initialized viewer is reused for later switches.
+
+The first view is an East Asia overview (38.1 N / 129 E, range 3,500 km,
+tilt 35 degrees). Search moves to the result at range 3 km and tilt 60
+degrees. The built-in controls allow rotation, tilt, and zoom. Camera position
+and approximate zoom are shared when switching to/from 2D Google themes.
+Pins retain their colors; click a 3D pin to open its delete button, or focus
+it and press Delete/Backspace. The line/fill toolbar stays hidden.
+
+Initialization waits for the first rendered scene. A 3D initialization error
+or 45-second timeout restores the previous Naver theme with a safe message.
+Switching away cancels a pending load. Hardware acceleration/WebGL and network
+access to Google's 3D imagery are required. Coverage varies by location;
+Korean detailed 3D coverage is limited, so test supported cities such as Tokyo.
+
+3D map loads use the separately billed **Immersive Maps** SKU. Check current
+pricing and quotas before enabling this feature in another deployment. Existing
+key restrictions, secret injection, and Google attribution remain unchanged.
 
 ## Security
 
@@ -74,3 +99,7 @@ visible on the map and in exports; they are not optional UI controls.
 - https://developers.google.com/maps/api-security-best-practices
 - https://developers.google.com/maps/documentation/javascript/map-ids/get-map-id
 - https://developers.google.com/maps/documentation/javascript/policies
+- https://developers.google.com/maps/documentation/javascript/3d/overview
+- https://developers.google.com/maps/documentation/javascript/reference/3.64/3d-map
+- https://developers.google.com/maps/coverage
+- https://developers.google.com/maps/billing-and-pricing/pricing

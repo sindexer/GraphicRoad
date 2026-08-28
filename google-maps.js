@@ -21,13 +21,15 @@
     GOOGLE_SATELLITE: {
       label: '위성_G', mapTypeId: 'satellite', maxZoom: 15,
       initialView: SATELLITE_INITIAL_VIEW
-    }
+    },
+    GOOGLE_EARTH: { label: '어스_G', earth: true }
   });
   const MESSAGES = Object.freeze({
     CONFIG: '구글 지도 배포 설정이 준비되지 않았습니다. 기존 지도를 이용해 주세요.',
     LOAD: '구글 지도를 불러오지 못했습니다. 네트워크 연결 후 다시 선택해 주세요.',
     AUTH: '구글 지도 인증에 실패했습니다. API 키의 웹사이트·API 제한과 결제 설정을 확인해 주세요.',
-    SEARCH: '구글 검색을 사용할 수 없습니다. Geocoding API와 Places API (New) 설정을 확인해 주세요.'
+    SEARCH: '구글 검색을 사용할 수 없습니다. Geocoding API와 Places API (New) 설정을 확인해 주세요.',
+    EARTH: '3D 지도를 불러오지 못했습니다. 최신 브라우저의 하드웨어 가속·네트워크·Maps JavaScript API 설정을 확인해 주세요.'
   });
   let configPromise;
   let sdkPromise;
@@ -129,6 +131,7 @@
     }
 
     async activate(theme, view, isCurrent) {
+      this.cancelEarthLoad?.();
       const definition = THEMES[theme];
       if (!definition) throw failure('CONFIG');
       const config = await loadConfig();
@@ -137,6 +140,7 @@
       const { Map: GoogleMap, MaxZoomService, RenderingType } = await google.maps.importLibrary('maps');
       if (!isCurrent()) return false;
       if (authenticationFailed) throw failure('AUTH');
+      if (definition.earth) return this.activateEarth(theme, definition, view, isCurrent);
       this.closeInfo();
       this.records.forEach(record => { record.element.hidden = true; });
       let record = this.records.get(theme);
@@ -195,6 +199,90 @@
       return true;
     }
 
+    async activateEarth(theme, definition, view, isCurrent) {
+      let library;
+      try {
+        const [maps3d, marker] = await Promise.all([
+          google.maps.importLibrary('maps3d'), google.maps.importLibrary('marker')
+        ]);
+        library = { ...maps3d, PinElement: marker.PinElement };
+      } catch { throw failure('EARTH'); }
+      if (!isCurrent()) return false;
+      if (authenticationFailed) throw failure('AUTH');
+      this.earthLibrary = library;
+      this.closeInfo();
+      this.enabled = false;
+      this.syncMarkers();
+      this.records.forEach(record => { record.element.hidden = true; });
+      let record = this.records.get(theme);
+      if (!record) {
+        const element = document.createElement('div');
+        element.className = 'google-map-surface google-earth-surface';
+        element.setAttribute('aria-label', definition.label);
+        let map;
+        try {
+          // No Cloud map ID is needed for the default photorealistic globe.
+          map = new library.Map3DElement({
+            center: { lat: 38.1, lng: 129, altitude: 0 },
+            range: 3500000, tilt: 35, heading: 0,
+            mode: library.MapMode.SATELLITE,
+            gestureHandling: library.GestureHandling.GREEDY,
+            defaultUIHidden: false,
+            description: '어스_G 3D 지도. 지도 기본 컨트롤로 확대, 회전, 기울이기를 조절하세요.'
+          });
+        } catch { throw failure('EARTH'); }
+        record = { map, element, earth: true };
+        map.addEventListener('gmp-click', () => this.closeInfo());
+        // Rendering can fail after the SDK loads (for example, WebGL is
+        // unavailable). Wait for the first completed scene, not just import.
+        const ready = new Promise((resolve, reject) => {
+          let settled = false;
+          const finish = (error, canceled = false) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            map.removeEventListener('gmp-steadychange', onSteady);
+            map.removeEventListener('gmp-error', onError);
+            if (this.cancelEarthLoad === cancel) this.cancelEarthLoad = null;
+            if (error || canceled) element.remove();
+            if (error) reject(error); else resolve(!canceled);
+          };
+          const onSteady = event => { if (event.isSteady) finish(null, !isCurrent()); };
+          const onError = () => finish(failure('EARTH'));
+          const cancel = () => finish(null, true);
+          const timer = setTimeout(() => finish(failure('EARTH')), 45000);
+          this.cancelEarthLoad = cancel;
+          map.addEventListener('gmp-steadychange', onSteady);
+          map.addEventListener('gmp-error', onError);
+        });
+        element.appendChild(map);
+        this.container.appendChild(element);
+        if (!await ready || !isCurrent()) { element.remove(); return false; }
+        this.records.set(theme, record);
+      } else {
+        const center = validPosition(view?.center);
+        if (center) {
+          record.map.center = { ...center, altitude: 0 };
+          record.map.range = this.earthRangeForView(view);
+        }
+        record.element.hidden = false;
+      }
+      this.active = record;
+      this.enabled = true;
+      this.syncMarkers();
+      return true;
+    }
+
+    earthRangeForView(view) {
+      const lat = validPosition(view?.center)?.lat || 0;
+      const zoom = Math.max(2, Math.min(22, Number(view?.zoom) || 6));
+      // Approximate a top-down Web Mercator view using the 3D vertical FOV.
+      // Perspective/terrain mean a tilted view cannot match 2D bounds exactly.
+      const metersPerPixel = 156543.03392 * Math.cos(lat * Math.PI / 180) / 2 ** zoom;
+      return Math.max(800, Math.min(63170000,
+        metersPerPixel * (this.container.clientHeight || 700) / (2 * Math.tan(35 * Math.PI / 360))));
+    }
+
     resetSatelliteLimitForPosition(record, position) {
       // A low imagery limit at the old location must not clamp a new search
       // before the new location's metadata arrives. Keep the deployment cap.
@@ -231,6 +319,7 @@
     }
 
     hide() {
+      this.cancelEarthLoad?.();
       this.enabled = false;
       this.closeInfo();
       this.syncMarkers();
@@ -238,6 +327,15 @@
 
     getView() {
       if (!this.active) return null;
+      if (this.active.earth) {
+        const map = this.active.map;
+        const center = validPosition(map.center);
+        if (!center) return null;
+        const metersPerPixel = Math.max(1, map.range) * 2 * Math.tan((map.fov || 35) * Math.PI / 360)
+          / (this.container.clientHeight || 700);
+        const zoom = Math.log2(156543.03392 * Math.cos(center.lat * Math.PI / 180) / metersPerPixel);
+        return { center, zoom: Math.max(2, Math.min(22, Math.round(zoom))) };
+      }
       return { center: validPosition(this.active.map.getCenter()), zoom: this.active.map.getZoom() };
     }
 
@@ -245,6 +343,13 @@
       const position = validPosition(item);
       if (!position || !this.active) return;
       this.closeInfo();
+      if (this.active.earth) {
+        // Direct camera updates also respect reduced-motion preferences.
+        this.active.map.center = { ...position, altitude: 0 };
+        this.active.map.range = 3000;
+        this.active.map.tilt = 60;
+        return;
+      }
       this.resetSatelliteLimitForPosition(this.active, position);
       this.active.map.panTo(position);
       this.active.map.setZoom(17);
@@ -286,7 +391,7 @@
         }
         onRemove() { this.element?.remove(); }
       }
-      this.markers.set(key, { overlay: new SearchPin(), color });
+      this.markers.set(key, { overlay: new SearchPin(), color, position, title: String(item.title || '검색 위치') });
       this.markersVisible = true;
       this.syncMarkers();
       this.onMarkersChanged?.();
@@ -297,6 +402,7 @@
       const entry = this.markers.get(key);
       if (!entry) return;
       entry.overlay.setMap(null);
+      entry.earthMarker?.remove();
       this.markers.delete(key);
       if (!this.markers.size) this.markersVisible = true;
       this.closeInfo();
@@ -304,8 +410,39 @@
     }
 
     syncMarkers() {
-      const map = this.enabled && this.markersVisible ? this.active?.map : null;
-      this.markers.forEach(entry => entry.overlay.setMap(map || null));
+      const record = this.enabled && this.markersVisible ? this.active : null;
+      this.markers.forEach((entry, key) => {
+        entry.overlay.setMap(record && !record.earth ? record.map : null);
+        if (record?.earth) {
+          if (!entry.earthMarker) {
+            const { Marker3DInteractiveElement, PinElement, AltitudeMode } = this.earthLibrary;
+            const marker = new Marker3DInteractiveElement({
+              position: entry.position, altitudeMode: AltitudeMode.CLAMP_TO_GROUND,
+              title: entry.title + ' — 클릭하여 핀 삭제', drawsWhenOccluded: true
+            });
+            marker.appendChild(new PinElement({ background: entry.color, borderColor: '#ffffff', glyphColor: '#ffffff' }));
+            marker.addEventListener('gmp-click', event => {
+              event.stopPropagation();
+              const content = document.createElement('div');
+              content.className = 'google-address-info';
+              const title = document.createElement('p');
+              title.textContent = entry.title;
+              const remove = document.createElement('button');
+              remove.type = 'button'; remove.textContent = '핀 삭제';
+              remove.addEventListener('click', () => this.removeMarker(key));
+              content.append(title, remove);
+              this.showEarthInfo(entry.position, content);
+            });
+            marker.addEventListener('keydown', event => {
+              if (event.key === 'Delete' || event.key === 'Backspace') {
+                event.preventDefault(); event.stopPropagation(); this.removeMarker(key);
+              }
+            });
+            entry.earthMarker = marker;
+          }
+          if (entry.earthMarker.parentNode !== record.map) record.map.appendChild(entry.earthMarker);
+        } else entry.earthMarker?.remove();
+      });
     }
 
     toggleMarkers() {
@@ -321,7 +458,7 @@
         const { Place } = await google.maps.importLibrary('places');
         const { places } = await Place.searchByText({
           textQuery: query, fields: ['displayName', 'formattedAddress', 'location'],
-          locationBias: this.active.map.getCenter(), language: 'ko', maxResultCount: 8
+          locationBias: this.getView()?.center, language: 'ko', maxResultCount: 8
         });
         if (places?.length) return places.filter(place => place.location).map(place => ({
           title: place.displayName || query, address: place.formattedAddress || '',
@@ -349,20 +486,34 @@
     closeInfo() {
       this.infoSequence += 1;
       this.infoWindow?.close();
+      this.earthInfo?.remove();
+      this.earthInfo = null;
+    }
+
+    showEarthInfo(position, content) {
+      this.closeInfo();
+      if (!this.enabled || !this.active?.earth) return;
+      const { PopoverElement } = this.earthLibrary;
+      this.earthInfo = new PopoverElement({ positionAnchor: position, open: true });
+      this.earthInfo.appendChild(content);
+      this.active.map.appendChild(this.earthInfo);
     }
 
     async lookupAddress(position) {
       this.closeInfo();
-      const sequence = this.infoSequence;
       const record = this.active;
       if (!record) return;
-      if (!this.infoWindow) this.infoWindow = new google.maps.InfoWindow();
       const content = document.createElement('div');
       content.className = 'google-address-info';
       content.textContent = '주소 확인 중...';
-      this.infoWindow.setContent(content);
-      this.infoWindow.setPosition(position);
-      this.infoWindow.open({ map: record.map, shouldFocus: false });
+      if (record.earth) this.showEarthInfo(position, content);
+      else {
+        if (!this.infoWindow) this.infoWindow = new google.maps.InfoWindow();
+        this.infoWindow.setContent(content);
+        this.infoWindow.setPosition(position);
+        this.infoWindow.open({ map: record.map, shouldFocus: false });
+      }
+      const sequence = this.infoSequence;
       try {
         const { Geocoder } = await google.maps.importLibrary('geocoding');
         const { results } = await new Geocoder().geocode({ location: position, language: 'ko' });

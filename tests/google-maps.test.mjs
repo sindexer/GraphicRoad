@@ -20,18 +20,26 @@ class Element {
   }
   setAttribute(name, value) { this.attributes[name] = value; }
   addEventListener(name, listener) { this.events[name] = listener; }
-  appendChild(child) { this.children.push(child); child.parent = this; return child; }
+  removeEventListener(name, listener) { if (this.events[name] === listener) delete this.events[name]; }
+  appendChild(child) {
+    child.remove(); this.children.push(child); child.parent = child.parentNode = this; return child;
+  }
   append(...children) { children.forEach(child => this.appendChild(child)); }
-  remove() { if (this.parent) this.parent.children = this.parent.children.filter(child => child !== this); }
+  remove() {
+    if (this.parent) this.parent.children = this.parent.children.filter(child => child !== this);
+    this.parent = this.parentNode = null;
+  }
 }
 
-function environment({ fetchConfig = async () => ({ ok: true, json: async () => config }), places = [], geocoding = [], maxZoom = async () => ({ zoom: 15 }) } = {}) {
+function environment({ fetchConfig = async () => ({ ok: true, json: async () => config }), places = [], geocoding = [], maxZoom = async () => ({ zoom: 15 }), earthLoad = 'ready' } = {}) {
   const constructed = [];
   const queries = [];
   const requests = [];
   const scripts = [];
   const notices = [];
   const coverageRequests = [];
+  const libraries = [];
+  const earthMaps = [];
   let context;
   class LatLng {
     constructor(position, lng) { this.position = typeof position === 'number' ? { lat: position, lng } : position; }
@@ -75,11 +83,34 @@ function environment({ fetchConfig = async () => ({ ok: true, json: async () => 
   class MaxZoomService {
     getMaxZoomAtLatLng(position) { coverageRequests.push(position); return maxZoom(position); }
   }
+  class Map3DElement extends Element {
+    constructor(options) {
+      super('gmp-map-3d'); Object.assign(this, options); earthMaps.push(this);
+      queueMicrotask(() => {
+        if (earthLoad === 'ready') this.events['gmp-steadychange']?.({ isSteady: true });
+        if (earthLoad === 'error') this.events['gmp-error']?.({ message: 'private SDK request URL' });
+      });
+    }
+  }
+  class Marker3DInteractiveElement extends Element {
+    constructor(options) { super('gmp-marker-3d-interactive'); Object.assign(this, options); }
+  }
+  class PinElement extends Element {
+    constructor(options) { super('gmp-pin'); Object.assign(this, options); }
+  }
+  class PopoverElement extends Element {
+    constructor(options) { super('gmp-popover'); Object.assign(this, options); }
+  }
   const maps = {
     Map, LatLng, OverlayView, InfoWindow, ControlPosition: { RIGHT_BOTTOM: 9 },
     event: { trigger() {} },
     async importLibrary(name) {
+      libraries.push(name);
       if (name === 'maps') return { Map, MaxZoomService, RenderingType: { VECTOR: 'VECTOR' } };
+      if (name === 'maps3d') return { Map3DElement, Marker3DInteractiveElement, PopoverElement,
+        MapMode: { SATELLITE: 'SATELLITE' }, GestureHandling: { GREEDY: 'GREEDY' },
+        AltitudeMode: { CLAMP_TO_GROUND: 'CLAMP_TO_GROUND' } };
+      if (name === 'marker') return { PinElement };
       if (name === 'places') return { Place: { searchByText: async request => {
         queries.push(request);
         return { places };
@@ -101,7 +132,7 @@ function environment({ fetchConfig = async () => ({ ok: true, json: async () => 
   };
   context = vm.createContext({
     document, URLSearchParams, AbortSignal, Event, console,
-    setTimeout, clearTimeout,
+    setTimeout: (callback, delay) => setTimeout(callback, earthLoad === 'timeout' && delay === 45000 ? 0 : delay), clearTimeout,
     fetch: async (...args) => { requests.push(args); return fetchConfig(...args); },
     dispatchEvent: event => notices.push(event.type)
   });
@@ -109,7 +140,7 @@ function environment({ fetchConfig = async () => ({ ok: true, json: async () => 
   vm.runInContext(source, context);
   const container = new Element();
   const provider = new context.GraphicRoadGoogle.Provider(container);
-  return { context, container, provider, constructed, requests, scripts, queries, notices, coverageRequests, LatLng };
+  return { context, container, provider, constructed, requests, scripts, queries, notices, coverageRequests, LatLng, libraries, earthMaps };
 }
 
 test('all inline scripts and the provider parse; production sources contain no API keys', () => {
@@ -312,6 +343,128 @@ test('empty keyword results fall back to Google geocoding', async () => {
   const results = await env.provider.search('서울 주소');
   assert.equal(env.queries.length, 2);
   assert.equal(results[0].title, '서울');
+});
+
+test('Earth loads on demand without a new key or map ID and reuses its 3D viewer', async () => {
+  const env = environment();
+  await env.provider.activate('GOOGLE_BASIC', {}, () => true);
+  assert.equal(env.libraries.includes('maps3d'), false);
+  await env.provider.activate('GOOGLE_EARTH', {}, () => true);
+  const earth = env.earthMaps[0];
+  assert.equal(earth.mode, 'SATELLITE');
+  assert.equal(earth.defaultUIHidden, false);
+  assert.equal(earth.mapId, undefined);
+  assert.deepEqual({ ...earth.center }, { lat: 38.1, lng: 129, altitude: 0 });
+  assert.equal(earth.range, 3500000);
+  assert.equal(env.provider.active.element.attributes['aria-label'], '어스_G');
+  assert.equal(env.container.children.filter(element => !element.hidden).length, 1);
+  const view = { center: { lat: 35, lng: 135 }, zoom: 13 };
+  await env.provider.activate('GOOGLE_DEFAULT', view, () => true);
+  await env.provider.activate('GOOGLE_EARTH', view, () => true);
+  assert.equal(env.earthMaps.length, 1);
+  assert.equal(env.scripts.length, 1);
+  assert.equal(new URL(env.scripts[0].src).searchParams.get('v'), 'quarterly');
+  assert.deepEqual({ ...env.provider.getView().center }, view.center);
+  assert.equal(env.provider.getView().zoom, 13);
+});
+
+test('Earth uses its camera for keyword bias, search movement, and returning to 2D', async () => {
+  const env = environment({ places: [{ displayName: '도쿄 타워', location: { lat: 35.6586, lng: 139.7454 } }] });
+  await env.provider.activate('GOOGLE_EARTH', {}, () => true);
+  const [result] = await env.provider.search('도쿄 타워');
+  assert.deepEqual({ ...env.queries[0].locationBias }, { lat: 38.1, lng: 129 });
+  env.provider.panTo(result);
+  assert.equal(env.earthMaps[0].range, 3000);
+  assert.equal(env.earthMaps[0].tilt, 60);
+  const view = env.provider.getView();
+  assert.equal(view.center.lat, 35.6586);
+  assert.ok(view.zoom >= 14 && view.zoom <= 17);
+  await env.provider.activate('GOOGLE_BLUE', view, () => true);
+  assert.deepEqual({ ...env.provider.getView().center }, { ...view.center });
+  assert.equal(env.provider.getView().zoom, view.zoom);
+});
+
+test('Earth pins retain their colors across renderers and can be hidden and deleted', async () => {
+  const env = environment();
+  await env.provider.activate('GOOGLE_BASIC', {}, () => true);
+  const item = { lat: 35, lng: 135, title: '<unsafe title>' };
+  env.provider.addMarker(item, '#123456');
+  const entry = [...env.provider.markers.values()][0];
+  await env.provider.activate('GOOGLE_EARTH', {}, () => true);
+  const earth = env.earthMaps[0];
+  assert.equal(entry.overlay.map, null, '2D OverlayView must never receive a 3D map');
+  assert.equal(entry.earthMarker.parentNode, earth);
+  assert.equal(entry.earthMarker.children[0].background, '#123456');
+  assert.equal(env.provider.addMarker(item, '#654321'), false);
+  env.provider.syncMarkers();
+  assert.equal(earth.children.filter(child => child.tagName === 'gmp-marker-3d-interactive').length, 1);
+  env.provider.toggleMarkers();
+  assert.equal(entry.earthMarker.parentNode, null);
+  env.provider.toggleMarkers();
+  assert.equal(entry.earthMarker.parentNode, earth);
+  await env.provider.activate('GOOGLE_SATELLITE', {}, () => true);
+  assert.equal(entry.earthMarker.parentNode, null);
+  assert.equal(entry.overlay.map, env.provider.active.map);
+  await env.provider.activate('GOOGLE_EARTH', {}, () => true);
+  entry.earthMarker.events['gmp-click']({ stopPropagation() {} });
+  assert.equal(env.provider.earthInfo.children[0].children[0].textContent, '<unsafe title>');
+  const popover = env.provider.earthInfo;
+  popover.children[0].children[1].events.click();
+  assert.equal(env.provider.markerCount, 0);
+  assert.equal(popover.parentNode, null);
+  assert.equal(entry.earthMarker.parentNode, null);
+});
+
+test('pins can first be created in Earth and remain available after hide/show', async () => {
+  const env = environment();
+  await env.provider.activate('GOOGLE_EARTH', {}, () => true);
+  assert.equal(env.provider.addMarker({ lat: 35, lng: 135 }, '#abcdef'), true);
+  const entry = [...env.provider.markers.values()][0];
+  env.provider.hide();
+  assert.equal(entry.earthMarker.parentNode, null);
+  await env.provider.activate('GOOGLE_DEFAULT', {}, () => true);
+  assert.equal(entry.overlay.map, env.provider.active.map);
+  await env.provider.activate('GOOGLE_EARTH', {}, () => true);
+  entry.earthMarker.events.keydown({ key: 'Delete', preventDefault() {}, stopPropagation() {} });
+  assert.equal(env.provider.markerCount, 0);
+});
+
+test('Earth initialization errors and timeouts are sanitized, cleaned up, and retryable', async () => {
+  for (const earthLoad of ['error', 'timeout']) {
+    const env = environment({ earthLoad });
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await assert.rejects(env.provider.activate('GOOGLE_EARTH', {}, () => true), error => {
+        assert.equal(error.code, 'EARTH');
+        assert.equal(error.message.includes('private'), false);
+        return true;
+      });
+      assert.equal(env.container.children.length, 0);
+      assert.equal(env.provider.records.size, 0);
+      assert.equal(env.provider.cancelEarthLoad, null);
+    }
+    await env.provider.activate('GOOGLE_DEFAULT', {}, () => true);
+    assert.equal(env.provider.enabled, true);
+  }
+});
+
+test('switching away cancels an unfinished Earth scene and ignores late events', async () => {
+  for (const destination of ['naver', 'GOOGLE_BLUE']) {
+    const env = environment({ earthLoad: 'pending' });
+    let selected = 'GOOGLE_EARTH';
+    const pending = env.provider.activate('GOOGLE_EARTH', {}, () => selected === 'GOOGLE_EARTH');
+    await new Promise(setImmediate);
+    const earth = env.earthMaps[0];
+    const staleReady = earth.events['gmp-steadychange'];
+    const staleError = earth.events['gmp-error'];
+    selected = destination;
+    if (destination === 'naver') env.provider.hide();
+    else await env.provider.activate(destination, {}, () => true);
+    assert.equal(await pending, false);
+    staleReady({ isSteady: true }); staleError();
+    assert.equal(env.provider.enabled, destination !== 'naver');
+    assert.equal(env.provider.records.has('GOOGLE_EARTH'), false);
+    assert.equal(env.container.children.some(element => element.children.includes(earth)), false);
+  }
 });
 
 test('deployment injects configuration without logging it and publishes only allowed files', async () => {

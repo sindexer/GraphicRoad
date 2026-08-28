@@ -16,7 +16,7 @@ test('the menu has the requested labels and obsolete features are removed', () =
     ['BLUENOSB', '블루_N (지하철 X)'], ['BLUE', '블루_N'],
     ['DARK', '흰블_N'], ['SATELLITE', '위성_N'],
     ['GOOGLE_DEFAULT', 'Google Map'], ['GOOGLE_BASIC', '기본_G'],
-    ['GOOGLE_BLUE', '블루_G'], ['GOOGLE_SATELLITE', '위성_G']
+    ['GOOGLE_BLUE', '블루_G'], ['GOOGLE_SATELLITE', '위성_G'], ['GOOGLE_EARTH', '어스_G']
   ]);
   assert.doesNotMatch(html, /GOOGLEJSONCOPY|GOOGLEVECTOR|GOOGLE_STYLE_CONFIG|copyGoogleStyleJson|copyTextWithTemporaryTextArea|world-map-notice|WORLD_MAP_NOTICE|Popup_Worldmap|mapstyle\.withgoogle|TERRAIN|HYBRID/);
 });
@@ -63,7 +63,7 @@ function environment() {
     document, naver, googleStub, cameras, setTimeout, clearTimeout, console,
     URL, URLSearchParams, Map, Set,
     GraphicRoadGoogle: {
-      isTheme: value => ['GOOGLE_DEFAULT', 'GOOGLE_BASIC', 'GOOGLE_BLUE', 'GOOGLE_SATELLITE'].includes(value),
+      isTheme: value => ['GOOGLE_DEFAULT', 'GOOGLE_BASIC', 'GOOGLE_BLUE', 'GOOGLE_SATELLITE', 'GOOGLE_EARTH'].includes(value),
       errorMessage: () => 'safe configuration error'
     }
   });
@@ -82,9 +82,9 @@ function environment() {
   return { context, document, element, googleStub, select, cameras };
 }
 
-test('all four Google themes hide boundary controls and close open popovers', async () => {
+test('all five Google themes hide boundary controls and close open popovers', async () => {
   const env = environment();
-  for (const theme of ['GOOGLE_DEFAULT', 'GOOGLE_BASIC', 'GOOGLE_BLUE', 'GOOGLE_SATELLITE']) {
+  for (const theme of ['GOOGLE_DEFAULT', 'GOOGLE_BASIC', 'GOOGLE_BLUE', 'GOOGLE_SATELLITE', 'GOOGLE_EARTH']) {
     env.element('LINE_WEIGHT_PANEL').classList.add('is-open');
     env.element('FILL_REGION_PANEL').classList.add('is-open');
     await env.select(theme);
