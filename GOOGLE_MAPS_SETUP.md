@@ -8,6 +8,15 @@ Selecting a Google theme hides the entire boundary toolbar and its popovers.
 Returning to Naver restores the saved boundary settings. Each provider keeps
 its own search results and pins; Google data is not copied onto a Naver map.
 
+The first selection of `위성_G` starts at an East Asia overview (zoom 6, centered
+near 38.1 N / 129 E), then fits 108–150 E / 30–45.4 N to the available window.
+Smaller windows may start farther out. Subsequent theme switches continue to
+share the current camera instead of repeatedly resetting to the overview.
+Satellite requests Google's WebGL/vector renderer to avoid gaps between HTML
+raster tiles, with fractional zoom, tilt and rotation disabled. Google may fall
+back to raster when WebGL is unavailable; seams on those devices may depend on
+browser/display scaling. We do not alter Google's tile DOM or image pixels.
+
 Satellite currently has a conservative zoom ceiling of 15: live Seoul imagery
 was available at 15 but returned missing-image tiles at 16 and 17. The maximum
 imagery service can further lower the limit for areas with less coverage.
@@ -57,6 +66,8 @@ screen-share picker; select the GraphicRoad tab. Only the map area is saved, wit
 Google's logo and provider attribution left intact. Capture permission is per
 user action and all capture tracks are stopped afterward. Browsers without
 `getDisplayMedia` show an explanation rather than saving an empty map.
+Google's included copyright notices (including `©2026 Google`) must remain
+visible on the map and in exports; they are not optional UI controls.
 
 ## References
 

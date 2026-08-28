@@ -53,6 +53,7 @@ function environment({ fetchConfig = async () => ({ ok: true, json: async () => 
     }
     setOptions(options) { Object.assign(this.options, options); this.setZoom(this.options.zoom); }
     panTo(center) { this.options.center = center; }
+    fitBounds(bounds, padding) { this.fittedBounds = { bounds, padding }; }
   }
   class OverlayView {
     static preventMapHitsAndGesturesFrom() {}
@@ -78,7 +79,7 @@ function environment({ fetchConfig = async () => ({ ok: true, json: async () => 
     Map, LatLng, OverlayView, InfoWindow, ControlPosition: { RIGHT_BOTTOM: 9 },
     event: { trigger() {} },
     async importLibrary(name) {
-      if (name === 'maps') return { Map, MaxZoomService };
+      if (name === 'maps') return { Map, MaxZoomService, RenderingType: { VECTOR: 'VECTOR' } };
       if (name === 'places') return { Place: { searchByText: async request => {
         queries.push(request);
         return { places };
@@ -171,12 +172,34 @@ test('a canceled slow selection never creates or activates a stale map', async (
   assert.equal(env.constructed[0].options.mapId, config.blueMapId);
 });
 
+test('satellite first opens the East Asia overview using the WebGL renderer', async () => {
+  const env = environment();
+  await env.provider.activate('GOOGLE_SATELLITE', { center: { lat: 37.5, lng: 127 }, zoom: 20 }, () => true);
+  const map = env.constructed[0];
+  assert.equal(map.getZoom(), 6);
+  assert.deepEqual({ ...map.options.center }, { lat: 38.1, lng: 129 });
+  assert.deepEqual({ ...map.fittedBounds.bounds }, { north: 45.4, south: 30, west: 108, east: 150 });
+  assert.equal(map.fittedBounds.padding, 0);
+  assert.equal(map.options.renderingType, 'VECTOR');
+  assert.equal(map.options.isFractionalZoomEnabled, false);
+  assert.equal(map.options.tilt, 0);
+  assert.equal(map.options.heading, 0);
+  assert.equal(map.options.mapId, undefined);
+
+  const laterView = { center: { lat: 35, lng: 135 }, zoom: 10 };
+  await env.provider.activate('GOOGLE_BASIC', laterView, () => true);
+  await env.provider.activate('GOOGLE_SATELLITE', laterView, () => true);
+  assert.equal(env.provider.getView().zoom, 10, 'returning to satellite preserves the working camera');
+  assert.deepEqual({ ...env.provider.getView().center }, laterView.center);
+  assert.equal(env.constructed.length, 2, 'reuse the initialized satellite map');
+});
+
 test('satellite switching and search respect the SDK imagery limit', async () => {
   const env = environment();
   const view = { center: { lat: 37.5, lng: 127 }, zoom: 20 };
   await env.provider.activate('GOOGLE_SATELLITE', view, () => true);
   await new Promise(setImmediate);
-  assert.equal(env.provider.getView().zoom, 15);
+  assert.equal(env.provider.getView().zoom, 6);
   env.provider.panTo({ lat: 37.56, lng: 126.97 });
   assert.equal(env.provider.getView().zoom, 15);
   assert.equal(env.provider.getView().center.lat, 37.56);
@@ -184,7 +207,10 @@ test('satellite switching and search respect the SDK imagery limit', async () =>
   assert.equal(env.provider.getView().zoom, 20);
   await env.provider.activate('GOOGLE_SATELLITE', view, () => true);
   assert.equal(env.provider.getView().zoom, 15);
-  assert.equal(env.coverageRequests.length, 1, 'zooming at the same center reuses its limit');
+  await new Promise(setImmediate);
+  const requests = env.coverageRequests.length;
+  await env.provider.activate('GOOGLE_SATELLITE', view, () => true);
+  assert.equal(env.coverageRequests.length, requests, 'zooming at the same center reuses its limit');
 });
 
 test('satellite coverage updates for new locations and ignores stale responses', async () => {
