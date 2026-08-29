@@ -239,11 +239,16 @@ test('batch ease and delete each have a single undo step', () => {
   e.restore(false); assert.equal(JSON.stringify(e.project),before);
 });
 
-test('toolbar has one capture action and no obsolete bottom controls or project buttons', () => {
+test('toolbar has one capture action, a render dialog and no obsolete project controls', () => {
   assert.equal((uiSource.match(/data-action="capture"/g)||[]).length,1);
   assert.doesNotMatch(uiSource,/id="ET_(PAN|TIME|SCRUB)"|data-action="(?:save|load|new)"/);
-  assert.match(uiSource,/data-action="render-frame"/);
-  assert.match(uiSource,/data-action="render-preview"/);
+  assert.match(uiSource,/data-action="render-open"/);
+  assert.match(uiSource,/id="ET_RENDER"/);
+  assert.match(uiSource,/value="jpeg"/);
+  assert.match(uiSource,/value="mp4"/);
+  assert.match(uiSource,/showDirectoryPicker/);
+  assert.match(uiSource,/MediaRecorder\.isTypeSupported/);
+  assert.doesNotMatch(uiSource,/data-action="render-(?:frame|preview)"/);
 });
 
 test('playback updates the existing provider at selected FPS and stops at its end', () => {

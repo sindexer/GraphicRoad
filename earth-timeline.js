@@ -27,6 +27,8 @@
       this.cameraFrame = null;
       this.appliedUntil = 0;
       this.acceptCameraUpdates = false;
+      this.renderDestination = null;
+      this.renderAbort = null;
       this.build();
       root.tabIndex = 0;
       this.resizeObserver = new ResizeObserver(() => { if (this.opened) this.renderTracks(); });
@@ -110,7 +112,7 @@
             <button type="button" data-action="graph-toggle" id="ET_GRAPH_TOGGLE" aria-pressed="false">그래프 편집기</button>
             <button type="button" data-action="undo" id="ET_UNDO" aria-label="실행 취소" title="실행 취소 (Ctrl+Z)">↶</button>
             <button type="button" data-action="redo" id="ET_REDO" aria-label="다시 실행" title="다시 실행 (Ctrl+Shift+Z)">↷</button>
-<details class="et-render-menu"><summary>렌더 ▾</summary><div><button type="button" data-action="render-frame">현재 프레임 PNG</button><button type="button" data-action="render-preview">전체 구간 미리보기</button><p>PNG 출력 시 현재 탭 공유가 필요합니다.</p></div></details>
+            <button type="button" data-action="render-open">렌더</button>
             <button type="button" data-action="close" class="et-close" aria-label="타임라인 닫기">✕</button>
           </div>
         </header>
@@ -140,7 +142,22 @@
           </section>
         </div>
         <footer class="et-footer"><span id="ET_STATUS" role="status" aria-live="polite">빈 트랙 드래그: 박스 선택 · Shift: 추가 선택 · 시간 눈금: 재생 위치 · Space: 재생/정지</span><span>CAMERA EDITOR · 로컬 프로젝트</span></footer>
-        <dialog id="ET_CONFIRM" aria-labelledby="ET_CONFIRM_TITLE" aria-describedby="ET_CONFIRM_MESSAGE"><form method="dialog"><strong id="ET_CONFIRM_TITLE">타임라인 변경 확인</strong><p id="ET_CONFIRM_MESSAGE"></p><div><button type="submit" value="cancel" id="ET_CONFIRM_CANCEL">취소</button><button type="submit" value="confirm" class="et-primary">확인</button></div></form></dialog>`;
+        <dialog id="ET_CONFIRM" aria-labelledby="ET_CONFIRM_TITLE" aria-describedby="ET_CONFIRM_MESSAGE"><form method="dialog"><strong id="ET_CONFIRM_TITLE">타임라인 변경 확인</strong><p id="ET_CONFIRM_MESSAGE"></p><div><button type="submit" value="cancel" id="ET_CONFIRM_CANCEL">취소</button><button type="submit" value="confirm" class="et-primary">확인</button></div></form></dialog>
+        <dialog id="ET_RENDER" class="et-render-dialog" aria-labelledby="ET_RENDER_TITLE">
+          <form method="dialog">
+            <header><div><strong id="ET_RENDER_TITLE">렌더링</strong><p>Earth Camera 타임라인 출력</p></div><button type="button" data-action="render-close" aria-label="렌더링 창 닫기">✕</button></header>
+            <div class="et-render-scroll">
+              <div class="et-render-top"><label>이름<input id="ET_RENDER_NAME" type="text" value="GraphicRoad" maxlength="80"></label><label>위치<span class="et-destination"><button type="button" data-action="render-location">📁 위치 선택</button><output id="ET_RENDER_LOCATION">선택 안 됨</output></span></label></div>
+              <fieldset class="et-format"><legend>형식</legend><label><input type="radio" name="ET_RENDER_FORMAT" value="jpeg" checked><span>◉</span><strong>이미지 시퀀스 (JPEG)</strong><small>선택한 폴더에 프레임별 저장</small></label><label><input type="radio" name="ET_RENDER_FORMAT" value="mp4"><span>◉</span><strong>동영상 (MP4)</strong><small>브라우저 지원 시 H.264/MP4 저장</small></label></fieldset>
+              <div class="et-render-grid"><label>프레임<span><input id="ET_RENDER_START" type="number" min="0" step="1" value="0"> ~ <input id="ET_RENDER_END" type="number" min="0" step="1" value="300"></span></label><label>크기<span><input id="ET_RENDER_WIDTH" type="number" min="320" max="7680" step="2" value="1920"> × <input id="ET_RENDER_HEIGHT" type="number" min="180" max="4320" step="2" value="1080"></span></label><label>저작자 표시 위치<select disabled><option>오른쪽 하단 (지도 원본 고정)</option></select></label><label>JPEG 품질<select id="ET_RENDER_QUALITY"><option value="0.8">보통</option><option value="0.92" selected>높음</option><option value="1">최고</option></select></label></div>
+              <details class="et-render-advanced"><summary>고급</summary><div><label>3D 추적 데이터<select disabled><option>없음</option></select></label><label>좌표 공간<select disabled><option>전체</option></select></label><label>지도 스타일<select disabled><option>현재 지도 스타일</option></select></label><label>프레임 속도<output id="ET_RENDER_FPS">30 FPS</output></label></div></details>
+              <p class="et-render-note">Google 지도 저작권 표시는 원본 위치에 포함됩니다. 시작 시 화면 공유에서 <strong>현재 탭</strong>을 선택하세요.</p>
+              <div id="ET_RENDER_PROGRESS_WRAP" class="et-render-progress" hidden><progress id="ET_RENDER_PROGRESS" max="1" value="0"></progress><output id="ET_RENDER_PROGRESS_TEXT">준비 중</output></div>
+              <p id="ET_RENDER_ERROR" class="et-render-error" role="alert"></p>
+            </div>
+            <footer><button type="button" data-action="render-close">취소</button><button type="button" data-action="render-start" class="et-render-start">시작</button></footer>
+          </form>
+        </dialog>`;
     }
 
     setAvailable(available) {
@@ -185,6 +202,8 @@
     close(returnFocus = true) {
       this.pause();
       this.cancelConfirmation?.();
+      if (this.$('ET_RENDER')?.open) this.$('ET_RENDER').close();
+      this.renderAbort?.abort();
       this.unsubscribe?.();
       this.unsubscribe = null;
       if (this.cameraFrame !== null) cancelAnimationFrame(this.cameraFrame);
@@ -414,6 +433,91 @@
       this.$('ET_CURVE_HINT').textContent = next ? `${number(key.time, 3)} → ${number(next.time, 3)}초 구간의 속도 곡선입니다. 핸들을 드래그하세요.` : '트랙에서 키를 선택하세요. 다음 키가 있어야 구간 곡선을 편집할 수 있습니다.';
     }
 
+    renderFormat() { return this.root.querySelector('input[name="ET_RENDER_FORMAT"]:checked')?.value || 'jpeg'; }
+    renderMimeType() {
+      if (!window.MediaRecorder) return '';
+      return ['video/mp4;codecs=avc1.42E01E','video/mp4;codecs=avc1','video/mp4'].find(type => MediaRecorder.isTypeSupported(type)) || '';
+    }
+    openRender() {
+      this.pause(); const last = Math.round(this.project.duration*this.project.fps);
+      this.$('ET_RENDER_START').max=last; this.$('ET_RENDER_END').max=last; this.$('ET_RENDER_END').value=last;
+      this.$('ET_RENDER_FPS').textContent=`${this.project.fps} FPS`; this.$('ET_RENDER_ERROR').textContent=''; this.$('ET_RENDER_PROGRESS_WRAP').hidden=true;
+      this.renderDestination=null; this.$('ET_RENDER_LOCATION').textContent='선택 안 됨'; this.$('ET_RENDER').showModal();
+    }
+    closeRender() { if(this.renderAbort) this.renderAbort.abort(); else this.$('ET_RENDER').close(); }
+    safeRenderName() { return (this.$('ET_RENDER_NAME').value.trim()||'GraphicRoad').replace(/[<>:"/\\|?*\u0000-\u001f]/g,'_').slice(0,80); }
+    async chooseRenderLocation() {
+      const format=this.renderFormat(); this.$('ET_RENDER_ERROR').textContent='';
+      try {
+        if(format==='jpeg') {
+          if(!window.showDirectoryPicker) throw new Error('DIRECTORY_PICKER_UNSUPPORTED');
+          this.renderDestination={format,handle:await window.showDirectoryPicker({mode:'readwrite'})};
+        } else {
+          if(!this.renderMimeType()) throw new Error('MP4_UNSUPPORTED');
+          this.renderDestination=window.showSaveFilePicker ? {format,handle:await window.showSaveFilePicker({suggestedName:`${this.safeRenderName()}.mp4`,types:[{description:'MP4 동영상',accept:{'video/mp4':['.mp4']}}]})} : {format,handle:null};
+        }
+        this.$('ET_RENDER_LOCATION').textContent=this.renderDestination.handle?.name||(format==='mp4'?'다운로드 폴더':'선택됨');
+      } catch(error) {
+        if(error?.name==='AbortError') return;
+        this.$('ET_RENDER_ERROR').textContent=error?.message==='MP4_UNSUPPORTED'?'이 브라우저는 MP4 녹화를 지원하지 않습니다. JPEG 시퀀스를 선택하세요.':error?.message==='DIRECTORY_PICKER_UNSUPPORTED'?'이 브라우저는 폴더 저장을 지원하지 않습니다. 최신 Chrome 또는 Edge를 사용하세요.':'저장 위치를 선택하지 못했습니다.';
+      }
+    }
+    renderSettings() {
+      const last=Math.round(this.project.duration*this.project.fps), integer=id=>Math.round(Number(this.$(id).value));
+      const s={format:this.renderFormat(),name:this.safeRenderName(),start:integer('ET_RENDER_START'),end:integer('ET_RENDER_END'),width:integer('ET_RENDER_WIDTH'),height:integer('ET_RENDER_HEIGHT'),quality:Number(this.$('ET_RENDER_QUALITY').value),fps:this.project.fps};
+      if(!Number.isFinite(s.start)||!Number.isFinite(s.end)||s.start<0||s.end<s.start||s.end>last) throw new Error(`프레임 범위는 0~${last} 사이여야 합니다.`);
+      if(!Number.isFinite(s.width)||!Number.isFinite(s.height)||s.width<320||s.width>7680||s.height<180||s.height>4320) throw new Error('출력 크기는 320×180 이상, 7680×4320 이하여야 합니다.');
+      if(s.width%2||s.height%2) throw new Error('출력 너비와 높이는 짝수여야 합니다.'); return s;
+    }
+    async captureRenderStream() {
+      if(!navigator.mediaDevices?.getDisplayMedia) throw new Error('SCREEN_CAPTURE_UNSUPPORTED');
+      const stream=await navigator.mediaDevices.getDisplayMedia({video:{displaySurface:'browser'},audio:false,preferCurrentTab:true,selfBrowserSurface:'include',surfaceSwitching:'exclude',monitorTypeSurfaces:'exclude',systemAudio:'exclude'});
+      const surface=stream.getVideoTracks()[0]?.getSettings?.().displaySurface;
+      if(surface&&surface!=='browser'){stream.getTracks().forEach(track=>track.stop());throw new Error('CURRENT_TAB_REQUIRED');} return stream;
+    }
+    async renderVideo(stream) {
+      const video=document.createElement('video'); video.muted=true; video.playsInline=true; video.srcObject=stream; await video.play();
+      if(video.readyState<HTMLMediaElement.HAVE_CURRENT_DATA) await new Promise((resolve,reject)=>{video.addEventListener('loadeddata',resolve,{once:true});video.addEventListener('error',reject,{once:true});}); return video;
+    }
+    renderCanvas(video,s,canvas=document.createElement('canvas')) {
+      const rect=document.getElementById('googleMap')?.getBoundingClientRect(), scaleX=video.videoWidth/window.innerWidth, scaleY=video.videoHeight/window.innerHeight;
+      if(!rect?.width||!rect?.height||!(scaleX>0)||!(scaleY>0)) throw new Error('지도 화면 크기를 계산하지 못했습니다.');
+      canvas.width=s.width;canvas.height=s.height;const context=canvas.getContext('2d',{alpha:false});
+      if(!context) throw new Error('출력 이미지를 만들지 못했습니다.');
+      context.drawImage(video,rect.left*scaleX,rect.top*scaleY,rect.width*scaleX,rect.height*scaleY,0,0,canvas.width,canvas.height);return canvas;
+    }
+    async settleRenderFrame(signal,delay=70,paints=2) {
+      for(let count=0;count<paints;count++) await new Promise(resolve=>requestAnimationFrame(resolve));
+      await new Promise((resolve,reject)=>{const timer=setTimeout(resolve,delay);signal.addEventListener('abort',()=>{clearTimeout(timer);reject(new DOMException('중단됨','AbortError'));},{once:true});});
+    }
+    canvasBlob(canvas,type,quality) { return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('이미지 인코딩에 실패했습니다.')),type,quality)); }
+    updateRenderProgress(done,total) { this.$('ET_RENDER_PROGRESS').value=done/total;this.$('ET_RENDER_PROGRESS_TEXT').textContent=`${done} / ${total} 프레임`; }
+    async renderJpegSequence(video,s,signal) {
+      const total=s.end-s.start+1;
+      for(let frame=s.start;frame<=s.end;frame++) { if(signal.aborted) throw new DOMException('중단됨','AbortError'); this.seek(frame/s.fps,true);await this.settleRenderFrame(signal);
+        const blob=await this.canvasBlob(this.renderCanvas(video,s),'image/jpeg',s.quality),file=await this.renderDestination.handle.getFileHandle(`${s.name}_${String(frame).padStart(6,'0')}.jpg`,{create:true}),writable=await file.createWritable();
+        await writable.write(blob);await writable.close();this.updateRenderProgress(frame-s.start+1,total); }
+    }
+    async renderMp4(video,s,signal) {
+      const mimeType=this.renderMimeType();if(!mimeType) throw new Error('MP4_UNSUPPORTED');
+      const canvas=document.createElement('canvas');canvas.width=s.width;canvas.height=s.height;const output=canvas.captureStream(s.fps),chunks=[];
+      const recorder=new MediaRecorder(output,{mimeType,videoBitsPerSecond:Math.min(40000000,Math.max(4000000,s.width*s.height*s.fps*.12))});
+      recorder.addEventListener('dataavailable',event=>{if(event.data.size)chunks.push(event.data);});const stopped=new Promise((resolve,reject)=>{recorder.addEventListener('stop',resolve,{once:true});recorder.addEventListener('error',()=>reject(recorder.error||new Error('MP4 인코딩에 실패했습니다.')),{once:true});});
+      const total=s.end-s.start+1,delay=Math.max(0,1000/s.fps-17);
+      this.seek(s.start/s.fps,true);await this.settleRenderFrame(signal,70);this.renderCanvas(video,s,canvas);recorder.start(1000);this.updateRenderProgress(1,total);
+      try { for(let frame=s.start+1;frame<=s.end;frame++){if(signal.aborted)throw new DOMException('중단됨','AbortError');this.seek(frame/s.fps,true);await this.settleRenderFrame(signal,delay,1);this.renderCanvas(video,s,canvas);output.getVideoTracks()[0]?.requestFrame?.();this.updateRenderProgress(frame-s.start+1,total);} await this.settleRenderFrame(signal,Math.ceil(1000/s.fps),0); }
+      finally {if(recorder.state!=='inactive')recorder.stop();} await stopped;output.getTracks().forEach(track=>track.stop());const blob=new Blob(chunks,{type:'video/mp4'});if(!blob.size)throw new Error('MP4 파일이 비어 있습니다.');
+      if(this.renderDestination.handle){const writable=await this.renderDestination.handle.createWritable();await writable.write(blob);await writable.close();}else{const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=`${s.name}.mp4`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+    }
+    async startRender() {
+      let s;try{s=this.renderSettings();}catch(error){this.$('ET_RENDER_ERROR').textContent=error.message;return;}
+      if(!this.renderDestination||this.renderDestination.format!==s.format){this.$('ET_RENDER_ERROR').textContent='먼저 현재 형식의 저장 위치를 선택하세요.';return;}
+      this.pause();this.$('ET_RENDER_ERROR').textContent='';this.$('ET_RENDER_PROGRESS_WRAP').hidden=false;this.updateRenderProgress(0,s.end-s.start+1);this.renderAbort=new AbortController();let stream=null;const returnTime=this.time;
+      try {stream=await this.captureRenderStream();stream.getVideoTracks()[0]?.addEventListener('ended',()=>this.renderAbort?.abort(),{once:true});document.body.classList.add('earth-rendering');this.$('ET_RENDER').close();await this.settleRenderFrame(this.renderAbort.signal,100);const video=await this.renderVideo(stream);if(s.format==='jpeg')await this.renderJpegSequence(video,s,this.renderAbort.signal);else await this.renderMp4(video,s,this.renderAbort.signal);this.setStatus(`${s.name} 렌더링을 완료했습니다.`);}
+      catch(error){if(error?.name!=='AbortError'&&error?.name!=='NotAllowedError'){const message=error?.message==='CURRENT_TAB_REQUIRED'?'화면 공유에서 현재 탭을 선택하세요.':error?.message==='SCREEN_CAPTURE_UNSUPPORTED'?'이 브라우저는 화면 캡처를 지원하지 않습니다.':error?.message==='MP4_UNSUPPORTED'?'이 브라우저는 MP4 녹화를 지원하지 않습니다. JPEG 시퀀스를 사용하세요.':error.message||'렌더링에 실패했습니다.';this.setStatus(message);window.alert(message);}}
+      finally{stream?.getTracks().forEach(track=>track.stop());document.body.classList.remove('earth-rendering');this.renderAbort=null;this.seek(returnTime,true);}
+    }
+
     onClick(event) {
       const property = event.target.closest('[data-property]');
       if (property && event.target.tagName === 'LABEL') {
@@ -439,17 +543,17 @@
       else if (action === 'delete') this.deleteKey();
       else if (action === 'undo' || action === 'redo') this.restore(action === 'redo');
       else if (action === 'easing' || action === 'values') { this.graphMode = action; this.renderGraph(); }
-      else if (action === 'render-frame') {
-        this.pause();
-        const exportButton = document.getElementById('EXPORT_MAP');
-        if (exportButton && !exportButton.disabled) exportButton.click();
-        else this.setStatus('PNG 출력은 실제 지도 화면에서 사용할 수 있습니다.');
-      }
-      else if (action === 'render-preview') { this.$('ET_LOOP').checked = false; this.seek(0); this.play(); }
+      else if (action === 'render-open') this.openRender();
+      else if (action === 'render-close') this.closeRender();
+      else if (action === 'render-location') this.chooseRenderLocation();
+      else if (action === 'render-start') this.startRender();
     }
 
     onChange(event) {
       const input = event.target;
+      if (input.name === 'ET_RENDER_FORMAT') {
+        this.renderDestination=null;this.$('ET_RENDER_LOCATION').textContent='선택 안 됨';this.$('ET_RENDER_ERROR').textContent='';this.$('ET_RENDER_QUALITY').disabled=input.value!=='jpeg';return;
+      }
       if (input.id === 'ET_ZOOM') {
         this.zoom = Number(input.value);
         this.viewStart = C.clamp(this.time - this.project.duration / this.zoom / 2, 0, this.project.duration - this.project.duration / this.zoom);
@@ -641,6 +745,7 @@
 
     onKey(event) {
       if (this.$('ET_CONFIRM')?.open) return;
+      if (this.$('ET_RENDER')?.open && event.key === 'Escape') { event.preventDefault(); this.closeRender(); return; }
       if (event.key === 'Enter' && event.target.type === 'number') {
         event.preventDefault(); event.target.blur(); return;
       }
