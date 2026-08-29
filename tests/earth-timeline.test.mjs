@@ -206,6 +206,30 @@ test('Space toggles playback from buttons and keys; repeats and text editing do 
   e.onKey({...event,target:{tagName:'INPUT'}}); assert.equal(toggles,2);
 });
 
+test('F and G step exactly one frame without intercepting text fields or browser modifiers', () => {
+  const {e}=editor(); e.time=5;
+  const event={key:'f',preventDefault(){this.prevented=true;},target:{tagName:'BUTTON',closest(){return null;}}};
+  e.onKey(event); near(e.time,5-1/e.project.fps); assert.equal(event.prevented,true);
+  e.onKey({...event,key:'G',prevented:false}); near(e.time,5);
+  e.onKey({...event,key:'f',target:{tagName:'INPUT'}}); near(e.time,5);
+  e.onKey({...event,key:'f',ctrlKey:true}); near(e.time,5);
+});
+
+test('timeline keys use directional After Effects-style shapes for easing', () => {
+  const {e}=editor(), track=e.project.tracks.heading;
+  C.upsert(e.project,'heading',0,0,C.PRESETS.linear);
+  C.upsert(e.project,'heading',5,90,C.PRESETS.linear);
+  C.upsert(e.project,'heading',10,180,C.PRESETS.linear);
+  assert.equal(e.keyEaseKind(track,1),'linear');
+  C.easeKeys(e.project,[{channel:'heading',time:5}],'in');
+  assert.equal(e.keyEaseKind(track,1),'in');
+  C.easeKeys(e.project,[{channel:'heading',time:5}],'out');
+  assert.equal(e.keyEaseKind(track,1),'both');
+  assert.notEqual(e.keyShape('linear'),e.keyShape('both'));
+  e.root.querySelectorAll=()=>[]; Object.getPrototypeOf(e).renderTracks.call(e);
+  assert.match(e.$('ET_TRACKS').innerHTML,/data-ease-kind="both"/);
+});
+
 test('batch easing affects incoming/outgoing handles of each selected key', () => {
   const p = C.createProject();
   for (const key of ['heading','tilt']) for (const time of [0,5,10]) C.upsert(p,key,time,time,C.PRESETS.linear);
@@ -254,6 +278,8 @@ test('toolbar has one capture action, a render dialog and no obsolete project co
   assert.match(uiSource,/topInset=Math\.max\(0,video\.videoHeight-contentHeight\)/);
   assert.doesNotMatch(uiSource,/video\.videoHeight\/window\.innerHeight/);
   assert.doesNotMatch(uiSource,/data-action="render-(?:frame|preview)"/);
+  assert.match(uiSource,/et-ease-buttons[^\n]*data-action="capture"[^\n]*data-ease="both"/);
+  assert.match(uiSource,/F\/G: 이전\/다음 프레임/);
 });
 
 test('playback updates the existing provider at selected FPS and stops at its end', () => {

@@ -100,11 +100,11 @@
     build() {
       this.root.innerHTML = `
         <header class="et-header">
-          <div class="et-header-left"><div class="et-title"><span class="et-orbit">▤</span><strong>타임라인 <span>· Earth Camera</span></strong></div><button type="button" data-action="capture" class="et-key-button">◆ 키프레임 추가</button></div>
+          <div class="et-header-left"><div class="et-title"><span class="et-orbit">▤</span><strong>타임라인 <span>· Earth Camera</span></strong></div></div>
           <div class="et-transport">
-            <button type="button" data-action="back" title="이전 프레임" aria-label="이전 프레임">‹</button>
+            <button type="button" data-action="back" title="이전 프레임 (F)" aria-label="이전 프레임">‹</button>
             <button type="button" data-action="play" id="ET_PLAY" class="et-primary" aria-label="애니메이션 재생">▶ 재생</button>
-            <button type="button" data-action="next" title="다음 프레임" aria-label="다음 프레임">›</button>
+            <button type="button" data-action="next" title="다음 프레임 (G)" aria-label="다음 프레임">›</button>
             <output id="ET_TIMECODE" aria-label="현재 타임코드">00:00:00</output>
             <label class="et-check"><input id="ET_LOOP" type="checkbox">반복</label>
           </div>
@@ -120,7 +120,7 @@
           <section class="et-workspace" aria-label="카메라 속성과 키프레임">
             <div class="et-workspace-toolbar">
               <label class="et-mode">카메라 제어 기준<select id="ET_MODE" aria-label="카메라 제어 기준"><option value="orbit">피벗 기준 회전</option><option value="camera">카메라 위치 이동</option></select></label>
-<div class="et-ease-buttons"><span id="ET_SELECTION_COUNT" role="status">0개 선택</span><button type="button" data-ease="both">Easy Ease</button><button type="button" data-ease="in">Ease In</button><button type="button" data-ease="out">Ease Out</button></div>
+<div class="et-ease-buttons"><span id="ET_SELECTION_COUNT" role="status">0개 선택</span><button type="button" data-action="capture" class="et-key-button">◆ 키프레임 추가</button><button type="button" data-ease="both">Easy Ease</button><button type="button" data-ease="in">Ease In</button><button type="button" data-ease="out">Ease Out</button></div>
               <div class="et-settings"><label>확대 <select id="ET_ZOOM" aria-label="타임라인 확대"><option value="1">100%</option><option value="2">200%</option><option value="4">400%</option><option value="8">800%</option></select></label><label>길이 <input id="ET_DURATION" aria-label="타임라인 길이 초" type="number" min="1" max="600" step="1" value="10">초</label><select id="ET_FPS" aria-label="타임라인 FPS"><option>24</option><option>25</option><option selected>30</option><option>60</option></select><span>FPS</span></div>
             </div>
             <div class="et-aligned-scroll">
@@ -141,7 +141,7 @@
             <p id="ET_CURVE_HINT" class="et-help"></p>
           </section>
         </div>
-        <footer class="et-footer"><span id="ET_STATUS" role="status" aria-live="polite">빈 트랙 드래그: 박스 선택 · Shift: 추가 선택 · 시간 눈금: 재생 위치 · Space: 재생/정지</span><span>CAMERA EDITOR · 로컬 프로젝트</span></footer>
+        <footer class="et-footer"><span id="ET_STATUS" role="status" aria-live="polite">박스 선택 · Shift: 추가 선택 · F/G: 이전/다음 프레임 · Space: 재생/정지</span><span>CAMERA EDITOR · 로컬 프로젝트</span></footer>
         <dialog id="ET_CONFIRM" aria-labelledby="ET_CONFIRM_TITLE" aria-describedby="ET_CONFIRM_MESSAGE"><form method="dialog"><strong id="ET_CONFIRM_TITLE">타임라인 변경 확인</strong><p id="ET_CONFIRM_MESSAGE"></p><div><button type="submit" value="cancel" id="ET_CONFIRM_CANCEL">취소</button><button type="submit" value="confirm" class="et-primary">확인</button></div></form></dialog>
         <dialog id="ET_RENDER" class="et-render-dialog" aria-labelledby="ET_RENDER_TITLE">
           <form method="dialog">
@@ -359,6 +359,19 @@
     trackX(time) { return 12 + (time - this.viewStart) / (this.project.duration / this.zoom) * ((this.trackWidth || 720) - 34); }
     trackTime(x) { return C.snap(this.viewStart + (x - 12) / ((this.trackWidth || 720) - 34) * (this.project.duration / this.zoom), this.project.fps, this.project.duration); }
 
+    keyEaseKind(track,index) {
+      const near=(a,b)=>Math.abs(a-b)<1e-6, key=track[index], previous=track[index-1];
+      const easeIn=!!previous&&near(previous.easing[2],.58)&&near(previous.easing[3],1);
+      const easeOut=!!key&&near(key.easing[0],.42)&&near(key.easing[1],0);
+      return easeIn&&easeOut?'both':easeIn?'in':easeOut?'out':'linear';
+    }
+    keyShape(kind) {
+      if(kind==='both') return 'M-7,-6 C-2,-6 -2,-2 0,0 C2,-2 2,-6 7,-6 L7,6 C2,6 2,2 0,0 C-2,2 -2,6 -7,6 Z';
+      if(kind==='in') return 'M-7,0 L0,-6 C0,-2 2,0 7,0 C2,0 0,2 0,6 Z';
+      if(kind==='out') return 'M7,0 L0,-6 C0,-2 -2,0 -7,0 C-2,0 0,2 0,6 Z';
+      return 'M0,-6 L6,0 L0,6 L-6,0 Z';
+    }
+
     renderTracks() {
       const tracks = this.activeChannels();
       const width = this.trackWidth = this.$('ET_TRACKS').clientWidth || 720;
@@ -373,10 +386,11 @@
         const y = 42.5 + i * 29;
         svg += `<rect x="0" y="${y - 14.5}" width="${width}" height="29" data-selected="${item.key === this.channel}" data-track="${item.key}"/>
           <line x1="12" y1="${y}" x2="${width - 22}" y2="${y}" stroke="#373442"/>`;
-        this.project.tracks[item.key].forEach(key => {
+        this.project.tracks[item.key].forEach((key,index) => {
           if (this.trackX(key.time) < 12 || this.trackX(key.time) > width - 22) return;
           const selected = this.selectedEntries().some(s => s.channel === item.key && Math.abs(s.time-key.time) < .5/this.project.fps);
-          svg += `<path d="M0,-6 L6,0 L0,6 L-6,0 Z" transform="translate(${this.trackX(key.time)} ${y})" aria-pressed="${selected}" data-key="${item.key}" data-time="${key.time}" tabindex="0" role="button" aria-label="${esc(item.label)} ${number(key.time, 3)}초 키프레임"/>`;
+          const easeKind=this.keyEaseKind(this.project.tracks[item.key],index);
+          svg += `<path d="${this.keyShape(easeKind)}" transform="translate(${this.trackX(key.time)} ${y})" aria-pressed="${selected}" data-ease-kind="${easeKind}" data-key="${item.key}" data-time="${key.time}" tabindex="0" role="button" aria-label="${esc(item.label)} ${number(key.time, 3)}초 ${easeKind==='both'?'Easy Ease':easeKind==='in'?'Ease In':easeKind==='out'?'Ease Out':'선형'} 키프레임"/>`;
         });
       });
       svg += '<g id="ET_PLAYHEAD" pointer-events="none"><line x1="0" y1="25" x2="0" y2="274" stroke="#60dfd4" stroke-width="1.5"/><path d="M-5,20 H5 V27 L0,32 L-5,27 Z" fill="#60dfd4"/></g>';
@@ -772,6 +786,11 @@
       if (event.code === 'Space' || event.key === ' ') {
         event.preventDefault(); event.stopPropagation?.();
         if (!event.repeat) this.play();
+        return;
+      }
+      if (!event.ctrlKey && !event.metaKey && !event.altKey && ['f','g'].includes(event.key.toLowerCase())) {
+        event.preventDefault();
+        this.seek(this.time+(event.key.toLowerCase()==='f'?-1:1)/this.project.fps);
         return;
       }
       if (event.key === 'Escape') { this.close(); return; }
