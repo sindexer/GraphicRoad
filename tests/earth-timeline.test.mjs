@@ -141,7 +141,8 @@ function editor() {
   vm.runInContext(source, env); vm.runInContext(uiSource, env);
   const e = Object.create(env.GraphicRoadEarthTimeline.Controller.prototype);
   Object.assign(e, { project: env.GraphicRoadTimelineCore.createProject(), time: 0, zoom: 1, viewStart: 0, channel: 'heading', selectedTime: null,
-    pose: env.GraphicRoadTimelineCore.normalizeCamera({}), undoStack: [], redoStack: [], available: true, opened: true, frame: null, cameraFrame: null });
+    pose: env.GraphicRoadTimelineCore.normalizeCamera({}), undoStack: [], redoStack: [], available: true, opened: true, frame: null, cameraFrame: null,
+    scrubFrame: null, scrubPose: null });
   const calls = [];
   const provider = { getEarthCamera: () => e.pose, setEarthCamera: (pose, mode) => { calls.push({ ...pose, mode }); return true; }, stopEarthAnimation() {} };
   e.getProvider = () => provider;
@@ -164,6 +165,15 @@ test('zoomed time coordinates round trip and clamp at composition bounds', () =>
   near(e.trackX(5), 12); near(e.trackX(7.5), 978);
   near(e.trackTime(e.trackX(6)), 6);
   assert.equal(e.trackTime(-100000), 0); assert.equal(e.trackTime(100000), 10);
+});
+
+test('mouse scrubbing coalesces camera writes to one update per paint', () => {
+  const { e, calls, tick } = editor();
+  C.upsert(e.project, 'heading', 0, 0); C.upsert(e.project, 'heading', 10, 100);
+  e.queueScrub(1); e.queueScrub(2); e.queueScrub(3);
+  assert.equal(calls.length, 0); assert.equal(e.time, 3);
+  tick(16); assert.equal(calls.length, 1); near(calls[0].heading, 30);
+  e.flushScrub(); assert.equal(calls.length, 1);
 });
 
 test('camera channels use After Effects axis names and new keys default to linear diamonds', () => {

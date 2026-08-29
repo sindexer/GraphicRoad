@@ -25,6 +25,8 @@
       this.project = null;
       this.frame = null;
       this.cameraFrame = null;
+      this.scrubFrame = null;
+      this.scrubPose = null;
       this.appliedUntil = 0;
       this.acceptCameraUpdates = false;
       this.renderDestination = null;
@@ -58,7 +60,7 @@
       for (const svg of [this.$('ET_TRACKS'), this.$('ET_GRAPH')]) {
         svg.addEventListener('pointerdown', event => this.pointerDown(event, svg));
         document.addEventListener('pointermove', event => { if (this.drag?.svg === svg) this.pointerMove(event, svg); });
-        const finish = () => { this.drag = null; this.$('ET_MARQUEE')?.remove(); };
+        const finish = () => { if (this.drag?.type === 'scrub') this.flushScrub(); this.drag = null; this.$('ET_MARQUEE')?.remove(); };
         svg.addEventListener('pointerup', finish);
         svg.addEventListener('pointercancel', finish);
         svg.addEventListener('lostpointercapture', finish);
@@ -100,8 +102,9 @@
     build() {
       this.root.innerHTML = `
         <header class="et-header">
-          <div class="et-header-left"><div class="et-title"><span class="et-orbit">▤</span><strong>타임라인 <span>· Earth Camera</span></strong></div></div>
+          <div class="et-header-left"><div class="et-title"><span class="et-orbit">▤</span><strong>타임라인 <span>· Earth Camera</span></strong></div><select id="ET_MODE" aria-label="카메라 좌표 기준"><option value="orbit">피벗 기준 회전</option><option value="camera">카메라 위치 이동</option></select></div>
           <div class="et-transport">
+            <div class="et-ease-buttons"><span id="ET_SELECTION_COUNT" role="status">0개 선택</span><button type="button" data-action="capture" class="et-key-button">◆ 키프레임 추가</button><button type="button" data-ease="both"><span class="et-ease-icon" aria-hidden="true"></span>Easy Ease</button><button type="button" data-ease="in"><span class="et-ease-icon" aria-hidden="true"></span>Ease In</button><button type="button" data-ease="out"><span class="et-ease-icon" aria-hidden="true"></span>Ease Out</button></div>
             <button type="button" data-action="back" title="이전 프레임 (F)" aria-label="이전 프레임">‹</button>
             <button type="button" data-action="play" id="ET_PLAY" class="et-primary" aria-label="애니메이션 재생">▶ 재생</button>
             <button type="button" data-action="next" title="다음 프레임 (G)" aria-label="다음 프레임">›</button>
@@ -109,6 +112,7 @@
             <label class="et-check"><input id="ET_LOOP" type="checkbox">반복</label>
           </div>
           <div class="et-actions">
+            <div class="et-settings"><label>확대 <select id="ET_ZOOM" aria-label="타임라인 확대"><option value="1">100%</option><option value="2">200%</option><option value="4">400%</option><option value="8">800%</option></select></label><label>길이 <input id="ET_DURATION" aria-label="타임라인 길이 초" type="number" min="1" max="600" step="1" value="10">초</label><select id="ET_FPS" aria-label="타임라인 FPS"><option>24</option><option>25</option><option selected>30</option><option>60</option></select><span>FPS</span></div>
             <button type="button" data-action="graph-toggle" id="ET_GRAPH_TOGGLE" aria-pressed="false">그래프 편집기</button>
             <button type="button" data-action="undo" id="ET_UNDO" aria-label="실행 취소" title="실행 취소 (Ctrl+Z)">↶</button>
             <button type="button" data-action="redo" id="ET_REDO" aria-label="다시 실행" title="다시 실행 (Ctrl+Shift+Z)">↷</button>
@@ -118,11 +122,6 @@
         </header>
         <div class="et-body">
           <section class="et-workspace" aria-label="카메라 속성과 키프레임">
-            <div class="et-workspace-toolbar">
-              <label class="et-mode">카메라 제어 기준<select id="ET_MODE" aria-label="카메라 제어 기준"><option value="orbit">피벗 기준 회전</option><option value="camera">카메라 위치 이동</option></select></label>
-<div class="et-ease-buttons"><span id="ET_SELECTION_COUNT" role="status">0개 선택</span><button type="button" data-action="capture" class="et-key-button">◆ 키프레임 추가</button><button type="button" data-ease="both">Easy Ease</button><button type="button" data-ease="in">Ease In</button><button type="button" data-ease="out">Ease Out</button></div>
-              <div class="et-settings"><label>확대 <select id="ET_ZOOM" aria-label="타임라인 확대"><option value="1">100%</option><option value="2">200%</option><option value="4">400%</option><option value="8">800%</option></select></label><label>길이 <input id="ET_DURATION" aria-label="타임라인 길이 초" type="number" min="1" max="600" step="1" value="10">초</label><select id="ET_FPS" aria-label="타임라인 FPS"><option>24</option><option>25</option><option selected>30</option><option>60</option></select><span>FPS</span></div>
-            </div>
             <div class="et-aligned-scroll">
               <div class="et-aligned-tracks">
                 <section class="et-property-list" aria-label="카메라 속성"><div class="et-property-heading">카메라 속성 <span>값 · 키프레임</span></div><div id="ET_FIELDS"></div></section>
@@ -208,6 +207,8 @@
       this.unsubscribe = null;
       if (this.cameraFrame !== null) cancelAnimationFrame(this.cameraFrame);
       this.cameraFrame = null;
+      if (this.scrubFrame !== null) cancelAnimationFrame(this.scrubFrame);
+      this.scrubFrame = null; this.scrubPose = null;
       this.drag = null;
       this.opened = false;
       this.root.hidden = true;
@@ -257,6 +258,25 @@
       this.apply(C.evaluate(this.project, this.time));
       this.updatePlayhead();
       this.updateFields();
+    }
+
+    queueScrub(time) {
+      this.time = C.snap(time, this.project.fps, this.project.duration);
+      this.scrubPose = C.evaluate(this.project, this.time);
+      this.updatePlayhead(); this.updateFields();
+      if (this.scrubFrame !== null) return;
+      this.scrubFrame = requestAnimationFrame(() => {
+        this.scrubFrame = null;
+        const pose = this.scrubPose; this.scrubPose = null;
+        if (pose) this.apply(pose);
+      });
+    }
+
+    flushScrub() {
+      if (this.scrubFrame !== null) cancelAnimationFrame(this.scrubFrame);
+      this.scrubFrame = null;
+      if (this.scrubPose) this.apply(this.scrubPose);
+      this.scrubPose = null;
     }
 
     pause() {
@@ -758,7 +778,7 @@
         for (const [key,value] of Object.entries({id:'ET_MARQUEE',x,y,width,height,fill:'#58a6ff22',stroke:'#58a6ff','pointer-events':'none'})) box.setAttribute(key,value);
         svg.appendChild(box); return;
       }
-      if (this.drag.type === 'scrub') { this.seek(this.trackTime(point.x)); return; }
+      if (this.drag.type === 'scrub') { this.queueScrub(this.trackTime(point.x)); return; }
       if (this.drag.type === 'selection') return;
       if (this.drag.type === 'key' && Math.abs(event.clientX - this.drag.startX) < 3) return;
       if (!this.drag.remembered) { this.remember(); this.drag.remembered = true; }
