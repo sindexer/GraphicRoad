@@ -485,7 +485,7 @@
     }
     async captureRenderStream() {
       if(!navigator.mediaDevices?.getDisplayMedia) throw new Error('SCREEN_CAPTURE_UNSUPPORTED');
-      const stream=await navigator.mediaDevices.getDisplayMedia({video:{displaySurface:'browser'},audio:false,preferCurrentTab:true,selfBrowserSurface:'include',surfaceSwitching:'exclude',monitorTypeSurfaces:'exclude',systemAudio:'exclude'});
+      const stream=await navigator.mediaDevices.getDisplayMedia({video:{displaySurface:'browser',cursor:'never'},audio:false,preferCurrentTab:true,selfBrowserSurface:'include',surfaceSwitching:'exclude',monitorTypeSurfaces:'exclude',systemAudio:'exclude'});
       const surface=stream.getVideoTracks()[0]?.getSettings?.().displaySurface;
       if(surface&&surface!=='browser'){stream.getTracks().forEach(track=>track.stop());throw new Error('CURRENT_TAB_REQUIRED');} return stream;
     }
