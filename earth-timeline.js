@@ -510,12 +510,16 @@
       await new Promise((resolve,reject)=>{const timer=setTimeout(resolve,delay);signal.addEventListener('abort',()=>{clearTimeout(timer);reject(new DOMException('중단됨','AbortError'));},{once:true});});
     }
     canvasBlob(canvas,type,quality) { return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('이미지 인코딩에 실패했습니다.')),type,quality)); }
-    waitCapturedVideoFrame(video,signal) {
+    waitCapturedVideoFrame(video,signal,timeout=350) {
       if(!video.requestVideoFrameCallback) return this.settleRenderFrame(signal,0,1);
       return new Promise((resolve,reject)=>{
-        let id;
-        const abort=()=>{video.cancelVideoFrameCallback?.(id);reject(new DOMException('중단됨','AbortError'));};
-        id=video.requestVideoFrameCallback(()=>{signal.removeEventListener('abort',abort);resolve();});
+        let id,timer;
+        const finish=()=>{clearTimeout(timer);signal.removeEventListener('abort',abort);resolve();};
+        const abort=()=>{clearTimeout(timer);video.cancelVideoFrameCallback?.(id);reject(new DOMException('중단됨','AbortError'));};
+        id=video.requestVideoFrameCallback(finish);
+        // Chrome may stop emitting captured-video callbacks when consecutive
+        // Earth frames are visually similar. Never let one frame stall a job.
+        timer=setTimeout(()=>{video.cancelVideoFrameCallback?.(id);finish();},timeout);
         signal.addEventListener('abort',abort,{once:true});
       });
     }

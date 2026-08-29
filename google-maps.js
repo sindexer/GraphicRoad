@@ -350,17 +350,10 @@
       map[mode === 'camera' ? 'cameraPosition' : 'center'] = {
         lat: values[`${basis}Lat`], lng: values[`${basis}Lng`], altitude: values[`${basis}Alt`]
       };
-      if (this.renderMode && mode === 'orbit') {
-        // Center mode exposes Google's blue camera-target tether. Re-apply the
-        // derived camera position as the final positioning basis; the view is
-        // unchanged, but the renderer no longer treats the target as active UI.
-        const position = validPosition(map.cameraPosition);
-        if (position) map.cameraPosition = { ...position, altitude: Number(map.cameraPosition.altitude) || 0 };
-      }
       return true;
     }
 
-    armEarthSteady(map, timeout = 500) {
+    armEarthSteady(map, timeout = 180) {
       this.cancelEarthSteady?.();
       let finish;
       this.earthSteadyPromise = new Promise(resolve => {
@@ -392,7 +385,13 @@
       this.renderMode = Boolean(enabled);
       if (!this.renderMode) { this.cancelEarthSteady?.(); this.earthSteadyPromise = null; }
       this.active.map.defaultUIHidden = this.renderMode;
-      if (this.renderMode) this.closeInfo();
+      if (this.renderMode) {
+        this.closeInfo();
+        // The 3D renderer shows its blue camera-target tether while the map is
+        // focused/hovered. Rendering is programmatic, so release that state.
+        this.active.map.blur?.();
+        document.activeElement?.blur?.();
+      }
       this.syncMarkers();
       return true;
     }
