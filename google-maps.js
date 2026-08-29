@@ -360,7 +360,10 @@
       if (!this.active?.earth) return false;
       // Hide exploration controls only. Google attribution remains rendered by
       // the SDK and must be present in exported imagery.
-      this.active.map.defaultUIHidden = Boolean(enabled);
+      this.renderMode = Boolean(enabled);
+      this.active.map.defaultUIHidden = this.renderMode;
+      if (this.renderMode) this.closeInfo();
+      this.syncMarkers();
       return true;
     }
 
@@ -480,7 +483,7 @@
     }
 
     syncMarkers() {
-      const record = this.enabled && this.markersVisible ? this.active : null;
+      const record = this.enabled && this.markersVisible && !this.renderMode ? this.active : null;
       this.markers.forEach((entry, key) => {
         entry.overlay.setMap(record && !record.earth ? record.map : null);
         if (record?.earth) {

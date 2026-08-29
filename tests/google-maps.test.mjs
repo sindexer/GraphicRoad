@@ -527,6 +527,7 @@ test('Earth render mode hides exploration UI and waits for a completed scene', a
   assert.equal(scene.defaultUIHidden, false);
   assert.equal(env.provider.setEarthRenderMode(true), true);
   assert.equal(scene.defaultUIHidden, true);
+  assert.equal(env.provider.renderMode, true);
   const steady = env.provider.waitEarthSteady(1000);
   scene.events['gmp-steadychange']({ isSteady: false });
   scene.events['gmp-steadychange']({ isSteady: true });
@@ -534,6 +535,7 @@ test('Earth render mode hides exploration UI and waits for a completed scene', a
   assert.equal(scene.events['gmp-steadychange'], undefined);
   env.provider.setEarthRenderMode(false);
   assert.equal(scene.defaultUIHidden, false);
+  assert.equal(env.provider.renderMode, false);
 });
 
 test('deployment injects configuration without logging it and publishes only allowed files', async () => {

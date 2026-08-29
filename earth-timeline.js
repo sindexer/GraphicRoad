@@ -480,11 +480,16 @@
       if(video.readyState<HTMLMediaElement.HAVE_CURRENT_DATA) await new Promise((resolve,reject)=>{video.addEventListener('loadeddata',resolve,{once:true});video.addEventListener('error',reject,{once:true});}); return video;
     }
     renderCanvas(video,s,canvas=document.createElement('canvas')) {
-      const rect=document.getElementById('googleMap')?.getBoundingClientRect(), scaleX=video.videoWidth/window.innerWidth, scaleY=video.videoHeight/window.innerHeight;
-      if(!rect?.width||!rect?.height||!(scaleX>0)||!(scaleY>0)) throw new Error('지도 화면 크기를 계산하지 못했습니다.');
+      const rect=document.getElementById('googleMap')?.getBoundingClientRect(), scale=video.videoWidth/window.innerWidth;
+      if(!rect?.width||!rect?.height||!(scale>0)) throw new Error('지도 화면 크기를 계산하지 못했습니다.');
+      // Chrome adds a sharing notice above the captured page. Its pixels are
+      // present in the video but not in window.innerHeight. Use the horizontal
+      // scale (which is unaffected by that notice) and remove the top inset.
+      const contentHeight=window.innerHeight*scale;
+      const topInset=Math.max(0,video.videoHeight-contentHeight);
       canvas.width=s.width;canvas.height=s.height;const context=canvas.getContext('2d',{alpha:false,colorSpace:'srgb'});
       if(!context) throw new Error('출력 이미지를 만들지 못했습니다.');
-      context.drawImage(video,rect.left*scaleX,rect.top*scaleY,rect.width*scaleX,rect.height*scaleY,0,0,canvas.width,canvas.height);return canvas;
+      context.drawImage(video,rect.left*scale,topInset+rect.top*scale,rect.width*scale,rect.height*scale,0,0,canvas.width,canvas.height);return canvas;
     }
     async settleRenderFrame(signal,delay=70,paints=2) {
       for(let count=0;count<paints;count++) await new Promise(resolve=>requestAnimationFrame(resolve));

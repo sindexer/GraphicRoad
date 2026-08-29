@@ -251,6 +251,8 @@ test('toolbar has one capture action, a render dialog and no obsolete project co
   assert.match(uiSource,/setEarthRenderMode\?\.\(true\)/);
   assert.match(uiSource,/waitEarthSteady/);
   assert.match(uiSource,/requestVideoFrameCallback/);
+  assert.match(uiSource,/topInset=Math\.max\(0,video\.videoHeight-contentHeight\)/);
+  assert.doesNotMatch(uiSource,/video\.videoHeight\/window\.innerHeight/);
   assert.doesNotMatch(uiSource,/data-action="render-(?:frame|preview)"/);
 });
 
