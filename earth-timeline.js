@@ -576,6 +576,17 @@
       const video=document.createElement('video'); video.muted=true; video.playsInline=true; video.srcObject=stream; await video.play();
       if(video.readyState<HTMLMediaElement.HAVE_CURRENT_DATA) await new Promise((resolve,reject)=>{video.addEventListener('loadeddata',resolve,{once:true});video.addEventListener('error',reject,{once:true});}); return video;
     }
+    waitForRenderPointer(signal,timeout=30000) {
+      this.root.dataset.renderMessage='마우스를 아래의 접힌 타임라인 바 위로 이동하면 렌더링을 시작합니다.';
+      return new Promise((resolve,reject)=>{
+        let settled=false,timer;
+        const finish=error=>{if(settled)return;settled=true;clearTimeout(timer);document.removeEventListener('pointermove',move,true);signal.removeEventListener('abort',abort);if(error)reject(error);else{this.root.dataset.renderMessage='렌더링 준비 중…';resolve();}};
+        const move=event=>{const rect=document.getElementById('googleMap')?.getBoundingClientRect();if(rect&&(event.clientX<rect.left||event.clientX>=rect.right||event.clientY<rect.top||event.clientY>=rect.bottom))finish();};
+        const abort=()=>finish(new DOMException('중단됨','AbortError'));
+        timer=setTimeout(()=>finish(new Error('화면 공유 후 마우스를 아래의 접힌 타임라인 바 위로 이동해 주세요.')),timeout);
+        document.addEventListener('pointermove',move,true);signal.addEventListener('abort',abort,{once:true});
+      });
+    }
     renderCanvas(video,s,canvas=document.createElement('canvas')) {
       const rect=document.getElementById('googleMap')?.getBoundingClientRect(), scale=video.videoWidth/window.innerWidth;
       if(!rect?.width||!rect?.height||!(scale>0)) throw new Error('지도 화면 크기를 계산하지 못했습니다.');
@@ -635,9 +646,9 @@
       this.pause();this.$('ET_RENDER_ERROR').textContent='';this.$('ET_RENDER_PROGRESS_WRAP').hidden=false;this.updateRenderProgress(0,s.end-s.start+1);this.renderAbort=new AbortController();let stream=null;const returnTime=this.time;
       const returnFolded=this.folded,provider=this.getProvider();let isolatedRender=false;
       this.setFolded(true);this.$('ET_RENDER').close();
-      try {stream=await this.captureRenderStream();stream.getVideoTracks()[0]?.addEventListener('ended',()=>this.renderAbort?.abort(),{once:true});document.body.classList.add('earth-rendering');if(provider?.beginEarthRender){isolatedRender=await provider.beginEarthRender(this.pose,this.project.mode);if(!isolatedRender)throw new Error('렌더 전용 지도를 준비하지 못했습니다.');}else provider?.setEarthRenderMode?.(true);await this.settleRenderFrame(this.renderAbort.signal,350,3);const video=await this.renderVideo(stream);await this.waitCapturedVideoFrame(video,this.renderAbort.signal);if(s.format==='jpeg')await this.renderJpegSequence(video,s,this.renderAbort.signal);else await this.renderMp4(video,s,this.renderAbort.signal);this.setStatus(`${s.name} 렌더링을 완료했습니다.`);}
+      try {stream=await this.captureRenderStream();stream.getVideoTracks()[0]?.addEventListener('ended',()=>this.renderAbort?.abort(),{once:true});document.body.classList.add('earth-rendering');await this.waitForRenderPointer(this.renderAbort.signal);if(provider?.beginEarthRender){isolatedRender=await provider.beginEarthRender(this.pose,this.project.mode);if(!isolatedRender)throw new Error('렌더 전용 지도를 준비하지 못했습니다.');}else provider?.setEarthRenderMode?.(true);this.root.dataset.renderMessage='렌더링 중…';await this.settleRenderFrame(this.renderAbort.signal,350,3);const video=await this.renderVideo(stream);await this.waitCapturedVideoFrame(video,this.renderAbort.signal);if(s.format==='jpeg')await this.renderJpegSequence(video,s,this.renderAbort.signal);else await this.renderMp4(video,s,this.renderAbort.signal);this.setStatus(`${s.name} 렌더링을 완료했습니다.`);}
       catch(error){if(error?.name!=='AbortError'&&error?.name!=='NotAllowedError'){const message=error?.message==='CURRENT_TAB_REQUIRED'?'화면 공유에서 현재 탭을 선택하세요.':error?.message==='SCREEN_CAPTURE_UNSUPPORTED'?'이 브라우저는 화면 캡처를 지원하지 않습니다.':error?.message==='MP4_UNSUPPORTED'?'이 브라우저는 MP4 녹화를 지원하지 않습니다. JPEG 시퀀스를 사용하세요.':error.message||'렌더링에 실패했습니다.';this.setStatus(message);window.alert(message);}}
-      finally{stream?.getTracks().forEach(track=>track.stop());if(isolatedRender)provider?.endEarthRender?.();else provider?.setEarthRenderMode?.(false);document.body.classList.remove('earth-rendering');this.renderAbort=null;this.setFolded(returnFolded);this.seek(returnTime,true);}
+      finally{stream?.getTracks().forEach(track=>track.stop());if(isolatedRender)provider?.endEarthRender?.();else provider?.setEarthRenderMode?.(false);document.body.classList.remove('earth-rendering');delete this.root.dataset.renderMessage;this.renderAbort=null;this.setFolded(returnFolded);this.seek(returnTime,true);}
     }
 
     onClick(event) {

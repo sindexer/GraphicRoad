@@ -197,6 +197,7 @@ body.earth-timeline-open.earth-timeline-folded #googleMap { bottom: var(--earth-
 body.earth-rendering .top-navigation,body.earth-rendering .map-provider-status { visibility:hidden!important; }
 body.earth-rendering #EARTH_TIMELINE { height:var(--earth-timeline-folded-height)!important; }
 body.earth-rendering #EARTH_TIMELINE .et-body,body.earth-rendering #EARTH_TIMELINE .et-footer { display:none!important; }
+body.earth-rendering #EARTH_TIMELINE[data-render-message]::after { content:attr(data-render-message); position:absolute; inset:5px 42px 4px; z-index:8; display:flex; align-items:center; justify-content:center; color:#dbeeff; background:#172535f2; border:1px solid #376487; pointer-events:none; font-size:12px; letter-spacing:.2px; }
 body.earth-rendering #googleMap { bottom:var(--earth-timeline-folded-height)!important; pointer-events:none!important; cursor:none!important; }
 body.earth-rendering #googleMap * { cursor:none!important; }
 @media(max-width:620px){.et-render-top,.et-format,.et-render-grid,.et-render-advanced>div{grid-template-columns:1fr;}}
