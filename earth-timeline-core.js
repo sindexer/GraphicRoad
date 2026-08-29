@@ -2,17 +2,17 @@
 (() => {
   'use strict';
   const CHANNELS = Object.freeze([
-    { key: 'pivotLat', label: '피벗 위도', group: 'pivot', unit: '°', min: -85, max: 85, step: 0.0001 },
-    { key: 'pivotLng', label: '피벗 경도', group: 'pivot', unit: '°', min: -180, max: 180, step: 0.0001 },
-    { key: 'pivotAlt', label: '피벗 고도', group: 'pivot', unit: 'm', min: -1000, max: 63170000, step: 10 },
-    { key: 'cameraLat', label: '카메라 위도', group: 'camera', unit: '°', min: -85, max: 85, step: 0.0001 },
-    { key: 'cameraLng', label: '카메라 경도', group: 'camera', unit: '°', min: -180, max: 180, step: 0.0001 },
-    { key: 'cameraAlt', label: '카메라 고도', group: 'camera', unit: 'm', min: -1000, max: 63170000, step: 10 },
-    { key: 'heading', label: '방위 · Heading', group: 'rotation', unit: '°', min: -36000, max: 36000, step: 1 },
-    { key: 'tilt', label: '기울기 · Tilt', group: 'rotation', unit: '°', min: 0, max: 90, step: 1 },
-    { key: 'roll', label: '롤 · Roll', group: 'rotation', unit: '°', min: -36000, max: 36000, step: 1 },
-    { key: 'range', label: '피벗 거리', group: 'lens', unit: 'm', min: 1, max: 63170000, step: 100 },
-    { key: 'fov', label: '화각 · FOV', group: 'lens', unit: '°', min: 5, max: 80, step: 1 }
+    { key: 'pivotLat', label: 'Position Y', group: 'pivot', unit: '°', min: -85, max: 85, step: 0.0001 },
+    { key: 'pivotLng', label: 'Position X', group: 'pivot', unit: '°', min: -180, max: 180, step: 0.0001 },
+    { key: 'pivotAlt', label: 'Position Z', group: 'pivot', unit: 'm', min: -1000, max: 63170000, step: 10 },
+    { key: 'cameraLat', label: 'Position Y', group: 'camera', unit: '°', min: -85, max: 85, step: 0.0001 },
+    { key: 'cameraLng', label: 'Position X', group: 'camera', unit: '°', min: -180, max: 180, step: 0.0001 },
+    { key: 'cameraAlt', label: 'Position Z', group: 'camera', unit: 'm', min: -1000, max: 63170000, step: 10 },
+    { key: 'heading', label: 'Rotation Y', group: 'rotation', unit: '°', min: -36000, max: 36000, step: 1 },
+    { key: 'tilt', label: 'Rotation X', group: 'rotation', unit: '°', min: 0, max: 90, step: 1 },
+    { key: 'roll', label: 'Rotation Z', group: 'rotation', unit: '°', min: -36000, max: 36000, step: 1 },
+    { key: 'range', label: 'Focus Distance', group: 'lens', unit: 'm', min: 1, max: 63170000, step: 100 },
+    { key: 'fov', label: 'Zoom (FOV)', group: 'lens', unit: '°', min: 5, max: 80, step: 1 }
   ]);
   const PRESETS = Object.freeze({ linear: [0, 0, 1, 1], smooth: [0.42, 0, 0.58, 1], in: [0.42, 0, 1, 1], out: [0, 0, 0.58, 1] });
   const defaults = { pivotLat: 38.1, pivotLng: 129, pivotAlt: 0, cameraLat: 38.1, cameraLng: 129, cameraAlt: 3500000, heading: 0, tilt: 35, roll: 0, range: 3500000, fov: 35 };
@@ -77,7 +77,7 @@
     if (!existing && Object.values(project.tracks).reduce((sum, frames) => sum + frames.length, 0) >= 2000) {
       throw new Error('프로젝트당 키프레임은 최대 2,000개입니다.');
     }
-    const frame = existing || { time: at, value, easing: [...PRESETS.smooth] };
+    const frame = existing || { time: at, value, easing: [...PRESETS.linear] };
     frame.value = clamp(value, definition.min, definition.max);
     if (easing) frame.easing = [...easing];
     if (!existing) track.push(frame);

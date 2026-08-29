@@ -166,6 +166,16 @@ test('zoomed time coordinates round trip and clamp at composition bounds', () =>
   assert.equal(e.trackTime(-100000), 0); assert.equal(e.trackTime(100000), 10);
 });
 
+test('camera channels use After Effects axis names and new keys default to linear diamonds', () => {
+  const labels = Object.fromEntries(C.CHANNELS.map(channel => [channel.key, channel.label]));
+  assert.equal(labels.pivotLng, 'Position X'); assert.equal(labels.pivotLat, 'Position Y');
+  assert.equal(labels.pivotAlt, 'Position Z'); assert.equal(labels.tilt, 'Rotation X');
+  assert.equal(labels.heading, 'Rotation Y'); assert.equal(labels.roll, 'Rotation Z');
+  assert.equal(labels.range, 'Focus Distance'); assert.equal(labels.fov, 'Zoom (FOV)');
+  const project = C.createProject();
+  assert.deepEqual(plain(C.upsert(project, 'heading', 1, 20).easing), plain(C.PRESETS.linear));
+});
+
 test('selecting a track label preserves playhead time', () => {
   const { e } = editor(); e.time = 5;
   e.onClick({ target: { tagName: 'LABEL', closest: selector => selector === '[data-property]' ? { dataset: { property: 'tilt' } } : null } });
@@ -338,7 +348,7 @@ test('graph handle dragging updates the outgoing curve and groups undo history',
   e.pointerMove({ pointerId: 1 }, svg);
   near(e.selected().easing[0], 1); near(e.selected().easing[1], 1);
   assert.equal(e.undoStack.length, 1);
-  assert.deepEqual(plain(e.project.tracks.heading[1].easing), plain(C.PRESETS.smooth));
+  assert.deepEqual(plain(e.project.tracks.heading[1].easing), plain(C.PRESETS.linear));
 });
 
 test('key drag moves the selected key, updates camera time, and never merges neighbors', () => {
