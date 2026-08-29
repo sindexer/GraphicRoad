@@ -248,6 +248,9 @@ test('toolbar has one capture action, a render dialog and no obsolete project co
   assert.match(uiSource,/value="mp4"/);
   assert.match(uiSource,/showDirectoryPicker/);
   assert.match(uiSource,/MediaRecorder\.isTypeSupported/);
+  assert.match(uiSource,/setEarthRenderMode\?\.\(true\)/);
+  assert.match(uiSource,/waitEarthSteady/);
+  assert.match(uiSource,/requestVideoFrameCallback/);
   assert.doesNotMatch(uiSource,/data-action="render-(?:frame|preview)"/);
 });
 

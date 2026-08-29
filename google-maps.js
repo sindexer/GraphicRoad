@@ -356,6 +356,32 @@
       if (this.active?.earth) this.active.map.stopCameraAnimation?.();
     }
 
+    setEarthRenderMode(enabled) {
+      if (!this.active?.earth) return false;
+      // Hide exploration controls only. Google attribution remains rendered by
+      // the SDK and must be present in exported imagery.
+      this.active.map.defaultUIHidden = Boolean(enabled);
+      return true;
+    }
+
+    waitEarthSteady(timeout = 2500) {
+      if (!this.enabled || !this.active?.earth) return Promise.resolve(false);
+      const map = this.active.map;
+      return new Promise(resolve => {
+        let settled = false;
+        const finish = value => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          map.removeEventListener('gmp-steadychange', onSteady);
+          resolve(value);
+        };
+        const onSteady = event => { if (event.isSteady) finish(true); };
+        const timer = setTimeout(() => finish(false), Math.max(100, timeout));
+        map.addEventListener('gmp-steadychange', onSteady);
+      });
+    }
+
     subscribeEarthCamera(callback) {
       if (!this.enabled || !this.active?.earth) return () => {};
       const record = this.active;

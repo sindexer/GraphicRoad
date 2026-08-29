@@ -482,7 +482,7 @@
     renderCanvas(video,s,canvas=document.createElement('canvas')) {
       const rect=document.getElementById('googleMap')?.getBoundingClientRect(), scaleX=video.videoWidth/window.innerWidth, scaleY=video.videoHeight/window.innerHeight;
       if(!rect?.width||!rect?.height||!(scaleX>0)||!(scaleY>0)) throw new Error('지도 화면 크기를 계산하지 못했습니다.');
-      canvas.width=s.width;canvas.height=s.height;const context=canvas.getContext('2d',{alpha:false});
+      canvas.width=s.width;canvas.height=s.height;const context=canvas.getContext('2d',{alpha:false,colorSpace:'srgb'});
       if(!context) throw new Error('출력 이미지를 만들지 못했습니다.');
       context.drawImage(video,rect.left*scaleX,rect.top*scaleY,rect.width*scaleX,rect.height*scaleY,0,0,canvas.width,canvas.height);return canvas;
     }
@@ -491,10 +491,24 @@
       await new Promise((resolve,reject)=>{const timer=setTimeout(resolve,delay);signal.addEventListener('abort',()=>{clearTimeout(timer);reject(new DOMException('중단됨','AbortError'));},{once:true});});
     }
     canvasBlob(canvas,type,quality) { return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('이미지 인코딩에 실패했습니다.')),type,quality)); }
+    waitCapturedVideoFrame(video,signal) {
+      if(!video.requestVideoFrameCallback) return this.settleRenderFrame(signal,0,1);
+      return new Promise((resolve,reject)=>{
+        let id;
+        const abort=()=>{video.cancelVideoFrameCallback?.(id);reject(new DOMException('중단됨','AbortError'));};
+        id=video.requestVideoFrameCallback(()=>{signal.removeEventListener('abort',abort);resolve();});
+        signal.addEventListener('abort',abort,{once:true});
+      });
+    }
+    async prepareRenderFrame(video,signal,settleTimeout=2500) {
+      await this.getProvider()?.waitEarthSteady?.(settleTimeout);
+      await this.settleRenderFrame(signal,0,2);
+      await this.waitCapturedVideoFrame(video,signal);
+    }
     updateRenderProgress(done,total) { this.$('ET_RENDER_PROGRESS').value=done/total;this.$('ET_RENDER_PROGRESS_TEXT').textContent=`${done} / ${total} 프레임`; }
     async renderJpegSequence(video,s,signal) {
       const total=s.end-s.start+1;
-      for(let frame=s.start;frame<=s.end;frame++) { if(signal.aborted) throw new DOMException('중단됨','AbortError'); this.seek(frame/s.fps,true);await this.settleRenderFrame(signal);
+      for(let frame=s.start;frame<=s.end;frame++) { if(signal.aborted) throw new DOMException('중단됨','AbortError'); this.seek(frame/s.fps,true);await this.prepareRenderFrame(video,signal);
         const blob=await this.canvasBlob(this.renderCanvas(video,s),'image/jpeg',s.quality),file=await this.renderDestination.handle.getFileHandle(`${s.name}_${String(frame).padStart(6,'0')}.jpg`,{create:true}),writable=await file.createWritable();
         await writable.write(blob);await writable.close();this.updateRenderProgress(frame-s.start+1,total); }
     }
@@ -503,9 +517,9 @@
       const canvas=document.createElement('canvas');canvas.width=s.width;canvas.height=s.height;const output=canvas.captureStream(s.fps),chunks=[];
       const recorder=new MediaRecorder(output,{mimeType,videoBitsPerSecond:Math.min(40000000,Math.max(4000000,s.width*s.height*s.fps*.12))});
       recorder.addEventListener('dataavailable',event=>{if(event.data.size)chunks.push(event.data);});const stopped=new Promise((resolve,reject)=>{recorder.addEventListener('stop',resolve,{once:true});recorder.addEventListener('error',()=>reject(recorder.error||new Error('MP4 인코딩에 실패했습니다.')),{once:true});});
-      const total=s.end-s.start+1,delay=Math.max(0,1000/s.fps-17);
-      this.seek(s.start/s.fps,true);await this.settleRenderFrame(signal,70);this.renderCanvas(video,s,canvas);recorder.start(1000);this.updateRenderProgress(1,total);
-      try { for(let frame=s.start+1;frame<=s.end;frame++){if(signal.aborted)throw new DOMException('중단됨','AbortError');this.seek(frame/s.fps,true);await this.settleRenderFrame(signal,delay,1);this.renderCanvas(video,s,canvas);output.getVideoTracks()[0]?.requestFrame?.();this.updateRenderProgress(frame-s.start+1,total);} await this.settleRenderFrame(signal,Math.ceil(1000/s.fps),0); }
+      const total=s.end-s.start+1;
+      this.seek(s.start/s.fps,true);await this.prepareRenderFrame(video,signal);this.renderCanvas(video,s,canvas);recorder.start(1000);this.updateRenderProgress(1,total);
+      try { for(let frame=s.start+1;frame<=s.end;frame++){if(signal.aborted)throw new DOMException('중단됨','AbortError');this.seek(frame/s.fps,true);await this.prepareRenderFrame(video,signal,1200);this.renderCanvas(video,s,canvas);output.getVideoTracks()[0]?.requestFrame?.();this.updateRenderProgress(frame-s.start+1,total);} await this.settleRenderFrame(signal,Math.ceil(1000/s.fps),0); }
       finally {if(recorder.state!=='inactive')recorder.stop();} await stopped;output.getTracks().forEach(track=>track.stop());const blob=new Blob(chunks,{type:'video/mp4'});if(!blob.size)throw new Error('MP4 파일이 비어 있습니다.');
       if(this.renderDestination.handle){const writable=await this.renderDestination.handle.createWritable();await writable.write(blob);await writable.close();}else{const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=`${s.name}.mp4`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
     }
@@ -513,9 +527,9 @@
       let s;try{s=this.renderSettings();}catch(error){this.$('ET_RENDER_ERROR').textContent=error.message;return;}
       if(!this.renderDestination||this.renderDestination.format!==s.format){this.$('ET_RENDER_ERROR').textContent='먼저 현재 형식의 저장 위치를 선택하세요.';return;}
       this.pause();this.$('ET_RENDER_ERROR').textContent='';this.$('ET_RENDER_PROGRESS_WRAP').hidden=false;this.updateRenderProgress(0,s.end-s.start+1);this.renderAbort=new AbortController();let stream=null;const returnTime=this.time;
-      try {stream=await this.captureRenderStream();stream.getVideoTracks()[0]?.addEventListener('ended',()=>this.renderAbort?.abort(),{once:true});document.body.classList.add('earth-rendering');this.$('ET_RENDER').close();await this.settleRenderFrame(this.renderAbort.signal,100);const video=await this.renderVideo(stream);if(s.format==='jpeg')await this.renderJpegSequence(video,s,this.renderAbort.signal);else await this.renderMp4(video,s,this.renderAbort.signal);this.setStatus(`${s.name} 렌더링을 완료했습니다.`);}
+      try {stream=await this.captureRenderStream();stream.getVideoTracks()[0]?.addEventListener('ended',()=>this.renderAbort?.abort(),{once:true});this.getProvider()?.setEarthRenderMode?.(true);document.body.classList.add('earth-rendering');this.$('ET_RENDER').close();await this.settleRenderFrame(this.renderAbort.signal,350,3);const video=await this.renderVideo(stream);await this.waitCapturedVideoFrame(video,this.renderAbort.signal);if(s.format==='jpeg')await this.renderJpegSequence(video,s,this.renderAbort.signal);else await this.renderMp4(video,s,this.renderAbort.signal);this.setStatus(`${s.name} 렌더링을 완료했습니다.`);}
       catch(error){if(error?.name!=='AbortError'&&error?.name!=='NotAllowedError'){const message=error?.message==='CURRENT_TAB_REQUIRED'?'화면 공유에서 현재 탭을 선택하세요.':error?.message==='SCREEN_CAPTURE_UNSUPPORTED'?'이 브라우저는 화면 캡처를 지원하지 않습니다.':error?.message==='MP4_UNSUPPORTED'?'이 브라우저는 MP4 녹화를 지원하지 않습니다. JPEG 시퀀스를 사용하세요.':error.message||'렌더링에 실패했습니다.';this.setStatus(message);window.alert(message);}}
-      finally{stream?.getTracks().forEach(track=>track.stop());document.body.classList.remove('earth-rendering');this.renderAbort=null;this.seek(returnTime,true);}
+      finally{stream?.getTracks().forEach(track=>track.stop());this.getProvider()?.setEarthRenderMode?.(false);document.body.classList.remove('earth-rendering');this.renderAbort=null;this.seek(returnTime,true);}
     }
 
     onClick(event) {

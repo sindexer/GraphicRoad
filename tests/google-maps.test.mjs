@@ -519,6 +519,23 @@ test('Earth camera updates reject invalid input and unsubscribe safely', async (
   assert.equal(env.provider.getEarthCamera(), null);
 });
 
+test('Earth render mode hides exploration UI and waits for a completed scene', async () => {
+  const env = environment();
+  assert.equal(env.provider.setEarthRenderMode(true), false);
+  await env.provider.activate('GOOGLE_EARTH', {}, () => true);
+  const scene = env.earthMaps[0];
+  assert.equal(scene.defaultUIHidden, false);
+  assert.equal(env.provider.setEarthRenderMode(true), true);
+  assert.equal(scene.defaultUIHidden, true);
+  const steady = env.provider.waitEarthSteady(1000);
+  scene.events['gmp-steadychange']({ isSteady: false });
+  scene.events['gmp-steadychange']({ isSteady: true });
+  assert.equal(await steady, true);
+  assert.equal(scene.events['gmp-steadychange'], undefined);
+  env.provider.setEarthRenderMode(false);
+  assert.equal(scene.defaultUIHidden, false);
+});
+
 test('deployment injects configuration without logging it and publishes only allowed files', async () => {
   const root = new URL('../', import.meta.url);
   const env = { ...process.env, GOOGLE_MAPS_BROWSER_KEY: config.apiKey,
