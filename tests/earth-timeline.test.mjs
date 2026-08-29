@@ -154,7 +154,7 @@ function editor() {
   e.button = { setAttribute() {}, focus() {} }; e.root = { hidden: false };
   e.render = () => {}; e.renderTracks = () => {}; e.renderGraph = () => {};
   e.updatePlayhead = () => {}; e.updateFields = () => {};
-  return { e, calls, callbacks, controls, provider, tick(time) {
+  return { e, calls, callbacks, controls, provider, fitRenderViewport: env.GraphicRoadEarthTimeline.fitRenderViewport, tick(time) {
     const pending = [...callbacks.values()]; callbacks.clear(); pending.forEach(callback => callback(time));
   } };
 }
@@ -165,6 +165,18 @@ test('zoomed time coordinates round trip and clamp at composition bounds', () =>
   near(e.trackX(5), 12); near(e.trackX(7.5), 978);
   near(e.trackTime(e.trackX(6)), 6);
   assert.equal(e.trackTime(-100000), 0); assert.equal(e.trackTime(100000), 10);
+});
+
+test('render viewport preserves the requested aspect ratio without stretching', () => {
+  const { fitRenderViewport } = editor();
+  const landscape = fitRenderViewport(1280, 668, 1920, 1080);
+  near(landscape.width / landscape.height, 16 / 9);
+  near(landscape.height, 668);
+  near(landscape.left * 2 + landscape.width, 1280);
+  const portrait = fitRenderViewport(1280, 668, 1080, 1920);
+  near(portrait.width / portrait.height, 9 / 16);
+  near(portrait.height, 668);
+  near(portrait.left * 2 + portrait.width, 1280);
 });
 
 test('mouse scrubbing coalesces camera writes to one update per paint', () => {
@@ -296,7 +308,7 @@ test('toolbar has one capture action, a render dialog and no obsolete project co
   assert.match(uiSource,/setEarthRenderMode\?\.\(true\)/);
   assert.match(uiSource,/waitEarthSteady/);
   assert.match(uiSource,/requestVideoFrameCallback/);
-  assert.match(uiSource,/topInset=Math\.max\(0,video\.videoHeight-contentHeight\)/);
+  assert.match(uiSource,/topInset\s*=\s*Math\.max\(0,\s*video\.videoHeight\s*-\s*contentHeight\)/);
   assert.doesNotMatch(uiSource,/video\.videoHeight\/window\.innerHeight/);
   assert.doesNotMatch(uiSource,/data-action="render-(?:frame|preview)"/);
   assert.match(uiSource,/et-ease-buttons[^\n]*data-action="capture"[^\n]*data-ease="both"/);
@@ -305,8 +317,11 @@ test('toolbar has one capture action, a render dialog and no obsolete project co
   assert.match(uiSource,/data-action="fold"[^>]*id="ET_FOLD"/);
   assert.doesNotMatch(uiSource,/data-action="close" class="et-close"/);
   assert.match(uiSource,/setFolded\(true\).*captureRenderStream/s);
-  assert.match(uiSource,/beginEarthRender\(this\.pose,this\.project\.mode\)/);
-  assert.match(uiSource,/waitForRenderPointer\(this\.renderAbort\.signal\).*beginEarthRender/s);
+  assert.match(uiSource,/configureRenderViewport\(settings\)/);
+  assert.match(uiSource,/outputScale\s*=\s*Math\.min/);
+  assert.match(uiSource,/activeTrack\?\.readyState === 'live'/);
+  assert.doesNotMatch(uiSource,/beginEarthRender|endEarthRender|isolatedRender/);
+  assert.match(uiSource,/waitForRenderPointer\(signal\)/);
 });
 
 test('playback updates the existing provider at selected FPS and stops at its end', () => {

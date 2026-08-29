@@ -4,6 +4,18 @@
   const C = window.GraphicRoadTimelineCore;
   const esc = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
   const number = (value, digits = 4) => Number(value.toFixed(digits)).toString();
+  const fitRenderViewport = (availableWidth, availableHeight, outputWidth, outputHeight) => {
+    const targetRatio = outputWidth / outputHeight;
+    const availableRatio = availableWidth / availableHeight;
+    const width = availableRatio > targetRatio ? availableHeight * targetRatio : availableWidth;
+    const height = availableRatio > targetRatio ? availableHeight : availableWidth / targetRatio;
+    return {
+      left: (availableWidth - width) / 2,
+      top: (availableHeight - height) / 2,
+      width,
+      height
+    };
+  };
 
 
   class Controller {
@@ -31,6 +43,7 @@
       this.acceptCameraUpdates = false;
       this.renderDestination = null;
       this.renderAbort = null;
+      this.renderStream = null;
       this.folded = false;
       this.timelineHeight = null;
       this.build();
@@ -160,7 +173,7 @@
               <fieldset class="et-format"><legend>형식</legend><label><input type="radio" name="ET_RENDER_FORMAT" value="jpeg" checked><span>◉</span><strong>이미지 시퀀스 (JPEG)</strong><small>선택한 폴더에 프레임별 저장</small></label><label><input type="radio" name="ET_RENDER_FORMAT" value="mp4"><span>◉</span><strong>동영상 (MP4)</strong><small>브라우저 지원 시 H.264/MP4 저장</small></label></fieldset>
               <div class="et-render-grid"><label>프레임<span><input id="ET_RENDER_START" type="number" min="0" step="1" value="0"> ~ <input id="ET_RENDER_END" type="number" min="0" step="1" value="300"></span></label><label>크기<span><input id="ET_RENDER_WIDTH" type="number" min="320" max="7680" step="2" value="1920"> × <input id="ET_RENDER_HEIGHT" type="number" min="180" max="4320" step="2" value="1080"></span></label><label>저작자 표시 위치<select disabled><option>오른쪽 하단 (지도 원본 고정)</option></select></label><label>JPEG 품질<select id="ET_RENDER_QUALITY"><option value="0.8">보통</option><option value="0.92" selected>높음</option><option value="1">최고</option></select></label></div>
               <details class="et-render-advanced"><summary>고급</summary><div><label>3D 추적 데이터<select disabled><option>없음</option></select></label><label>좌표 공간<select disabled><option>전체</option></select></label><label>지도 스타일<select disabled><option>현재 지도 스타일</option></select></label><label>프레임 속도<output id="ET_RENDER_FPS">30 FPS</output></label></div></details>
-              <p class="et-render-note">Google 지도 저작권 표시는 원본 위치에 포함됩니다. 시작 시 화면 공유에서 <strong>현재 탭</strong>을 선택하세요.</p>
+              <p class="et-render-note">Google 지도 저작권 표시는 원본 위치에 포함됩니다. 브라우저 보안상 첫 렌더에서는 <strong>현재 탭</strong> 공유를 한 번 선택해야 하며, 공유가 유지되는 동안 다음 렌더부터는 바로 시작합니다.</p>
               <div id="ET_RENDER_PROGRESS_WRAP" class="et-render-progress" hidden><progress id="ET_RENDER_PROGRESS" max="1" value="0"></progress><output id="ET_RENDER_PROGRESS_TEXT">준비 중</output></div>
               <p id="ET_RENDER_ERROR" class="et-render-error" role="alert"></p>
             </div>
@@ -536,119 +549,405 @@
       return ['video/mp4;codecs=avc1.42E01E','video/mp4;codecs=avc1','video/mp4'].find(type => MediaRecorder.isTypeSupported(type)) || '';
     }
     openRender() {
-      this.pause(); const last = Math.round(this.project.duration*this.project.fps);
-      this.$('ET_RENDER_START').max=last; this.$('ET_RENDER_END').max=last; this.$('ET_RENDER_END').value=last;
-      this.$('ET_RENDER_FPS').textContent=`${this.project.fps} FPS`; this.$('ET_RENDER_ERROR').textContent=''; this.$('ET_RENDER_PROGRESS_WRAP').hidden=true;
-      this.renderDestination=null; this.$('ET_RENDER_LOCATION').textContent='선택 안 됨'; this.$('ET_RENDER').showModal();
+      this.pause();
+      const lastFrame = Math.round(this.project.duration * this.project.fps);
+      this.$('ET_RENDER_START').max = lastFrame;
+      this.$('ET_RENDER_END').max = lastFrame;
+      this.$('ET_RENDER_END').value = lastFrame;
+      this.$('ET_RENDER_FPS').textContent = `${this.project.fps} FPS`;
+      this.$('ET_RENDER_ERROR').textContent = '';
+      this.$('ET_RENDER_PROGRESS_WRAP').hidden = true;
+      this.$('ET_RENDER_LOCATION').textContent = this.renderDestination?.handle?.name || '선택 안 됨';
+      this.$('ET_RENDER').showModal();
     }
-    closeRender() { if(this.renderAbort) this.renderAbort.abort(); else this.$('ET_RENDER').close(); }
-    safeRenderName() { return (this.$('ET_RENDER_NAME').value.trim()||'GraphicRoad').replace(/[<>:"/\\|?*\u0000-\u001f]/g,'_').slice(0,80); }
+    closeRender() {
+      if (this.renderAbort) this.renderAbort.abort();
+      else this.$('ET_RENDER').close();
+    }
+    safeRenderName() {
+      return (this.$('ET_RENDER_NAME').value.trim() || 'GraphicRoad')
+        .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').slice(0, 80);
+    }
     async chooseRenderLocation() {
-      const format=this.renderFormat(); this.$('ET_RENDER_ERROR').textContent='';
+      const format = this.renderFormat();
+      this.$('ET_RENDER_ERROR').textContent = '';
       try {
-        if(format==='jpeg') {
-          if(!window.showDirectoryPicker) throw new Error('DIRECTORY_PICKER_UNSUPPORTED');
-          this.renderDestination={format,handle:await window.showDirectoryPicker({mode:'readwrite'})};
+        if (format === 'jpeg') {
+          if (!window.showDirectoryPicker) throw new Error('DIRECTORY_PICKER_UNSUPPORTED');
+          this.renderDestination = {
+            format,
+            handle: await window.showDirectoryPicker({ mode: 'readwrite' })
+          };
         } else {
-          if(!this.renderMimeType()) throw new Error('MP4_UNSUPPORTED');
-          this.renderDestination=window.showSaveFilePicker ? {format,handle:await window.showSaveFilePicker({suggestedName:`${this.safeRenderName()}.mp4`,types:[{description:'MP4 동영상',accept:{'video/mp4':['.mp4']}}]})} : {format,handle:null};
+          if (!this.renderMimeType()) throw new Error('MP4_UNSUPPORTED');
+          this.renderDestination = window.showSaveFilePicker ? {
+            format,
+            handle: await window.showSaveFilePicker({
+              suggestedName: `${this.safeRenderName()}.mp4`,
+              types: [{ description: 'MP4 동영상', accept: { 'video/mp4': ['.mp4'] } }]
+            })
+          } : { format, handle: null };
         }
-        this.$('ET_RENDER_LOCATION').textContent=this.renderDestination.handle?.name||(format==='mp4'?'다운로드 폴더':'선택됨');
-      } catch(error) {
-        if(error?.name==='AbortError') return;
-        this.$('ET_RENDER_ERROR').textContent=error?.message==='MP4_UNSUPPORTED'?'이 브라우저는 MP4 녹화를 지원하지 않습니다. JPEG 시퀀스를 선택하세요.':error?.message==='DIRECTORY_PICKER_UNSUPPORTED'?'이 브라우저는 폴더 저장을 지원하지 않습니다. 최신 Chrome 또는 Edge를 사용하세요.':'저장 위치를 선택하지 못했습니다.';
+        this.$('ET_RENDER_LOCATION').textContent = this.renderDestination.handle?.name ||
+          (format === 'mp4' ? '다운로드 폴더' : '선택됨');
+      } catch (error) {
+        if (error?.name === 'AbortError') return;
+        const messages = {
+          MP4_UNSUPPORTED: '이 브라우저는 MP4 녹화를 지원하지 않습니다. JPEG 시퀀스를 선택하세요.',
+          DIRECTORY_PICKER_UNSUPPORTED: '이 브라우저는 폴더 저장을 지원하지 않습니다. 최신 Chrome 또는 Edge를 사용하세요.'
+        };
+        this.$('ET_RENDER_ERROR').textContent = messages[error?.message] || '저장 위치를 선택하지 못했습니다.';
       }
     }
     renderSettings() {
-      const last=Math.round(this.project.duration*this.project.fps), integer=id=>Math.round(Number(this.$(id).value));
-      const s={format:this.renderFormat(),name:this.safeRenderName(),start:integer('ET_RENDER_START'),end:integer('ET_RENDER_END'),width:integer('ET_RENDER_WIDTH'),height:integer('ET_RENDER_HEIGHT'),quality:Number(this.$('ET_RENDER_QUALITY').value),fps:this.project.fps};
-      if(!Number.isFinite(s.start)||!Number.isFinite(s.end)||s.start<0||s.end<s.start||s.end>last) throw new Error(`프레임 범위는 0~${last} 사이여야 합니다.`);
-      if(!Number.isFinite(s.width)||!Number.isFinite(s.height)||s.width<320||s.width>7680||s.height<180||s.height>4320) throw new Error('출력 크기는 320×180 이상, 7680×4320 이하여야 합니다.');
-      if(s.width%2||s.height%2) throw new Error('출력 너비와 높이는 짝수여야 합니다.'); return s;
+      const lastFrame = Math.round(this.project.duration * this.project.fps);
+      const integer = id => Math.round(Number(this.$(id).value));
+      const settings = {
+        format: this.renderFormat(),
+        name: this.safeRenderName(),
+        start: integer('ET_RENDER_START'),
+        end: integer('ET_RENDER_END'),
+        width: integer('ET_RENDER_WIDTH'),
+        height: integer('ET_RENDER_HEIGHT'),
+        quality: Number(this.$('ET_RENDER_QUALITY').value),
+        fps: this.project.fps
+      };
+      if (!Number.isFinite(settings.start) || !Number.isFinite(settings.end) ||
+          settings.start < 0 || settings.end < settings.start || settings.end > lastFrame) {
+        throw new Error(`프레임 범위는 0~${lastFrame} 사이여야 합니다.`);
+      }
+      if (!Number.isFinite(settings.width) || !Number.isFinite(settings.height) ||
+          settings.width < 320 || settings.width > 7680 ||
+          settings.height < 180 || settings.height > 4320) {
+        throw new Error('출력 크기는 320×180 이상, 7680×4320 이하여야 합니다.');
+      }
+      if (settings.width % 2 || settings.height % 2) {
+        throw new Error('출력 너비와 높이는 짝수여야 합니다.');
+      }
+      return settings;
     }
     async captureRenderStream() {
-      if(!navigator.mediaDevices?.getDisplayMedia) throw new Error('SCREEN_CAPTURE_UNSUPPORTED');
-      const stream=await navigator.mediaDevices.getDisplayMedia({video:{displaySurface:'browser',cursor:'never'},audio:false,preferCurrentTab:true,selfBrowserSurface:'include',surfaceSwitching:'exclude',monitorTypeSurfaces:'exclude',systemAudio:'exclude'});
-      const surface=stream.getVideoTracks()[0]?.getSettings?.().displaySurface;
-      if(surface&&surface!=='browser'){stream.getTracks().forEach(track=>track.stop());throw new Error('CURRENT_TAB_REQUIRED');} return stream;
+      const activeTrack = this.renderStream?.getVideoTracks()[0];
+      if (activeTrack?.readyState === 'live') return this.renderStream;
+      this.renderStream = null;
+      if (!navigator.mediaDevices?.getDisplayMedia) throw new Error('SCREEN_CAPTURE_UNSUPPORTED');
+
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { displaySurface: 'browser', cursor: 'never' },
+        audio: false,
+        preferCurrentTab: true,
+        selfBrowserSurface: 'include',
+        surfaceSwitching: 'exclude',
+        monitorTypeSurfaces: 'exclude',
+        systemAudio: 'exclude'
+      });
+      const track = stream.getVideoTracks()[0];
+      const surface = track?.getSettings?.().displaySurface;
+      if (surface && surface !== 'browser') {
+        stream.getTracks().forEach(item => item.stop());
+        throw new Error('CURRENT_TAB_REQUIRED');
+      }
+      track?.addEventListener('ended', () => {
+        if (this.renderStream === stream) this.renderStream = null;
+        this.renderAbort?.abort();
+      }, { once: true });
+      this.renderStream = stream;
+      return stream;
     }
     async renderVideo(stream) {
-      const video=document.createElement('video'); video.muted=true; video.playsInline=true; video.srcObject=stream; await video.play();
-      if(video.readyState<HTMLMediaElement.HAVE_CURRENT_DATA) await new Promise((resolve,reject)=>{video.addEventListener('loadeddata',resolve,{once:true});video.addEventListener('error',reject,{once:true});}); return video;
+      const video = document.createElement('video');
+      video.muted = true;
+      video.playsInline = true;
+      video.srcObject = stream;
+      await video.play();
+      if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+        await new Promise((resolve, reject) => {
+          video.addEventListener('loadeddata', resolve, { once: true });
+          video.addEventListener('error', reject, { once: true });
+        });
+      }
+      return video;
     }
-    waitForRenderPointer(signal,timeout=30000) {
-      this.root.dataset.renderMessage='마우스를 아래의 접힌 타임라인 바 위로 이동하면 렌더링을 시작합니다.';
-      return new Promise((resolve,reject)=>{
-        let settled=false,timer;
-        const finish=error=>{if(settled)return;settled=true;clearTimeout(timer);document.removeEventListener('pointermove',move,true);signal.removeEventListener('abort',abort);if(error)reject(error);else{this.root.dataset.renderMessage='렌더링 준비 중…';resolve();}};
-        const move=event=>{const rect=document.getElementById('googleMap')?.getBoundingClientRect();if(rect&&(event.clientX<rect.left||event.clientX>=rect.right||event.clientY<rect.top||event.clientY>=rect.bottom))finish();};
-        const abort=()=>finish(new DOMException('중단됨','AbortError'));
-        timer=setTimeout(()=>finish(new Error('화면 공유 후 마우스를 아래의 접힌 타임라인 바 위로 이동해 주세요.')),timeout);
-        document.addEventListener('pointermove',move,true);signal.addEventListener('abort',abort,{once:true});
+    waitForRenderPointer(signal, timeout = 30000) {
+      if (signal.aborted) return Promise.reject(new DOMException('중단됨', 'AbortError'));
+      this.root.dataset.renderMessage = '마우스를 아래의 접힌 타임라인 바 위로 이동하면 렌더링을 시작합니다.';
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        const finish = error => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          document.removeEventListener('pointermove', onPointerMove, true);
+          signal.removeEventListener('abort', onAbort);
+          if (error) reject(error);
+          else {
+            this.root.dataset.renderMessage = '렌더링 준비 중…';
+            resolve();
+          }
+        };
+        const onPointerMove = event => {
+          const rect = document.getElementById('googleMap')?.getBoundingClientRect();
+          if (!rect) return;
+          const outside = event.clientX < rect.left || event.clientX >= rect.right ||
+            event.clientY < rect.top || event.clientY >= rect.bottom;
+          if (outside) finish();
+        };
+        const onAbort = () => finish(new DOMException('중단됨', 'AbortError'));
+        const timer = setTimeout(() => finish(
+          new Error('화면 공유 후 마우스를 아래의 접힌 타임라인 바 위로 이동해 주세요.')), timeout);
+        document.addEventListener('pointermove', onPointerMove, true);
+        signal.addEventListener('abort', onAbort, { once: true });
       });
     }
-    renderCanvas(video,s,canvas=document.createElement('canvas')) {
-      const rect=document.getElementById('googleMap')?.getBoundingClientRect(), scale=video.videoWidth/window.innerWidth;
-      if(!rect?.width||!rect?.height||!(scale>0)) throw new Error('지도 화면 크기를 계산하지 못했습니다.');
+    configureRenderViewport(settings) {
+      const foldedHeight = Number.parseFloat(getComputedStyle(document.documentElement)
+        .getPropertyValue('--earth-timeline-folded-height')) || 52;
+      const availableWidth = window.innerWidth;
+      const availableHeight = Math.max(1, window.innerHeight - foldedHeight);
+      const viewport = fitRenderViewport(availableWidth, availableHeight, settings.width, settings.height);
+      const style = document.documentElement.style;
+      style.setProperty('--earth-render-left', `${viewport.left}px`);
+      style.setProperty('--earth-render-top', `${viewport.top}px`);
+      style.setProperty('--earth-render-width', `${viewport.width}px`);
+      style.setProperty('--earth-render-height', `${viewport.height}px`);
+    }
+    clearRenderViewport() {
+      const style = document.documentElement.style;
+      for (const name of ['--earth-render-left', '--earth-render-top', '--earth-render-width', '--earth-render-height']) {
+        style.removeProperty(name);
+      }
+    }
+    renderCanvas(video, settings, canvas = document.createElement('canvas')) {
+      const rect = document.getElementById('googleMap')?.getBoundingClientRect();
+      const scale = video.videoWidth / window.innerWidth;
+      if (!rect?.width || !rect?.height || !(scale > 0)) {
+        throw new Error('지도 화면 크기를 계산하지 못했습니다.');
+      }
       // Chrome adds a sharing notice above the captured page. Its pixels are
       // present in the video but not in window.innerHeight. Use the horizontal
       // scale (which is unaffected by that notice) and remove the top inset.
-      const contentHeight=window.innerHeight*scale;
-      const topInset=Math.max(0,video.videoHeight-contentHeight);
-      canvas.width=s.width;canvas.height=s.height;const context=canvas.getContext('2d',{alpha:false,colorSpace:'srgb'});
-      if(!context) throw new Error('출력 이미지를 만들지 못했습니다.');
-      context.drawImage(video,rect.left*scale,topInset+rect.top*scale,rect.width*scale,rect.height*scale,0,0,canvas.width,canvas.height);return canvas;
+      const contentHeight = window.innerHeight * scale;
+      const topInset = Math.max(0, video.videoHeight - contentHeight);
+      const source = {
+        x: rect.left * scale,
+        y: topInset + rect.top * scale,
+        width: rect.width * scale,
+        height: rect.height * scale
+      };
+
+      canvas.width = settings.width;
+      canvas.height = settings.height;
+      const context = canvas.getContext('2d', { alpha: false, colorSpace: 'srgb' });
+      if (!context) throw new Error('출력 이미지를 만들지 못했습니다.');
+      context.fillStyle = '#000';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Never stretch the globe. The render viewport already has the target
+      // ratio; contain is a final safeguard for capture rounding differences.
+      const outputScale = Math.min(canvas.width / source.width, canvas.height / source.height);
+      const outputWidth = source.width * outputScale;
+      const outputHeight = source.height * outputScale;
+      context.drawImage(video, source.x, source.y, source.width, source.height,
+        (canvas.width - outputWidth) / 2, (canvas.height - outputHeight) / 2,
+        outputWidth, outputHeight);
+      return canvas;
     }
-    async settleRenderFrame(signal,delay=70,paints=2) {
-      for(let count=0;count<paints;count++) await new Promise(resolve=>requestAnimationFrame(resolve));
-      await new Promise((resolve,reject)=>{const timer=setTimeout(resolve,delay);signal.addEventListener('abort',()=>{clearTimeout(timer);reject(new DOMException('중단됨','AbortError'));},{once:true});});
-    }
-    canvasBlob(canvas,type,quality) { return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('이미지 인코딩에 실패했습니다.')),type,quality)); }
-    waitCapturedVideoFrame(video,signal,timeout=350) {
-      if(!video.requestVideoFrameCallback) return this.settleRenderFrame(signal,0,1);
-      return new Promise((resolve,reject)=>{
-        let id,timer;
-        const finish=()=>{clearTimeout(timer);signal.removeEventListener('abort',abort);resolve();};
-        const abort=()=>{clearTimeout(timer);video.cancelVideoFrameCallback?.(id);reject(new DOMException('중단됨','AbortError'));};
-        id=video.requestVideoFrameCallback(finish);
-        // Chrome may stop emitting captured-video callbacks when consecutive
-        // Earth frames are visually similar. Never let one frame stall a job.
-        timer=setTimeout(()=>{video.cancelVideoFrameCallback?.(id);finish();},timeout);
-        signal.addEventListener('abort',abort,{once:true});
+    async settleRenderFrame(signal, delay = 70, paints = 2) {
+      if (signal.aborted) throw new DOMException('중단됨', 'AbortError');
+      for (let count = 0; count < paints; count++) {
+        await new Promise(resolve => requestAnimationFrame(resolve));
+      }
+      if (!delay) return;
+      await new Promise((resolve, reject) => {
+        const finish = () => {
+          signal.removeEventListener('abort', abort);
+          resolve();
+        };
+        const abort = () => {
+          clearTimeout(timer);
+          reject(new DOMException('중단됨', 'AbortError'));
+        };
+        const timer = setTimeout(finish, delay);
+        signal.addEventListener('abort', abort, { once: true });
       });
     }
-    async prepareRenderFrame(video,signal,settleTimeout=2500) {
-      await this.getProvider()?.waitEarthSteady?.(settleTimeout);
-      await this.settleRenderFrame(signal,0,2);
-      await this.waitCapturedVideoFrame(video,signal);
+    canvasBlob(canvas, type, quality) {
+      return new Promise((resolve, reject) => canvas.toBlob(blob => {
+        if (blob) resolve(blob);
+        else reject(new Error('이미지 인코딩에 실패했습니다.'));
+      }, type, quality));
     }
-    updateRenderProgress(done,total) { this.$('ET_RENDER_PROGRESS').value=done/total;this.$('ET_RENDER_PROGRESS_TEXT').textContent=`${done} / ${total} 프레임`; }
-    async renderJpegSequence(video,s,signal) {
-      const total=s.end-s.start+1;
-      for(let frame=s.start;frame<=s.end;frame++) { if(signal.aborted) throw new DOMException('중단됨','AbortError'); this.seek(frame/s.fps,true);await this.prepareRenderFrame(video,signal);
-        const blob=await this.canvasBlob(this.renderCanvas(video,s),'image/jpeg',s.quality),file=await this.renderDestination.handle.getFileHandle(`${s.name}_${String(frame).padStart(6,'0')}.jpg`,{create:true}),writable=await file.createWritable();
-        await writable.write(blob);await writable.close();this.updateRenderProgress(frame-s.start+1,total); }
+    waitCapturedVideoFrame(video, signal, timeout = 350) {
+      if (signal.aborted) return Promise.reject(new DOMException('중단됨', 'AbortError'));
+      if (!video.requestVideoFrameCallback) return this.settleRenderFrame(signal, 0, 1);
+      return new Promise((resolve, reject) => {
+        let callbackId;
+        let timer;
+        const finish = () => {
+          clearTimeout(timer);
+          signal.removeEventListener('abort', abort);
+          resolve();
+        };
+        const abort = () => {
+          clearTimeout(timer);
+          video.cancelVideoFrameCallback?.(callbackId);
+          reject(new DOMException('중단됨', 'AbortError'));
+        };
+        callbackId = video.requestVideoFrameCallback(finish);
+        // Chrome may stop emitting captured-video callbacks when consecutive
+        // Earth frames are visually similar. Never let one frame stall a job.
+        timer = setTimeout(() => {
+          video.cancelVideoFrameCallback?.(callbackId);
+          finish();
+        }, timeout);
+        signal.addEventListener('abort', abort, { once: true });
+      });
     }
-    async renderMp4(video,s,signal) {
-      const mimeType=this.renderMimeType();if(!mimeType) throw new Error('MP4_UNSUPPORTED');
-      const canvas=document.createElement('canvas');canvas.width=s.width;canvas.height=s.height;const output=canvas.captureStream(s.fps),chunks=[];
-      const recorder=new MediaRecorder(output,{mimeType,videoBitsPerSecond:Math.min(40000000,Math.max(4000000,s.width*s.height*s.fps*.12))});
-      recorder.addEventListener('dataavailable',event=>{if(event.data.size)chunks.push(event.data);});const stopped=new Promise((resolve,reject)=>{recorder.addEventListener('stop',resolve,{once:true});recorder.addEventListener('error',()=>reject(recorder.error||new Error('MP4 인코딩에 실패했습니다.')),{once:true});});
-      const total=s.end-s.start+1;
-      this.seek(s.start/s.fps,true);await this.prepareRenderFrame(video,signal);this.renderCanvas(video,s,canvas);recorder.start(1000);this.updateRenderProgress(1,total);
-      try { for(let frame=s.start+1;frame<=s.end;frame++){if(signal.aborted)throw new DOMException('중단됨','AbortError');this.seek(frame/s.fps,true);await this.prepareRenderFrame(video,signal,1200);this.renderCanvas(video,s,canvas);output.getVideoTracks()[0]?.requestFrame?.();this.updateRenderProgress(frame-s.start+1,total);} await this.settleRenderFrame(signal,Math.ceil(1000/s.fps),0); }
-      finally {if(recorder.state!=='inactive')recorder.stop();} await stopped;output.getTracks().forEach(track=>track.stop());const blob=new Blob(chunks,{type:'video/mp4'});if(!blob.size)throw new Error('MP4 파일이 비어 있습니다.');
-      if(this.renderDestination.handle){const writable=await this.renderDestination.handle.createWritable();await writable.write(blob);await writable.close();}else{const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=`${s.name}.mp4`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+    async prepareRenderFrame(video, signal, settleTimeout = 2500) {
+      const steady = await this.getProvider()?.waitEarthSteady?.(settleTimeout);
+      await this.settleRenderFrame(signal, steady ? 50 : 200, 2);
+      await this.waitCapturedVideoFrame(video, signal);
+    }
+    updateRenderProgress(done, total) {
+      this.$('ET_RENDER_PROGRESS').value = done / total;
+      this.$('ET_RENDER_PROGRESS_TEXT').textContent = `${done} / ${total} 프레임`;
+    }
+    async renderJpegSequence(video, settings, signal) {
+      const total = settings.end - settings.start + 1;
+      for (let frame = settings.start; frame <= settings.end; frame++) {
+        if (signal.aborted) throw new DOMException('중단됨', 'AbortError');
+        this.seek(frame / settings.fps, true);
+        await this.prepareRenderFrame(video, signal);
+        const canvas = this.renderCanvas(video, settings);
+        const blob = await this.canvasBlob(canvas, 'image/jpeg', settings.quality);
+        const filename = `${settings.name}_${String(frame).padStart(6, '0')}.jpg`;
+        const file = await this.renderDestination.handle.getFileHandle(filename, { create: true });
+        const writable = await file.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        this.updateRenderProgress(frame - settings.start + 1, total);
+      }
+    }
+    async renderMp4(video, settings, signal) {
+      const mimeType = this.renderMimeType();
+      if (!mimeType) throw new Error('MP4_UNSUPPORTED');
+      const canvas = document.createElement('canvas');
+      canvas.width = settings.width;
+      canvas.height = settings.height;
+      const output = canvas.captureStream(settings.fps);
+      const chunks = [];
+      const recorder = new MediaRecorder(output, {
+        mimeType,
+        videoBitsPerSecond: Math.min(40000000,
+          Math.max(4000000, settings.width * settings.height * settings.fps * .12))
+      });
+      recorder.addEventListener('dataavailable', event => {
+        if (event.data.size) chunks.push(event.data);
+      });
+      const stopped = new Promise((resolve, reject) => {
+        recorder.addEventListener('stop', resolve, { once: true });
+        recorder.addEventListener('error', () => reject(
+          recorder.error || new Error('MP4 인코딩에 실패했습니다.')), { once: true });
+      });
+      const total = settings.end - settings.start + 1;
+      this.seek(settings.start / settings.fps, true);
+      await this.prepareRenderFrame(video, signal);
+      this.renderCanvas(video, settings, canvas);
+      recorder.start(1000);
+      this.updateRenderProgress(1, total);
+      try {
+        for (let frame = settings.start + 1; frame <= settings.end; frame++) {
+          if (signal.aborted) throw new DOMException('중단됨', 'AbortError');
+          this.seek(frame / settings.fps, true);
+          await this.prepareRenderFrame(video, signal, 1200);
+          this.renderCanvas(video, settings, canvas);
+          output.getVideoTracks()[0]?.requestFrame?.();
+          this.updateRenderProgress(frame - settings.start + 1, total);
+        }
+        await this.settleRenderFrame(signal, Math.ceil(1000 / settings.fps), 0);
+      } finally {
+        if (recorder.state !== 'inactive') recorder.stop();
+      }
+      await stopped;
+      output.getTracks().forEach(track => track.stop());
+      const blob = new Blob(chunks, { type: 'video/mp4' });
+      if (!blob.size) throw new Error('MP4 파일이 비어 있습니다.');
+      if (this.renderDestination.handle) {
+        const writable = await this.renderDestination.handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+      } else {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${settings.name}.mp4`;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
     }
     async startRender() {
-      let s;try{s=this.renderSettings();}catch(error){this.$('ET_RENDER_ERROR').textContent=error.message;return;}
-      if(!this.renderDestination||this.renderDestination.format!==s.format){this.$('ET_RENDER_ERROR').textContent='먼저 현재 형식의 저장 위치를 선택하세요.';return;}
-      this.pause();this.$('ET_RENDER_ERROR').textContent='';this.$('ET_RENDER_PROGRESS_WRAP').hidden=false;this.updateRenderProgress(0,s.end-s.start+1);this.renderAbort=new AbortController();let stream=null;const returnTime=this.time;
-      const returnFolded=this.folded,provider=this.getProvider();let isolatedRender=false;
-      this.setFolded(true);this.$('ET_RENDER').close();
-      try {stream=await this.captureRenderStream();stream.getVideoTracks()[0]?.addEventListener('ended',()=>this.renderAbort?.abort(),{once:true});document.body.classList.add('earth-rendering');await this.waitForRenderPointer(this.renderAbort.signal);if(provider?.beginEarthRender){isolatedRender=await provider.beginEarthRender(this.pose,this.project.mode);if(!isolatedRender)throw new Error('렌더 전용 지도를 준비하지 못했습니다.');}else provider?.setEarthRenderMode?.(true);this.root.dataset.renderMessage='렌더링 중…';await this.settleRenderFrame(this.renderAbort.signal,350,3);const video=await this.renderVideo(stream);await this.waitCapturedVideoFrame(video,this.renderAbort.signal);if(s.format==='jpeg')await this.renderJpegSequence(video,s,this.renderAbort.signal);else await this.renderMp4(video,s,this.renderAbort.signal);this.setStatus(`${s.name} 렌더링을 완료했습니다.`);}
-      catch(error){if(error?.name!=='AbortError'&&error?.name!=='NotAllowedError'){const message=error?.message==='CURRENT_TAB_REQUIRED'?'화면 공유에서 현재 탭을 선택하세요.':error?.message==='SCREEN_CAPTURE_UNSUPPORTED'?'이 브라우저는 화면 캡처를 지원하지 않습니다.':error?.message==='MP4_UNSUPPORTED'?'이 브라우저는 MP4 녹화를 지원하지 않습니다. JPEG 시퀀스를 사용하세요.':error.message||'렌더링에 실패했습니다.';this.setStatus(message);window.alert(message);}}
-      finally{stream?.getTracks().forEach(track=>track.stop());if(isolatedRender)provider?.endEarthRender?.();else provider?.setEarthRenderMode?.(false);document.body.classList.remove('earth-rendering');delete this.root.dataset.renderMessage;this.renderAbort=null;this.setFolded(returnFolded);this.seek(returnTime,true);}
+      let settings;
+      try {
+        settings = this.renderSettings();
+      } catch (error) {
+        this.$('ET_RENDER_ERROR').textContent = error.message;
+        return;
+      }
+      if (!this.renderDestination || this.renderDestination.format !== settings.format) {
+        this.$('ET_RENDER_ERROR').textContent = '먼저 현재 형식의 저장 위치를 선택하세요.';
+        return;
+      }
+
+      this.pause();
+      this.$('ET_RENDER_ERROR').textContent = '';
+      this.$('ET_RENDER_PROGRESS_WRAP').hidden = false;
+      this.updateRenderProgress(0, settings.end - settings.start + 1);
+      this.renderAbort = new AbortController();
+      const signal = this.renderAbort.signal;
+      const provider = this.getProvider();
+      const returnTime = this.time;
+      const returnFolded = this.folded;
+      let video = null;
+      this.setFolded(true);
+      this.$('ET_RENDER').close();
+
+      try {
+        const stream = await this.captureRenderStream();
+        document.body.classList.add('earth-rendering');
+        this.configureRenderViewport(settings);
+        if (!provider?.setEarthRenderMode?.(true)) {
+          throw new Error('Earth 렌더 모드를 시작하지 못했습니다.');
+        }
+        await this.waitForRenderPointer(signal);
+        this.root.dataset.renderMessage = '렌더링 중…';
+        await this.settleRenderFrame(signal, 500, 3);
+        video = await this.renderVideo(stream);
+        await this.waitCapturedVideoFrame(video, signal);
+        if (settings.format === 'jpeg') await this.renderJpegSequence(video, settings, signal);
+        else await this.renderMp4(video, settings, signal);
+        this.setStatus(`${settings.name} 렌더링을 완료했습니다.`);
+      } catch (error) {
+        if (error?.name !== 'AbortError' && error?.name !== 'NotAllowedError') {
+          const messages = {
+            CURRENT_TAB_REQUIRED: '화면 공유에서 현재 탭을 선택하세요.',
+            SCREEN_CAPTURE_UNSUPPORTED: '이 브라우저는 화면 캡처를 지원하지 않습니다.',
+            MP4_UNSUPPORTED: '이 브라우저는 MP4 녹화를 지원하지 않습니다. JPEG 시퀀스를 사용하세요.'
+          };
+          const message = messages[error?.message] || error?.message || '렌더링에 실패했습니다.';
+          this.setStatus(message);
+          window.alert(message);
+        }
+      } finally {
+        video?.pause();
+        if (video) video.srcObject = null;
+        provider?.setEarthRenderMode?.(false);
+        this.clearRenderViewport();
+        document.body.classList.remove('earth-rendering');
+        delete this.root.dataset.renderMessage;
+        this.renderAbort = null;
+        this.setFolded(returnFolded);
+        this.seek(returnTime, true);
+      }
     }
 
     onClick(event) {
@@ -951,5 +1250,5 @@
     }
   }
 
-  window.GraphicRoadEarthTimeline = Object.freeze({ Controller });
+  window.GraphicRoadEarthTimeline = Object.freeze({ Controller, fitRenderViewport });
 })();

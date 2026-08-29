@@ -541,27 +541,6 @@ test('Earth render mode hides exploration UI and waits for a completed scene', a
   assert.equal(env.provider.renderMode, false);
 });
 
-test('Earth rendering uses a fresh non-interactive scene and restores the editor scene', async () => {
-  const env = environment();
-  await env.provider.activate('GOOGLE_EARTH', {}, () => true);
-  const editorRecord = env.provider.active;
-  const camera = env.provider.getEarthCamera();
-  assert.equal(await env.provider.beginEarthRender(camera, 'orbit'), true);
-  assert.equal(env.earthMaps.length, 2);
-  assert.notEqual(env.provider.active, editorRecord);
-  assert.equal(editorRecord.element.hidden, true);
-  assert.equal(env.provider.active.map.defaultUIHidden, true);
-  assert.equal(env.provider.active.map.inert, true);
-  assert.equal(env.provider.active.element.style.pointerEvents, 'none');
-  assert.deepEqual(JSON.parse(JSON.stringify(env.provider.active.map.center)), { lat: camera.pivotLat, lng: camera.pivotLng, altitude: camera.pivotAlt });
-  assert.equal(env.provider.endEarthRender(), true);
-  assert.equal(env.provider.active, editorRecord);
-  assert.equal(editorRecord.element.hidden, false);
-  assert.equal(env.provider.renderSession, null);
-  assert.equal(env.provider.renderMode, false);
-  assert.equal(env.provider.endEarthRender(), false);
-});
-
 test('deployment injects configuration without logging it and publishes only allowed files', async () => {
   const root = new URL('../', import.meta.url);
   const env = { ...process.env, GOOGLE_MAPS_BROWSER_KEY: config.apiKey,

@@ -353,7 +353,7 @@
       return true;
     }
 
-    armEarthSteady(map, timeout = 180) {
+    armEarthSteady(map, timeout = 1500) {
       this.cancelEarthSteady?.();
       let finish;
       this.earthSteadyPromise = new Promise(resolve => {
@@ -394,75 +394,6 @@
         this.active.map.blur?.();
         document.activeElement?.blur?.();
       }
-      this.syncMarkers();
-      return true;
-    }
-
-    async beginEarthRender(camera, mode = 'orbit') {
-      if (!this.enabled || !this.active?.earth || this.renderSession || !['orbit', 'camera'].includes(mode)) return false;
-      const basis = mode === 'camera' ? 'camera' : 'pivot';
-      const position = validPosition({ lat: camera?.[`${basis}Lat`], lng: camera?.[`${basis}Lng`] });
-      const finite = key => Number.isFinite(camera?.[key]);
-      if (!position || ![`${basis}Alt`,'heading','tilt','roll','range','fov'].every(finite)) return false;
-      const original = this.active;
-      const element = document.createElement('div');
-      element.className = 'google-map-surface google-earth-surface google-earth-render-surface';
-      element.setAttribute('aria-label', '어스_G 렌더 전용 지도');
-      const mapOptions = {
-        heading: camera.heading, tilt: Math.max(0,Math.min(90,camera.tilt)), roll: camera.roll,
-        range: Math.max(1,Math.min(63170000,camera.range)), fov: Math.max(5,Math.min(80,camera.fov)),
-        mode: this.earthLibrary.MapMode.SATELLITE,
-        gestureHandling: this.earthLibrary.GestureHandling.GREEDY,
-        defaultUIHidden: true,
-        description: '렌더 전용 3D 지도'
-      };
-      mapOptions[mode === 'camera' ? 'cameraPosition' : 'center'] = {
-        ...position, altitude: Math.max(-1000,Math.min(63170000,camera[`${basis}Alt`]))
-      };
-      let map;
-      try { map = new this.earthLibrary.Map3DElement(mapOptions); }
-      catch { return false; }
-      map.setAttribute?.('tabindex','-1');
-      map.inert = true;
-      element.style.pointerEvents = 'none';
-      element.appendChild(map);
-      this.container.appendChild(element);
-      const renderRecord = { map, element, earth: true, renderOnly: true };
-      this.renderSession = { original, renderRecord };
-      this.renderMode = true;
-      original.element.hidden = true;
-      this.active = renderRecord;
-      this.closeInfo();
-      this.syncMarkers();
-      try {
-        const ready = await new Promise((resolve,reject) => {
-          let settled=false;
-          const finish=(error,value=false)=>{if(settled)return;settled=true;clearTimeout(timer);map.removeEventListener('gmp-steadychange',steady);map.removeEventListener('gmp-error',failed);error?reject(error):resolve(value);};
-          const steady=event=>{if(event.isSteady)finish(null,true);};
-          const failed=()=>finish(failure('EARTH'));
-          const timer=setTimeout(()=>finish(failure('EARTH')),45000);
-          map.addEventListener('gmp-steadychange',steady);
-          map.addEventListener('gmp-error',failed);
-        });
-        map.blur?.(); document.activeElement?.blur?.();
-        return ready;
-      } catch(error) {
-        this.endEarthRender();
-        throw error;
-      }
-    }
-
-    endEarthRender() {
-      if (!this.renderSession) return false;
-      this.cancelEarthSteady?.(); this.earthSteadyPromise = null;
-      const { original, renderRecord } = this.renderSession;
-      renderRecord.map.stopCameraAnimation?.();
-      renderRecord.element.remove();
-      original.element.hidden = false;
-      this.active = original;
-      this.renderSession = null;
-      this.renderMode = false;
-      original.map.defaultUIHidden = false;
       this.syncMarkers();
       return true;
     }
