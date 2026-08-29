@@ -528,7 +528,10 @@ test('Earth render mode hides exploration UI and waits for a completed scene', a
   assert.equal(env.provider.setEarthRenderMode(true), true);
   assert.equal(scene.defaultUIHidden, true);
   assert.equal(env.provider.renderMode, true);
+  const initial=env.provider.getEarthCamera(), cameraPosition=scene.cameraPosition;
+  env.provider.setEarthCamera({...initial,pivotLat:37.5},'orbit');
   const steady = env.provider.waitEarthSteady(1000);
+  assert.notEqual(scene.cameraPosition,cameraPosition,'render mode must finish in camera-position mode');
   scene.events['gmp-steadychange']({ isSteady: false });
   scene.events['gmp-steadychange']({ isSteady: true });
   assert.equal(await steady, true);

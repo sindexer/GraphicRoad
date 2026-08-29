@@ -339,6 +339,7 @@
       const values = Object.fromEntries(Object.entries(limits).map(([key, [min, max]]) =>
         [key, Math.max(min, Math.min(max, camera[key]))]));
       const map = this.active.map;
+      if (this.renderMode) this.armEarthSteady(map);
       // The SDK derives center from cameraPosition (or vice versa). Writing
       // both in one frame would silently override the pivot animation.
       map.heading = values.heading;
@@ -349,7 +350,35 @@
       map[mode === 'camera' ? 'cameraPosition' : 'center'] = {
         lat: values[`${basis}Lat`], lng: values[`${basis}Lng`], altitude: values[`${basis}Alt`]
       };
+      if (this.renderMode && mode === 'orbit') {
+        // Center mode exposes Google's blue camera-target tether. Re-apply the
+        // derived camera position as the final positioning basis; the view is
+        // unchanged, but the renderer no longer treats the target as active UI.
+        const position = validPosition(map.cameraPosition);
+        if (position) map.cameraPosition = { ...position, altitude: Number(map.cameraPosition.altitude) || 0 };
+      }
       return true;
+    }
+
+    armEarthSteady(map, timeout = 500) {
+      this.cancelEarthSteady?.();
+      let finish;
+      this.earthSteadyPromise = new Promise(resolve => {
+        let settled = false;
+        const done = value => {
+          if (settled) return;
+          settled = true; clearTimeout(timer);
+          map.removeEventListener('gmp-steadychange', onSteady);
+          if (this.cancelEarthSteady === cancel) this.cancelEarthSteady = null;
+          resolve(value);
+        };
+        const onSteady = event => { if (event.isSteady) done(true); };
+        const cancel = () => done(false);
+        const timer = setTimeout(() => done(false), timeout);
+        finish = cancel; this.cancelEarthSteady = cancel;
+        map.addEventListener('gmp-steadychange', onSteady);
+      });
+      return this.earthSteadyPromise.finally(() => { if (this.cancelEarthSteady === finish) this.cancelEarthSteady = null; });
     }
 
     stopEarthAnimation() {
@@ -361,6 +390,7 @@
       // Hide exploration controls only. Google attribution remains rendered by
       // the SDK and must be present in exported imagery.
       this.renderMode = Boolean(enabled);
+      if (!this.renderMode) { this.cancelEarthSteady?.(); this.earthSteadyPromise = null; }
       this.active.map.defaultUIHidden = this.renderMode;
       if (this.renderMode) this.closeInfo();
       this.syncMarkers();
@@ -369,6 +399,7 @@
 
     waitEarthSteady(timeout = 2500) {
       if (!this.enabled || !this.active?.earth) return Promise.resolve(false);
+      if (this.renderMode && this.earthSteadyPromise) return this.earthSteadyPromise;
       const map = this.active.map;
       return new Promise(resolve => {
         let settled = false;
