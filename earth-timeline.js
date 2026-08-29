@@ -362,7 +362,7 @@
     keyEaseKind(track,index) {
       const near=(a,b)=>Math.abs(a-b)<1e-6, key=track[index], previous=track[index-1];
       const easeIn=!!previous&&near(previous.easing[2],.58)&&near(previous.easing[3],1);
-      const easeOut=!!key&&near(key.easing[0],.42)&&near(key.easing[1],0);
+      const easeOut=!!key&&index<track.length-1&&near(key.easing[0],.42)&&near(key.easing[1],0);
       return easeIn&&easeOut?'both':easeIn?'in':easeOut?'out':'linear';
     }
     keyShape(kind) {

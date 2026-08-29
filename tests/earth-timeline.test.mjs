@@ -220,6 +220,7 @@ test('timeline keys use directional After Effects-style shapes for easing', () =
   C.upsert(e.project,'heading',0,0,C.PRESETS.linear);
   C.upsert(e.project,'heading',5,90,C.PRESETS.linear);
   C.upsert(e.project,'heading',10,180,C.PRESETS.linear);
+  assert.equal(e.keyEaseKind([track[0]],0),'linear');
   assert.equal(e.keyEaseKind(track,1),'linear');
   C.easeKeys(e.project,[{channel:'heading',time:5}],'in');
   assert.equal(e.keyEaseKind(track,1),'in');
