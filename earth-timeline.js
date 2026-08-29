@@ -66,6 +66,7 @@
         if (event.target.type === 'number') event.target.dataset.pendingEdit = 'true';
       });
       root.addEventListener('keydown', event => this.onKey(event));
+      document.addEventListener('keydown', event => this.onGlobalKey(event));
       const resizeHandle = this.$('ET_RESIZE_HANDLE');
       resizeHandle.addEventListener('pointerdown', event => this.startResize(event));
       resizeHandle.addEventListener('keydown', event => this.resizeWithKeyboard(event));
@@ -127,7 +128,7 @@
         <header class="et-header">
           <div class="et-header-left"><div class="et-title"><span class="et-orbit">▤</span><strong>타임라인 <span>· Earth Camera</span></strong></div><select id="ET_MODE" aria-label="카메라 좌표 기준"><option value="orbit">피벗 기준 회전</option><option value="camera">카메라 위치 이동</option></select></div>
           <div class="et-transport">
-            <div class="et-ease-buttons"><span id="ET_SELECTION_COUNT" role="status">0개 선택</span><button type="button" data-action="capture" class="et-key-button">◆ 키프레임 추가</button><button type="button" data-ease="both"><span class="et-ease-icon" aria-hidden="true"></span>Easy Ease</button><button type="button" data-ease="in"><span class="et-ease-icon" aria-hidden="true"></span>Ease In</button><button type="button" data-ease="out"><span class="et-ease-icon" aria-hidden="true"></span>Ease Out</button></div>
+            <div class="et-ease-buttons"><span id="ET_SELECTION_COUNT" role="status">0개 선택</span><button type="button" data-action="capture" class="et-key-button">◆ 키프레임 추가</button><button type="button" data-ease="both"><svg class="et-ease-icon" viewBox="-8 -7 16 14" aria-hidden="true"><path d="${this.keyShape('both')}"/></svg>Easy Ease</button><button type="button" data-ease="in"><svg class="et-ease-icon" viewBox="-8 -7 16 14" aria-hidden="true"><path d="${this.keyShape('in')}"/></svg>Ease In</button><button type="button" data-ease="out"><svg class="et-ease-icon" viewBox="-8 -7 16 14" aria-hidden="true"><path d="${this.keyShape('out')}"/></svg>Ease Out</button></div>
             <button type="button" data-action="back" title="이전 프레임 (F)" aria-label="이전 프레임">‹</button>
             <button type="button" data-action="play" id="ET_PLAY" class="et-primary" aria-label="애니메이션 재생">▶ 재생</button>
             <button type="button" data-action="next" title="다음 프레임 (G)" aria-label="다음 프레임">›</button>
@@ -137,8 +138,8 @@
           <div class="et-actions">
             <div class="et-settings"><label>확대 <select id="ET_ZOOM" aria-label="타임라인 확대"><option value="1">100%</option><option value="2">200%</option><option value="4">400%</option><option value="8">800%</option></select></label><label>길이 <input id="ET_DURATION" aria-label="타임라인 길이 초" type="number" min="1" max="600" step="1" value="10">초</label><select id="ET_FPS" aria-label="타임라인 FPS"><option>24</option><option>25</option><option selected>30</option><option>60</option></select><span>FPS</span></div>
             <button type="button" data-action="graph-toggle" id="ET_GRAPH_TOGGLE" aria-pressed="false">그래프 편집기</button>
-            <button type="button" data-action="undo" id="ET_UNDO" aria-label="실행 취소" title="실행 취소 (Ctrl+Z)">↶</button>
-            <button type="button" data-action="redo" id="ET_REDO" aria-label="다시 실행" title="다시 실행 (Ctrl+Shift+Z)">↷</button>
+            <button type="button" data-action="undo" id="ET_UNDO" aria-label="실행 취소" title="실행 취소 (Ctrl+Z)">↶ UNDO</button>
+            <button type="button" data-action="redo" id="ET_REDO" aria-label="다시 실행" title="다시 실행 (Ctrl+Shift+Z 또는 Ctrl+Y)">↷ REDO</button>
             <button type="button" data-action="render-open">렌더</button>
             <button type="button" data-action="fold" id="ET_FOLD" class="et-fold" aria-label="타임라인 접기" aria-expanded="true" title="타임라인 접기">⌄</button>
           </div>
@@ -457,8 +458,9 @@
 
     keyEaseKind(track,index) {
       const near=(a,b)=>Math.abs(a-b)<1e-6, key=track[index], previous=track[index-1];
+      if (['linear','both','in','out'].includes(key?.easeKind)) return key.easeKind;
       const easeIn=!!previous&&near(previous.easing[2],.58)&&near(previous.easing[3],1);
-      const easeOut=!!key&&index<track.length-1&&near(key.easing[0],.42)&&near(key.easing[1],0);
+      const easeOut=!!key&&near(key.easing[0],.42)&&near(key.easing[1],0);
       return easeIn&&easeOut?'both':easeIn?'in':easeOut?'out':'linear';
     }
     keyShape(kind) {
@@ -699,11 +701,11 @@
         signal.addEventListener('abort', onAbort, { once: true });
       });
     }
-    configureRenderViewport(settings) {
+    configureRenderViewport(settings, reserveTimeline = false) {
       const foldedHeight = Number.parseFloat(getComputedStyle(document.documentElement)
         .getPropertyValue('--earth-timeline-folded-height')) || 52;
       const availableWidth = window.innerWidth;
-      const availableHeight = Math.max(1, window.innerHeight - foldedHeight);
+      const availableHeight = Math.max(1, window.innerHeight - (reserveTimeline ? foldedHeight : 0));
       const viewport = fitRenderViewport(availableWidth, availableHeight, settings.width, settings.height);
       const style = document.documentElement.style;
       style.setProperty('--earth-render-left', `${viewport.left}px`);
@@ -914,12 +916,14 @@
       try {
         const stream = await this.captureRenderStream();
         document.body.classList.add('earth-rendering');
-        this.configureRenderViewport(settings);
+        this.configureRenderViewport(settings, true);
         if (!provider?.setEarthRenderMode?.(true)) {
           throw new Error('Earth 렌더 모드를 시작하지 못했습니다.');
         }
         await this.waitForRenderPointer(signal);
         this.root.dataset.renderMessage = '렌더링 중…';
+        document.body.classList.add('earth-capture-clean');
+        this.configureRenderViewport(settings);
         await this.settleRenderFrame(signal, 500, 3);
         video = await this.renderVideo(stream);
         await this.waitCapturedVideoFrame(video, signal);
@@ -941,6 +945,7 @@
         video?.pause();
         if (video) video.srcObject = null;
         provider?.setEarthRenderMode?.(false);
+        document.body.classList.remove('earth-capture-clean');
         this.clearRenderViewport();
         document.body.classList.remove('earth-rendering');
         delete this.root.dataset.renderMessage;
@@ -1011,8 +1016,11 @@
       }
       if (input.id === 'ET_PRESET') {
         if (C.PRESETS[input.value] && this.selected()) {
-          this.pause(); this.remember(); this.selected().easing = [...C.PRESETS[input.value]];
-          this.seek(this.time); this.renderGraph(); this.historyButtons();
+          this.pause(); this.remember();
+          const key = this.selected();
+          key.easing = [...C.PRESETS[input.value]];
+          delete key.easeKind;
+          this.seek(this.time); this.renderTracks(); this.renderGraph(); this.historyButtons();
         }
         return;
       }
@@ -1043,8 +1051,11 @@
         this.pause(); this.remember(); this.project.duration = duration;
         this.render(); this.seek(Math.min(this.time, duration));
       } else if (input.dataset.handle !== undefined && this.selected()) {
-        this.pause(); this.remember(); this.selected().easing[Number(input.dataset.handle)] = C.clamp(value, 0, 1);
-        this.seek(this.time); this.renderGraph(); this.historyButtons();
+        this.pause(); this.remember();
+        const key = this.selected();
+        key.easing[Number(input.dataset.handle)] = C.clamp(value, 0, 1);
+        delete key.easeKind;
+        this.seek(this.time); this.renderTracks(); this.renderGraph(); this.historyButtons();
       } else if ((input.id === 'ET_KEY_TIME' || input.id === 'ET_KEY_VALUE') && this.selected()) {
         this.pause(); this.remember();
         const frame = C.moveKey(this.project, this.channel, this.selectedTime,
@@ -1168,9 +1179,10 @@
       } else {
         const key = this.selected();
         if (!key) return;
+        delete key.easeKind;
         key.easing[this.drag.handle * 2] = C.clamp((point.x - 32) / 218, 0, 1);
         key.easing[this.drag.handle * 2 + 1] = C.clamp((116 - point.y) / 94, 0, 1);
-        this.seek(this.time);
+        this.seek(this.time); this.renderTracks();
       }
       this.renderGraph(); this.historyButtons();
     }
@@ -1219,10 +1231,21 @@
         const handle = Number(target.dataset.handle);
         const index = handle * 2 + (['ArrowUp', 'ArrowDown'].includes(event.key) ? 1 : 0);
         const sign = ['ArrowRight', 'ArrowUp'].includes(event.key) ? 1 : -1;
-        this.selected().easing[index] = C.clamp(this.selected().easing[index] + sign * 0.01, 0, 1);
-        this.seek(this.time); this.renderGraph(); this.historyButtons();
+        const key = this.selected();
+        key.easing[index] = C.clamp(key.easing[index] + sign * 0.01, 0, 1);
+        delete key.easeKind;
+        this.seek(this.time); this.renderTracks(); this.renderGraph(); this.historyButtons();
         this.$('ET_GRAPH').querySelector(`[data-handle="${handle}"]`)?.focus();
       }
+    }
+
+    onGlobalKey(event) {
+      if (!this.opened || this.renderAbort || this.$('ET_CONFIRM')?.open || this.root.contains(event.target) || event.altKey) return;
+      if (/INPUT|SELECT|TEXTAREA/.test(event.target?.tagName) || event.target?.isContentEditable) return;
+      const key = event.key.toLowerCase();
+      if (!(event.ctrlKey || event.metaKey) || !['z', 'y'].includes(key)) return;
+      event.preventDefault();
+      this.restore(key === 'y' || Boolean(event.shiftKey));
     }
 
     save() {

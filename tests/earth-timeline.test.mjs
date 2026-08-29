@@ -99,6 +99,7 @@ test('JSON validation round trips data without accepting unknown runtime fields'
   const p = C.createProject({}, 'camera');
   C.upsert(p, 'cameraAlt', 0, 6000);
   C.upsert(p, 'cameraAlt', 10, 12000);
+  C.easeKeys(p, [{ channel: 'cameraAlt', time: 10 }], 'out');
   const restored = C.validateProject({ ...plain(p), apiKey: 'not-part-of-project', script: 'do not run' });
   assert.deepEqual(plain(restored), plain(p));
   assert.equal(restored.apiKey, undefined);
@@ -116,6 +117,7 @@ test('JSON rejects malformed, excessive, duplicate, out-of-range and non-finite 
     p => { p.tracks.execute = []; }, p => { delete p.tracks.tilt; },
     p => { p.tracks.heading[0].time = 20; }, p => { p.tracks.heading[0].value = NaN; },
     p => { p.tracks.heading[0].easing = [0, 0, 1, 2]; },
+    p => { p.tracks.heading[0].easeKind = 'execute'; },
     p => { p.tracks.heading.push({ ...p.tracks.heading[0], time: 0.001 }); },
     p => { p.tracks.heading = Array.from({ length: 2001 }, (_, i) => ({ time: i / 30, value: 1, easing: [0, 0, 1, 1] })); }
   ];
@@ -229,6 +231,20 @@ test('capture, delete, undo and redo preserve all channel data', () => {
   e.restore(true); assert.equal(e.project.tracks.heading.length, 1);
 });
 
+test('global undo and redo shortcuts work while the map owns focus', () => {
+  const { e } = editor();
+  const restored = [];
+  e.root = { contains: () => false };
+  e.restore = redo => restored.push(redo);
+  const event = { key: 'z', ctrlKey: true, target: { tagName: 'GMP-MAP-3D' }, preventDefault() { this.prevented = true; } };
+  e.onGlobalKey(event);
+  e.onGlobalKey({ ...event, shiftKey: true, prevented: false });
+  e.onGlobalKey({ ...event, key: 'y', prevented: false });
+  e.onGlobalKey({ ...event, target: { tagName: 'INPUT' } });
+  assert.deepEqual(restored, [false, true, true]);
+  assert.equal(event.prevented, true);
+});
+
 test('Space toggles playback from buttons and keys; repeats and text editing do not toggle', () => {
   const {e} = editor();
   let toggles = 0; e.play = () => toggles++;
@@ -258,6 +274,8 @@ test('timeline keys use directional After Effects-style shapes for easing', () =
   assert.equal(e.keyEaseKind(track,1),'in');
   C.easeKeys(e.project,[{channel:'heading',time:5}],'out');
   assert.equal(e.keyEaseKind(track,1),'both');
+  C.easeKeys(e.project,[{channel:'heading',time:10}],'out');
+  assert.equal(e.keyEaseKind(track,2),'out');
   assert.notEqual(e.keyShape('linear'),e.keyShape('both'));
   e.root.querySelectorAll=()=>[]; Object.getPrototypeOf(e).renderTracks.call(e);
   assert.match(e.$('ET_TRACKS').innerHTML,/data-ease-kind="both"/);
@@ -312,12 +330,16 @@ test('toolbar has one capture action, a render dialog and no obsolete project co
   assert.doesNotMatch(uiSource,/video\.videoHeight\/window\.innerHeight/);
   assert.doesNotMatch(uiSource,/data-action="render-(?:frame|preview)"/);
   assert.match(uiSource,/et-ease-buttons[^\n]*data-action="capture"[^\n]*data-ease="both"/);
+  assert.match(uiSource,/data-ease="out"[^\n]*keyShape\('out'\)/);
+  assert.match(uiSource,/id="ET_UNDO"[^>]*>↶ UNDO<\/button>/);
+  assert.match(uiSource,/onGlobalKey\(event\)/);
   assert.match(uiSource,/F\/G: 이전\/다음 프레임/);
   assert.match(uiSource,/id="ET_RESIZE_HANDLE"[^>]*role="separator"/);
   assert.match(uiSource,/data-action="fold"[^>]*id="ET_FOLD"/);
   assert.doesNotMatch(uiSource,/data-action="close" class="et-close"/);
   assert.match(uiSource,/setFolded\(true\).*captureRenderStream/s);
   assert.match(uiSource,/configureRenderViewport\(settings\)/);
+  assert.match(uiSource,/classList\.add\('earth-capture-clean'\).*configureRenderViewport\(settings\)/s);
   assert.match(uiSource,/outputScale\s*=\s*Math\.min/);
   assert.match(uiSource,/activeTrack\?\.readyState === 'live'/);
   assert.doesNotMatch(uiSource,/beginEarthRender|endEarthRender|isolatedRender/);

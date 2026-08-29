@@ -65,10 +65,13 @@
       evaluateTrack(project.tracks[item.key], time, project.base[item.key], item.key)]));
   }
 
-  function upsert(project, key, time, value, easing) {
+  const EASE_KINDS = Object.freeze(['linear', 'both', 'in', 'out']);
+
+  function upsert(project, key, time, value, easing, easeKind) {
     const definition = channel(key);
     if (!definition || !Number.isFinite(time) || !Number.isFinite(value) || (easing &&
-        (!Array.isArray(easing) || easing.length !== 4 || easing.some(n => !Number.isFinite(n) || n < 0 || n > 1)))) {
+        (!Array.isArray(easing) || easing.length !== 4 || easing.some(n => !Number.isFinite(n) || n < 0 || n > 1))) ||
+        (easeKind !== undefined && !EASE_KINDS.includes(easeKind))) {
       throw new Error('잘못된 키프레임 값입니다.');
     }
     const at = snap(time, project.fps, project.duration);
@@ -80,6 +83,7 @@
     const frame = existing || { time: at, value, easing: [...PRESETS.linear] };
     frame.value = clamp(value, definition.min, definition.max);
     if (easing) frame.easing = [...easing];
+    if (easeKind !== undefined) frame.easeKind = easeKind;
     if (!existing) track.push(frame);
     track.sort((a, b) => a.time - b.time);
     return frame;
@@ -123,9 +127,10 @@
         if (!frame || !Number.isFinite(frame.time) || frame.time < 0 || frame.time > project.duration ||
             !Number.isFinite(frame.value) || frame.value < definition.min || frame.value > definition.max ||
             !Array.isArray(frame.easing) || frame.easing.length !== 4 ||
-            frame.easing.some(value => !Number.isFinite(value) || value < 0 || value > 1)) return invalid();
+            frame.easing.some(value => !Number.isFinite(value) || value < 0 || value > 1) ||
+            (frame.easeKind !== undefined && !EASE_KINDS.includes(frame.easeKind))) return invalid();
         const before = project.tracks[definition.key].length;
-        upsert(project, definition.key, frame.time, frame.value, frame.easing);
+        upsert(project, definition.key, frame.time, frame.value, frame.easing, frame.easeKind);
         if (project.tracks[definition.key].length === before) return invalid();
       }
     }
@@ -137,6 +142,10 @@
       const track = project.tracks[entry.channel];
       const index = track?.findIndex(frame => Math.abs(frame.time - entry.time) < .5 / project.fps);
       if (index === undefined || index < 0) continue;
+      const current = track[index].easeKind;
+      track[index].easeKind = kind === 'both' ||
+        (kind === 'in' && current === 'out') ||
+        (kind === 'out' && current === 'in') ? 'both' : kind;
       // AE semantics: Ease In slows arrival; Ease Out slows departure.
       if ((kind === 'in' || kind === 'both') && index > 0) track[index - 1].easing.splice(2, 2, .58, 1);
       if (kind === 'out' || kind === 'both') track[index].easing.splice(0, 2, .42, 0);
