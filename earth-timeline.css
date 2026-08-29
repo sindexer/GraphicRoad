@@ -1,5 +1,5 @@
 /* Scoped editor styles. Resizing the map keeps Google's attribution visible. */
-:root { --earth-timeline-height: min(294px, 40vh); }
+:root { --earth-timeline-height: min(294px, 40vh); --earth-timeline-folded-height: 52px; }
 body.earth-map-active .top-navigation { grid-template-columns: auto minmax(160px, 1fr) auto; gap: 10px; }
 body.earth-map-active .address-search { width: 100%; min-width: 0; }
 body.earth-map-active .search-input-shell { width: auto; min-width: 80px; flex: 1; }
@@ -9,7 +9,11 @@ body.earth-map-active .address-search input { width: 100%; min-width: 0; }
 .right-controls #EARTH_TIMELINE_TOGGLE[aria-expanded="true"] { background: #4f1bbb; box-shadow: 0 0 0 2px #dfcfff; }
 #EARTH_TIMELINE_TOGGLE[hidden], #EARTH_TIMELINE[hidden], #EARTH_TIMELINE [hidden] { display: none !important; }
 body.earth-timeline-open #googleMap { bottom: var(--earth-timeline-height); }
+body.earth-timeline-open.earth-timeline-folded #googleMap { bottom: var(--earth-timeline-folded-height); }
 #EARTH_TIMELINE { position: absolute; inset: auto 0 0; height: var(--earth-timeline-height); z-index: 1145; display: flex; flex-direction: column; background: #161820; color: #e2e0e9; border-top: 1px solid #504168; box-shadow: 0 -8px 30px #0002; font-family: var(--font-primary, sans-serif); font-size: 11px; color-scheme: dark; }
+#EARTH_TIMELINE.et-folded { height:var(--earth-timeline-folded-height); }
+#EARTH_TIMELINE.et-folded .et-body,#EARTH_TIMELINE.et-folded .et-footer { display:none; }
+#EARTH_TIMELINE.et-folded .et-header { flex:1; border-bottom:0; }
 #EARTH_TIMELINE * { box-sizing: border-box; }
 #EARTH_TIMELINE { box-sizing: border-box; }
 #ET_CONFIRM { width: min(400px, 90vw); border: 1px solid #8060b1; border-radius: 12px; padding: 22px; color: #eee7f7; background: #23202d; font-size: 13px; }
@@ -21,6 +25,11 @@ body.earth-timeline-open #googleMap { bottom: var(--earth-timeline-height); }
 #EARTH_TIMELINE button:hover:not(:disabled) { background: #393547; border-color: #a587d7; }
 #EARTH_TIMELINE button:disabled, #EARTH_TIMELINE select:disabled, #EARTH_TIMELINE input:disabled { opacity: .4; cursor: default; }
 #EARTH_TIMELINE :focus-visible { outline: 2px solid #bc9aff; outline-offset: 2px; }
+.et-resize-handle { position:absolute; z-index:5; top:-5px; left:0; width:100%; height:10px; touch-action:none; cursor:ns-resize; }
+.et-resize-handle span { position:absolute; top:4px; left:calc(50% - 24px); width:48px; height:2px; border-radius:2px; background:#666; opacity:0; transition:opacity .15s; }
+.et-resize-handle:hover span,.et-resize-handle:focus-visible span,#EARTH_TIMELINE.et-resizing .et-resize-handle span { opacity:1; background:#70baff; }
+#EARTH_TIMELINE.et-resizing,.et-resizing * { user-select:none!important; }
+#EARTH_TIMELINE.et-folded .et-resize-handle { cursor:default; }
 #EARTH_TIMELINE input[type="number"], #EARTH_TIMELINE select { border: 1px solid #454250; border-radius: 4px; background: #11131b; color: #eee8fa; height: 26px; padding: 3px 5px; min-width: 0; }
 #EARTH_TIMELINE input[type="number"] { font-variant-numeric: tabular-nums; }
 #EARTH_TIMELINE .et-primary { background: #6d28ff; border-color: #9161ff; min-width: 69px; }
@@ -32,6 +41,7 @@ body.earth-timeline-open #googleMap { bottom: var(--earth-timeline-height); }
 .et-orbit { color: #b696ff; font-size: 20px; }
 .et-transport, .et-actions { display: flex; align-items: center; gap: 5px; }
 .et-actions { margin-left: auto; }
+#EARTH_TIMELINE .et-fold { width:30px; padding:0; color:#bfc9d3; font-size:18px; line-height:1; }
 #ET_TIMECODE { color: #65e0d4; font: 13px ui-monospace, monospace; font-variant-numeric: tabular-nums; padding: 0 6px; }
 .et-check { display: flex; align-items: center; gap: 4px; white-space: nowrap; color: #bbb3c8; }
 .et-check input { accent-color: #a684ef; margin: 0; }
@@ -184,8 +194,10 @@ body.earth-timeline-open #googleMap { bottom: var(--earth-timeline-height); }
 .et-render-advanced { border:1px solid #505257;border-radius:4px; }.et-render-advanced summary { cursor:pointer;padding:12px 14px;font-weight:600; }.et-render-advanced>div { display:grid;grid-template-columns:1fr 1fr;gap:18px 24px;padding:4px 14px 16px; }.et-render-advanced output { min-height:26px;padding:6px;background:#1b1c1f;color:#aaa; }
 .et-render-note { color:#aaa;line-height:1.55;margin:16px 0 0; }.et-render-error { min-height:18px;color:#ff8b8b;margin:8px 0 0; }
 .et-render-progress { display:flex;align-items:center;gap:10px;margin-top:14px; }.et-render-progress progress { flex:1;accent-color:#3da35a; }.et-render-start { background:#24853d!important;border-color:#38a956!important;min-width:76px; }
-body.earth-rendering #EARTH_TIMELINE,body.earth-rendering .top-navigation,body.earth-rendering .map-provider-status { visibility:hidden!important; }
-body.earth-rendering #googleMap { bottom:0!important; pointer-events:none!important; cursor:none!important; }
+body.earth-rendering .top-navigation,body.earth-rendering .map-provider-status { visibility:hidden!important; }
+body.earth-rendering #EARTH_TIMELINE { height:var(--earth-timeline-folded-height)!important; }
+body.earth-rendering #EARTH_TIMELINE .et-body,body.earth-rendering #EARTH_TIMELINE .et-footer { display:none!important; }
+body.earth-rendering #googleMap { bottom:var(--earth-timeline-folded-height)!important; pointer-events:none!important; cursor:none!important; }
 body.earth-rendering #googleMap * { cursor:none!important; }
 @media(max-width:620px){.et-render-top,.et-format,.et-render-grid,.et-render-advanced>div{grid-template-columns:1fr;}}
 #EARTH_TIMELINE:focus { outline:none; }

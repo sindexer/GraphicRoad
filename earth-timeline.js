@@ -31,6 +31,8 @@
       this.acceptCameraUpdates = false;
       this.renderDestination = null;
       this.renderAbort = null;
+      this.folded = false;
+      this.timelineHeight = null;
       this.build();
       root.tabIndex = 0;
       this.resizeObserver = new ResizeObserver(() => { if (this.opened) this.renderTracks(); });
@@ -51,6 +53,13 @@
         if (event.target.type === 'number') event.target.dataset.pendingEdit = 'true';
       });
       root.addEventListener('keydown', event => this.onKey(event));
+      const resizeHandle = this.$('ET_RESIZE_HANDLE');
+      resizeHandle.addEventListener('pointerdown', event => this.startResize(event));
+      resizeHandle.addEventListener('keydown', event => this.resizeWithKeyboard(event));
+      resizeHandle.addEventListener('dblclick', () => this.applyTimelineHeight(Math.min(294, window.innerHeight * .4)));
+      document.addEventListener('pointermove', event => this.moveResize(event));
+      document.addEventListener('pointerup', event => this.endResize(event));
+      document.addEventListener('pointercancel', event => this.endResize(event));
       this.$('ET_TRACKS').addEventListener('wheel', event => {
         if (!this.project || (!event.shiftKey && !event.deltaX)) return;
         event.preventDefault();
@@ -73,7 +82,7 @@
         document.getElementById('googleMap')?.addEventListener(event, () => this.pauseForNavigation(), { capture: true, passive: true });
       }
       document.addEventListener('visibilitychange', () => { if (document.hidden) this.pause(); });
-      window.addEventListener('blur', () => { this.drag = null; this.$('ET_MARQUEE')?.remove(); });
+      window.addEventListener('blur', () => { this.drag = null; this.resizeDrag = null; this.root.classList.remove('et-resizing'); this.$('ET_MARQUEE')?.remove(); });
     }
 
     $(id) { return this.root.querySelector('#' + id); }
@@ -101,6 +110,7 @@
 
     build() {
       this.root.innerHTML = `
+        <div id="ET_RESIZE_HANDLE" class="et-resize-handle" role="separator" aria-label="타임라인 높이 조절" aria-orientation="horizontal" aria-valuemin="180" tabindex="0"><span aria-hidden="true"></span></div>
         <header class="et-header">
           <div class="et-header-left"><div class="et-title"><span class="et-orbit">▤</span><strong>타임라인 <span>· Earth Camera</span></strong></div><select id="ET_MODE" aria-label="카메라 좌표 기준"><option value="orbit">피벗 기준 회전</option><option value="camera">카메라 위치 이동</option></select></div>
           <div class="et-transport">
@@ -117,7 +127,7 @@
             <button type="button" data-action="undo" id="ET_UNDO" aria-label="실행 취소" title="실행 취소 (Ctrl+Z)">↶</button>
             <button type="button" data-action="redo" id="ET_REDO" aria-label="다시 실행" title="다시 실행 (Ctrl+Shift+Z)">↷</button>
             <button type="button" data-action="render-open">렌더</button>
-            <button type="button" data-action="close" class="et-close" aria-label="타임라인 닫기">✕</button>
+            <button type="button" data-action="fold" id="ET_FOLD" class="et-fold" aria-label="타임라인 접기" aria-expanded="true" title="타임라인 접기">⌄</button>
           </div>
         </header>
         <div class="et-body">
@@ -183,6 +193,7 @@
       this.root.hidden = false;
       this.button.setAttribute('aria-expanded', 'true');
       document.body.classList.add('earth-timeline-open');
+      this.setFolded(this.folded);
       this.unsubscribe = this.getProvider().subscribeEarthCamera(snapshot => {
         if (!snapshot || !this.opened) return;
         const derivedGroup = this.project.mode === 'orbit' ? 'camera' : 'pivot';
@@ -210,11 +221,63 @@
       if (this.scrubFrame !== null) cancelAnimationFrame(this.scrubFrame);
       this.scrubFrame = null; this.scrubPose = null;
       this.drag = null;
+      this.resizeDrag = null;
+      this.root.classList?.remove('et-resizing');
       this.opened = false;
       this.root.hidden = true;
       this.button.setAttribute('aria-expanded', 'false');
-      document.body.classList.remove('earth-timeline-open');
+      document.body.classList.remove('earth-timeline-open', 'earth-timeline-folded');
       if (returnFocus && this.available) this.button.focus();
+    }
+
+    setFolded(folded) {
+      this.folded = Boolean(folded);
+      this.root.classList.toggle('et-folded', this.folded);
+      document.body.classList.toggle('earth-timeline-folded', this.opened && this.folded);
+      const button = this.$('ET_FOLD');
+      if (button) {
+        button.textContent = this.folded ? '⌃' : '⌄';
+        button.setAttribute('aria-expanded', String(!this.folded));
+        button.setAttribute('aria-label', this.folded ? '타임라인 펼치기' : '타임라인 접기');
+        button.title = this.folded ? '타임라인 펼치기' : '타임라인 접기';
+      }
+      if (this.folded) this.pause();
+      else if (this.opened) requestAnimationFrame(() => { this.renderTracks(); this.renderGraph(); });
+    }
+
+    applyTimelineHeight(height) {
+      const maximum = Math.max(180, Math.floor(window.innerHeight * .7));
+      this.timelineHeight = Math.max(180, Math.min(maximum, Math.round(height)));
+      document.documentElement.style.setProperty('--earth-timeline-height', `${this.timelineHeight}px`);
+      this.$('ET_RESIZE_HANDLE')?.setAttribute('aria-valuenow', String(this.timelineHeight));
+    }
+
+    startResize(event) {
+      if (this.folded || event.button !== 0) return;
+      event.preventDefault();
+      this.resizeDrag = { pointerId: event.pointerId, startY: event.clientY, startHeight: this.root.getBoundingClientRect().height };
+      this.root.classList.add('et-resizing');
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+    }
+
+    moveResize(event) {
+      if (!this.resizeDrag || event.pointerId !== this.resizeDrag.pointerId) return;
+      event.preventDefault();
+      this.applyTimelineHeight(this.resizeDrag.startHeight + this.resizeDrag.startY - event.clientY);
+    }
+
+    endResize(event) {
+      if (!this.resizeDrag || event.pointerId !== this.resizeDrag.pointerId) return;
+      this.resizeDrag = null;
+      this.root.classList.remove('et-resizing');
+      this.renderTracks();
+    }
+
+    resizeWithKeyboard(event) {
+      if (this.folded || !['ArrowUp', 'ArrowDown', 'Home'].includes(event.key)) return;
+      event.preventDefault();
+      const current = this.root.getBoundingClientRect().height;
+      this.applyTimelineHeight(event.key === 'Home' ? Math.min(294, window.innerHeight * .4) : current + (event.key === 'ArrowUp' ? 20 : -20));
     }
 
     remember() {
@@ -570,9 +633,11 @@
       let s;try{s=this.renderSettings();}catch(error){this.$('ET_RENDER_ERROR').textContent=error.message;return;}
       if(!this.renderDestination||this.renderDestination.format!==s.format){this.$('ET_RENDER_ERROR').textContent='먼저 현재 형식의 저장 위치를 선택하세요.';return;}
       this.pause();this.$('ET_RENDER_ERROR').textContent='';this.$('ET_RENDER_PROGRESS_WRAP').hidden=false;this.updateRenderProgress(0,s.end-s.start+1);this.renderAbort=new AbortController();let stream=null;const returnTime=this.time;
-      try {stream=await this.captureRenderStream();stream.getVideoTracks()[0]?.addEventListener('ended',()=>this.renderAbort?.abort(),{once:true});this.getProvider()?.setEarthRenderMode?.(true);document.body.classList.add('earth-rendering');this.$('ET_RENDER').close();await this.settleRenderFrame(this.renderAbort.signal,350,3);const video=await this.renderVideo(stream);await this.waitCapturedVideoFrame(video,this.renderAbort.signal);if(s.format==='jpeg')await this.renderJpegSequence(video,s,this.renderAbort.signal);else await this.renderMp4(video,s,this.renderAbort.signal);this.setStatus(`${s.name} 렌더링을 완료했습니다.`);}
+      const returnFolded=this.folded,provider=this.getProvider();let isolatedRender=false;
+      this.setFolded(true);this.$('ET_RENDER').close();
+      try {stream=await this.captureRenderStream();stream.getVideoTracks()[0]?.addEventListener('ended',()=>this.renderAbort?.abort(),{once:true});document.body.classList.add('earth-rendering');if(provider?.beginEarthRender){isolatedRender=await provider.beginEarthRender(this.pose,this.project.mode);if(!isolatedRender)throw new Error('렌더 전용 지도를 준비하지 못했습니다.');}else provider?.setEarthRenderMode?.(true);await this.settleRenderFrame(this.renderAbort.signal,350,3);const video=await this.renderVideo(stream);await this.waitCapturedVideoFrame(video,this.renderAbort.signal);if(s.format==='jpeg')await this.renderJpegSequence(video,s,this.renderAbort.signal);else await this.renderMp4(video,s,this.renderAbort.signal);this.setStatus(`${s.name} 렌더링을 완료했습니다.`);}
       catch(error){if(error?.name!=='AbortError'&&error?.name!=='NotAllowedError'){const message=error?.message==='CURRENT_TAB_REQUIRED'?'화면 공유에서 현재 탭을 선택하세요.':error?.message==='SCREEN_CAPTURE_UNSUPPORTED'?'이 브라우저는 화면 캡처를 지원하지 않습니다.':error?.message==='MP4_UNSUPPORTED'?'이 브라우저는 MP4 녹화를 지원하지 않습니다. JPEG 시퀀스를 사용하세요.':error.message||'렌더링에 실패했습니다.';this.setStatus(message);window.alert(message);}}
-      finally{stream?.getTracks().forEach(track=>track.stop());this.getProvider()?.setEarthRenderMode?.(false);document.body.classList.remove('earth-rendering');this.renderAbort=null;this.seek(returnTime,true);}
+      finally{stream?.getTracks().forEach(track=>track.stop());if(isolatedRender)provider?.endEarthRender?.();else provider?.setEarthRenderMode?.(false);document.body.classList.remove('earth-rendering');this.renderAbort=null;this.setFolded(returnFolded);this.seek(returnTime,true);}
     }
 
     onClick(event) {
@@ -589,7 +654,7 @@
       if (add) { this.capture(add.dataset.add); return; }
       const action = event.target.closest('[data-action]')?.dataset.action;
       if (!action) return;
-      if (action === 'close') this.close();
+      if (action === 'fold') this.setFolded(!this.folded);
       else if (action === 'play') this.play();
       else if (action === 'graph-toggle') {
         const shown = this.root.classList.toggle('et-show-graph');

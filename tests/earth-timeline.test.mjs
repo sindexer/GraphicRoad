@@ -301,6 +301,11 @@ test('toolbar has one capture action, a render dialog and no obsolete project co
   assert.doesNotMatch(uiSource,/data-action="render-(?:frame|preview)"/);
   assert.match(uiSource,/et-ease-buttons[^\n]*data-action="capture"[^\n]*data-ease="both"/);
   assert.match(uiSource,/F\/G: 이전\/다음 프레임/);
+  assert.match(uiSource,/id="ET_RESIZE_HANDLE"[^>]*role="separator"/);
+  assert.match(uiSource,/data-action="fold"[^>]*id="ET_FOLD"/);
+  assert.doesNotMatch(uiSource,/data-action="close" class="et-close"/);
+  assert.match(uiSource,/setFolded\(true\).*captureRenderStream/s);
+  assert.match(uiSource,/beginEarthRender\(this\.pose,this\.project\.mode\)/);
 });
 
 test('playback updates the existing provider at selected FPS and stops at its end', () => {
