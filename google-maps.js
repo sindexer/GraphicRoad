@@ -350,20 +350,6 @@
       map[mode === 'camera' ? 'cameraPosition' : 'center'] = {
         lat: values[`${basis}Lat`], lng: values[`${basis}Lng`], altitude: values[`${basis}Alt`]
       };
-      if (this.renderMode && mode === 'orbit') {
-        // Let the SDK derive cameraPosition from the new center first. Moving
-        // to that equivalent basis on the next paint suppresses the transient
-        // blue target tether without reusing the previous frame's position.
-        (globalThis.cancelAnimationFrame || clearTimeout)(this.renderCameraFrame || 0);
-        this.renderCameraFrame = (globalThis.requestAnimationFrame || (callback => setTimeout(callback, 0)))(() => {
-          this.renderCameraFrame = 0;
-          if (!this.renderMode || map !== this.active?.map) return;
-          const position = validPosition(map.cameraPosition);
-          if (position) map.cameraPosition = {
-            ...position, altitude: Number(map.cameraPosition.altitude) || 0
-          };
-        });
-      }
       return true;
     }
 
@@ -399,7 +385,6 @@
       this.renderMode = Boolean(enabled);
       if (!this.renderMode) {
         this.cancelEarthSteady?.(); this.earthSteadyPromise = null;
-        (globalThis.cancelAnimationFrame || clearTimeout)(this.renderCameraFrame || 0); this.renderCameraFrame = 0;
       }
       this.active.map.defaultUIHidden = this.renderMode;
       if (this.renderMode) {
