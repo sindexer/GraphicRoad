@@ -12,11 +12,11 @@ test('the menu has the requested labels and obsolete features are removed', () =
   const options = [...menu.matchAll(/<option value="([^"]+)">([^<]+)<\/option>/g)]
     .map(([, value, label]) => [value, label]);
   assert.deepEqual(options, [
-    ['NORMAL', 'Naver Map'], ['WHITE', '기본_N'],
-    ['BLUENOSB', '블루_N (지하철 X)'], ['BLUE', '블루_N'],
-    ['DARK', '흰블_N'], ['SATELLITE', '위성_N'],
-    ['GOOGLE_DEFAULT', 'Google Map'], ['GOOGLE_BASIC', '기본_G'],
-    ['GOOGLE_BLUE', '블루_G'], ['GOOGLE_SATELLITE', '위성_G'], ['GOOGLE_EARTH', '어스_G']
+    ['NORMAL', 'Naver Map'], ['WHITE', '기본_Naver'],
+    ['BLUENOSB', '블루_Naver(지하철X)'], ['BLUE', '블루_Naver'],
+    ['DARK', '흰블_Naver'], ['SATELLITE', '위성_Naver'],
+    ['GOOGLE_DEFAULT', 'Google Map'], ['GOOGLE_BASIC', '기본_Google'],
+    ['GOOGLE_BLUE', '블루_Google'], ['GOOGLE_SATELLITE', '위성_Google'], ['GOOGLE_EARTH', '구글어스']
   ]);
   assert.doesNotMatch(html, /GOOGLEJSONCOPY|GOOGLEVECTOR|GOOGLE_STYLE_CONFIG|copyGoogleStyleJson|copyTextWithTemporaryTextArea|world-map-notice|WORLD_MAP_NOTICE|Popup_Worldmap|mapstyle\.withgoogle|TERRAIN|HYBRID/);
 });
@@ -123,7 +123,7 @@ test('Naver restores controls, retained boundary choices and the latest Google c
 });
 
 test('timeline is placed left of Google Map, enabled only after Earth loads, and closes on switching', async () => {
-  assert.match(html, /id="EARTH_TIMELINE_TOGGLE"[^>]*hidden>타임라인<\/button>\s*<input id="GOOGLEMAP"/);
+  assert.match(html, /id="EARTH_TIMELINE_TOGGLE"[^>]*hidden>타임라인<\/button>\s*<input id="ARCGISMAP"[^>]*>\s*<input id="GOOGLEMAP"/);
   const env = environment();
   await env.select('GOOGLE_EARTH');
   assert.equal(env.element('EARTH_TIMELINE_TOGGLE').hidden, false);
