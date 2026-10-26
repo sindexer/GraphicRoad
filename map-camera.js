@@ -56,8 +56,14 @@
       if (this.isGoogle()) {
         if (!this.earth) google.maps.event.trigger(this.map, 'resize');
       } else {
-        const rect = this.element.getBoundingClientRect();
+        const element = this.element;
+        const fullSize = !document.body.classList.contains('earth-timeline-open');
+        // setSize writes pixel dimensions inline. Release those dimensions
+        // before measuring the normal fluid layout, not after measuring it.
+        if (fullSize) { element.style.width = '100%'; element.style.height = '100%'; }
+        const rect = element.getBoundingClientRect();
         this.map.setSize(new naver.maps.Size(rect.width, rect.height));
+        if (fullSize) { element.style.width = '100%'; element.style.height = '100%'; }
       }
     }
     armSteady() {

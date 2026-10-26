@@ -92,15 +92,15 @@ function environment() {
   return { context, document, element, googleStub, select, cameras };
 }
 
-test('all five Google themes hide boundary controls and close open popovers', async () => {
+test('Google themes retain boundary tools and close open popovers', async () => {
   const env = environment();
   for (const theme of ['GOOGLE_DEFAULT', 'GOOGLE_BASIC', 'GOOGLE_BLUE', 'GOOGLE_SATELLITE', 'GOOGLE_EARTH']) {
     env.element('LINE_WEIGHT_PANEL').classList.add('is-open');
     env.element('FILL_REGION_PANEL').classList.add('is-open');
     await env.select(theme);
     assert.equal(env.document.body.classList.contains('google-map-active'), true);
-    assert.equal(env.element('.buttons').inert, true);
-    assert.equal(env.element('.buttons').attributes['aria-hidden'], 'true');
+    assert.equal(env.element('.buttons').inert, false);
+    assert.equal(env.element('.buttons').attributes['aria-hidden'], 'false');
     assert.equal(env.element('LINE_WEIGHT_PANEL').classList.contains('is-open'), false);
     assert.equal(env.element('FILL_REGION_PANEL').classList.contains('is-open'), false);
     assert.equal(env.element('googleMap').hidden, false);
@@ -183,7 +183,7 @@ test('an uninitialized Naver renderer does not block selecting Google', async ()
   const env = environment();
   vm.runInContext(`map.getCenter = () => { throw new Error('Naver not initialized'); };`, env.context);
   await env.select('GOOGLE_SATELLITE');
-  assert.equal(env.element('.buttons').inert, true);
+  assert.equal(env.element('.buttons').inert, false);
   assert.equal(env.element('MAP_PROVIDER_STATUS').hidden, true);
 });
 

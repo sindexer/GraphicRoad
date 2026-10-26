@@ -741,7 +741,8 @@
     }
     mapElement() { return this.getProvider()?.element || document.getElementById('googleMap'); }
     refreshViewport() {
-      if (!this.opened || this.renderAbort) return;
+      if (this.renderAbort) return;
+      if (!this.opened) { this.getProvider()?.resize?.(); return; }
       this.configureRenderViewport(this.outputSize);
       this.getProvider()?.resize?.();
     }

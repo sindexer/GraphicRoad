@@ -52,7 +52,7 @@ html, body {height:100%; margin:0}
 .google-map-surface {position:absolute; inset:0}
 .google-earth-surface > gmp-map-3d {display:block; width:100%; height:100%}
 body.google-map-active #map {visibility:hidden; pointer-events:none}
-body.google-map-active .buttons {display:none !important}
+
 .google-search-pin {position:absolute; transform:translate(-50%, -100%)}
 .google-address-info {font-family:var(--font-primary); font-size:13px; max-width:280px}
 .map-provider-status {
@@ -1126,6 +1126,7 @@ body.ui-hidden #TOGGLE_UI_VISIBILITY{ box-shadow:var(--shadow-popover); }
 <script src="earth-timeline-core.js"></script>
 <script src="vendor/mp4-muxer.js"></script>
 <script src="map-camera.js"></script>
+<script src="google-boundaries.js"></script>
 <script src="earth-timeline.js"></script>
 <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=htcml1d5g3&submodules=gl,geocoder&callback=initMap"></script>
 <!-- topojson-client library for converting TopoJSON to GeoJSON. Even though
@@ -1161,12 +1162,13 @@ body.ui-hidden #TOGGLE_UI_VISIBILITY{ box-shadow:var(--shadow-popover); }
 <button id="EXPORT_MAP" type="button" class="control-btn export-map-button" title="UI를 제외한 현재 지도 화면을 PNG로 바로 저장합니다" aria-label="UI를 제외한 현재 지도 화면을 PNG로 바로 저장">Export</button>
 </div>
 <form id="addressSearch" class="address-search">
+<button id="TOGGLE_BOUNDARY_TOOLS" type="button" class="control-btn" aria-expanded="true" aria-controls="BOUNDARY_TOOLS">지역 구분</button>
 <div class="search-input-shell">
 <input id="addressInput" type="text" placeholder="상호, 키워드, 주소를 입력하세요" autocomplete="off">
 <button id="toggleSearchHistory" type="button" aria-expanded="false" aria-controls="searchHistory" aria-label="과거 검색목록 열기" title="과거 검색목록"><span class="search-history-chevron" aria-hidden="true">▼</span></button>
 </div>
-<button type="submit">검색</button>
-<button id="toggleAddressMarker" type="button">핀 숨김</button>
+<div class="search-actions"><button type="submit">검색</button>
+<button id="toggleAddressMarker" type="button">핀 숨김</button></div>
 <div id="searchHistory" class="search-history-panel" aria-label="과거 검색목록">
 <div class="search-history-header"><strong>과거 검색목록</strong><button id="clearSearchHistory" class="search-history-clear" type="button">전체 삭제</button></div>
 <div id="searchHistoryList"></div>
@@ -1184,7 +1186,7 @@ body.ui-hidden #TOGGLE_UI_VISIBILITY{ box-shadow:var(--shadow-popover); }
 <button id="TOGGLE_UI_VISIBILITY" type="button" class="control-btn" aria-pressed="false">UI 숨김</button>
 </div>
 </nav>
-<div class="buttons">
+<div id="BOUNDARY_TOOLS" class="buttons" role="group" aria-label="지역 구분 도구">
 <div class="secondary-controls boundary-controls-row">
 <div class="boundary-control-group line-controls">
 <!-- 추가된 토글: 시도 라인 / 시군구(각 시도별) 라인 -->
@@ -1308,6 +1310,8 @@ let rightClickInfoWindow = null;
 let activeSearchResults = [];
 let searchHistoryQueries = [];
 let fillCanvasOverlay = null;
+let googleBoundaryOverlay = null;
+let boundaryToolsVisible = true;
 let currentFillBlendMode = 'normal';
 
 // ====== 행정구역 경계 오버레이 관련 변수 및 함수 ======
@@ -1570,6 +1574,7 @@ function ensureFillCanvasOverlay() {
 }
 
 function requestFillCanvasRedraw() {
+  googleBoundaryOverlay?.requestDraw();
   fillCanvasOverlay?.requestDraw();
 }
 
@@ -2801,14 +2806,47 @@ function setMapProvider(provider) {
   document.getElementById('map').setAttribute('aria-hidden', String(googleMode));
   document.getElementById('map').inert = googleMode;
   const controls = document.querySelector('.buttons');
-  controls.inert = googleMode;
-  controls.setAttribute('aria-hidden', String(googleMode));
+  controls.inert = false;
+  controls.setAttribute('aria-hidden', 'false');
   const exportButton = document.getElementById('EXPORT_MAP');
   exportButton.title = googleMode
     ? '현재 탭을 선택하여 Google 저작권 표시를 포함한 지도 화면을 PNG로 저장합니다'
     : 'UI를 제외한 현재 지도 화면을 PNG로 바로 저장합니다';
   exportButton.setAttribute('aria-label', exportButton.title);
   updateAddressMarkerToggle();
+}
+
+function syncGoogleBoundaryOverlay() {
+  googleBoundaryOverlay?.setMap(null);
+  googleBoundaryOverlay = null;
+  const record = googleProvider?.active;
+  if (isGoogleMode() && googleProvider?.enabled && record && !record.earth) {
+    googleBoundaryOverlay = GraphicRoadGoogleBoundaries.create({ map: record.map, element: record.element,
+      drawFill: drawVisibleFillCanvas, drawLines: drawVisibleLineCanvas, prepare: prepareBoundaryCanvas,
+      blendStyle: () => resolveFillBlendStyle(currentFillBlendMode) });
+  }
+}
+
+function setBoundaryToolsVisible(visible) {
+  boundaryToolsVisible = Boolean(visible);
+  const available = activeTheme !== 'GOOGLE_EARTH';
+  const tools = document.getElementById('BOUNDARY_TOOLS');
+  const button = document.getElementById('TOGGLE_BOUNDARY_TOOLS');
+  tools.hidden = !boundaryToolsVisible || !available;
+  button.disabled = !available;
+  button.title = available ? '지역 구분 도구 표시/숨기기' : '구글어스에서는 지역 구분 오버레이를 지원하지 않습니다';
+  button.setAttribute('aria-expanded', String(!tools.hidden));
+  if (tools.hidden) closeControlPanels();
+}
+
+function bindBoundaryTools() {
+  document.getElementById('TOGGLE_BOUNDARY_TOOLS').addEventListener('click', () => setBoundaryToolsVisible(!boundaryToolsVisible));
+  const nav = document.getElementById('TOP_NAVIGATION');
+  new ResizeObserver(() => {
+    document.documentElement.style.setProperty('--map-navigation-height', nav.getBoundingClientRect().height + 'px');
+    earthTimeline?.refreshViewport();
+  }).observe(nav);
+  setBoundaryToolsVisible(boundaryToolsVisible);
 }
 
 function setEarthTimelineAvailable(available) {
@@ -2820,7 +2858,14 @@ function setEarthTimelineAvailable(available) {
     earthTimeline = new GraphicRoadEarthTimeline.Controller({ button,
       root: document.getElementById('EARTH_TIMELINE'), getProvider: () => timelineCamera });
   }
-  if (available) earthTimeline.activateMap(activeTheme);
+  if (available) {
+    earthTimeline.activateMap(activeTheme);
+    syncGoogleBoundaryOverlay();
+    setBoundaryToolsVisible(boundaryToolsVisible);
+  } else {
+    googleBoundaryOverlay?.setMap(null);
+    googleBoundaryOverlay = null;
+  }
   earthTimeline.setAvailable(available);
 }
 
@@ -3364,6 +3409,7 @@ function initMap(){
   bindWeightHandlers();
   bindSearchHistory();
   bindUiVisibilityToggle();
+  bindBoundaryTools();
   document.addEventListener('click', () => closeControlPanels());
   window.addEventListener('resize', requestFillCanvasRedraw);
   bindAddressSearch();
