@@ -147,6 +147,19 @@ test('timeline is always visible, enables on every loaded map and pauses during 
   finish(true);
   await pending;
   assert.equal(env.element('EARTH_TIMELINE_TOGGLE').hidden, false);
+  assert.equal(env.element('EARTH_TIMELINE_TOGGLE').disabled, false);
+  assert.equal(timeline.available, true);
+});
+
+test('all Naver themes restore timeline availability after Google and after Naver recreation', async () => {
+  const env = environment();
+  await env.select('GOOGLE_DEFAULT');
+  for (const theme of ['NORMAL', 'WHITE', 'BLUENOSB', 'BLUE', 'DARK', 'SATELLITE']) {
+    await env.select(theme);
+    assert.equal(env.element('EARTH_TIMELINE_TOGGLE').disabled, false);
+    assert.equal(env.element('BOUNDARY_TOOLS').hidden, false);
+    assert.equal(vm.runInContext('earthTimeline.mapKey', env.context), theme);
+  }
 });
 
 test('failed Google load restores the previous Naver selection and usable buttons', async () => {

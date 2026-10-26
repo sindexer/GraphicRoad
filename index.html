@@ -2928,6 +2928,7 @@ async function selectMapTheme(selection) {
     else switchToType(naver.maps.MapTypeId.NORMAL, 'NORMAL', camera);
     activeTheme = select.value;
     lastNaverTheme = activeTheme;
+    setEarthTimelineAvailable(true);
     exportButton.disabled = false;
     searchButton.disabled = false;
     showMapProviderStatus();
