@@ -36,7 +36,9 @@ if (existingOutput) {
   await rm(output, { recursive: true });
 }
 await mkdir(output);
-const assets = ['google-maps.js', 'earth-timeline-core.js', 'earth-timeline.js', 'earth-timeline.css'];
+const assets = ['google-maps.js', 'earth-timeline-core.js', 'earth-timeline.js', 'earth-timeline.css', 'map-camera.js', 'vendor/mp4-muxer.js'];
+await mkdir(path.join(output, 'vendor'));
+await cp(path.join(root, 'vendor/mp4-muxer.LICENSE'), path.join(output, 'vendor/mp4-muxer.LICENSE'));
 for (const name of ['index.html', ...assets, 'data']) {
   await cp(path.join(root, name), path.join(output, name), { recursive: true });
 }

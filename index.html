@@ -1124,6 +1124,8 @@ body.ui-hidden #TOGGLE_UI_VISIBILITY{ box-shadow:var(--shadow-popover); }
 <script src="google-maps.js"></script>
 <link rel="stylesheet" href="earth-timeline.css">
 <script src="earth-timeline-core.js"></script>
+<script src="vendor/mp4-muxer.js"></script>
+<script src="map-camera.js"></script>
 <script src="earth-timeline.js"></script>
 <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=htcml1d5g3&submodules=gl,geocoder&callback=initMap"></script>
 <!-- topojson-client library for converting TopoJSON to GeoJSON. Even though
@@ -1137,7 +1139,7 @@ body.ui-hidden #TOGGLE_UI_VISIBILITY{ box-shadow:var(--shadow-popover); }
 <div id="map"></div>
 <div id="googleMap" hidden></div>
 <div id="MAP_PROVIDER_STATUS" class="map-provider-status" role="status" aria-live="polite" hidden></div>
-<section id="EARTH_TIMELINE" role="region" aria-label="어스 카메라 타임라인" hidden></section>
+<section id="EARTH_TIMELINE" role="region" aria-label="지도 카메라 타임라인" hidden></section>
 <nav id="TOP_NAVIGATION" class="top-navigation" aria-label="지도 도구">
 <div class="brand-theme-controls">
 <div class="site-logo" aria-label="MAP JS">MAP_JS</div>
@@ -1172,7 +1174,7 @@ body.ui-hidden #TOGGLE_UI_VISIBILITY{ box-shadow:var(--shadow-popover); }
 <div id="searchResults" class="search-results" aria-live="polite"></div>
 </form>
 <div class="right-controls">
-<button id="EARTH_TIMELINE_TOGGLE" type="button" class="control-btn" aria-expanded="false" aria-controls="EARTH_TIMELINE" hidden>타임라인</button>
+<button id="EARTH_TIMELINE_TOGGLE" type="button" class="control-btn" aria-expanded="false" aria-controls="EARTH_TIMELINE">타임라인</button>
 <input id="ARCGISMAP" type="button" value="ArcGis_Map" class="control-btn" onclick="window.open('https://www.arcgis.com/apps/mapviewer/index.html','_blank','noopener,noreferrer')">
 <input id="GOOGLEMAP" type="button" value="구글Map" class="control-btn" onclick="window.open('https://www.google.com/maps/@25.2723225,41.6800099,6811525m/data=!3m1!1e3?entry=ttu&amp;g_ep=EgoyMDI2MDgwMi4wIKXMDSoASAFQAw%3D%3D','_blank','noopener,noreferrer')">
 <input id="NAVERMAP" type="button" value="네이버Map" class="control-btn" onclick="window.open('https://map.naver.com/p?c=12.56,0,0,0,dh','_blank','noopener,noreferrer')">
@@ -1298,6 +1300,7 @@ let searchSequence = 0;
 let pendingSearchQuery = null;
 let googleProvider = null;
 let earthTimeline = null;
+let timelineCamera = null;
 let searchMarkers = [];
 let searchMarkersVisible = true;
 const usedSearchMarkerColors = new Set();
@@ -2810,13 +2813,15 @@ function setMapProvider(provider) {
 
 function setEarthTimelineAvailable(available) {
   const button = document.getElementById('EARTH_TIMELINE_TOGGLE');
-  button.hidden = !available;
-  document.body.classList.toggle('earth-map-active', available);
-  if (available && !earthTimeline) {
+  document.body.classList.add('earth-map-active');
+  if (!earthTimeline) {
+    timelineCamera = new GraphicRoadMapCamera.Adapter({ getMap: () => map,
+      getGoogleProvider: () => googleProvider, isGoogle: isGoogleMode });
     earthTimeline = new GraphicRoadEarthTimeline.Controller({ button,
-      root: document.getElementById('EARTH_TIMELINE'), getProvider: () => googleProvider });
+      root: document.getElementById('EARTH_TIMELINE'), getProvider: () => timelineCamera });
   }
-  earthTimeline?.setAvailable(available);
+  if (available) earthTimeline.activateMap(activeTheme);
+  earthTimeline.setAvailable(available);
 }
 
 async function selectMapTheme(selection) {
@@ -2849,7 +2854,7 @@ async function selectMapTheme(selection) {
       const activated = await googleProvider.activate(selection, view, () => sequence === themeSwitchSequence);
       if (!activated || sequence !== themeSwitchSequence) return;
       activeTheme = selection;
-      setEarthTimelineAvailable(selection === 'GOOGLE_EARTH');
+      setEarthTimelineAvailable(true);
       showMapProviderStatus();
     } catch (error) {
       if (sequence !== themeSwitchSequence) return;
@@ -3346,6 +3351,7 @@ function initMap(){
   ensureFillCanvasOverlay();
   bindThemeSelector();
   bindMapExport();
+  setEarthTimelineAvailable(true);
 
   bindToggleHandlers();
   bindLineRegionDropdownHandlers();

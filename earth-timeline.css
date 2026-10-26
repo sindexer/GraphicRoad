@@ -213,3 +213,15 @@ body.earth-rendering.earth-capture-clean #EARTH_TIMELINE { visibility:hidden!imp
   #EARTH_TIMELINE .et-header-left { grid-row:2; }
   #EARTH_TIMELINE .et-header .et-actions { grid-row:2; }
 }
+
+/* The same composition viewport is used for editing and capture on every SDK.
+   Its pixel dimensions stay frozen for the entire render, including folding. */
+body.earth-timeline-open #map, body.earth-timeline-open #googleMap {
+  position:absolute!important; left:var(--earth-render-left)!important; top:var(--earth-render-top)!important;
+  right:auto!important; bottom:auto!important; width:var(--earth-render-width)!important; height:var(--earth-render-height)!important;
+}
+body.earth-timeline-open #mapWrap { background:#15171b; }
+body.earth-rendering #map, body.earth-rendering #googleMap { pointer-events:none!important; cursor:none!important; }
+body.earth-rendering #map *, body.earth-rendering #googleMap * { cursor:none!important; }
+body.earth-rendering .buttons, body.earth-rendering .ui-visibility-toggle { visibility:hidden!important; }
+body.earth-timeline-open .buttons { max-height:calc(100vh - var(--earth-timeline-height) - 100px); overflow:auto; }

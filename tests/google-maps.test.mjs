@@ -214,7 +214,7 @@ test('satellite preserves the current camera on its first selection and keeps th
   assert.deepEqual({ ...map.options.center }, firstView.center);
   assert.equal(map.fittedBounds, undefined, 'do not replace the working view with an overview');
   assert.equal(map.options.renderingType, 'VECTOR');
-  assert.equal(map.options.isFractionalZoomEnabled, false);
+  assert.equal(map.options.isFractionalZoomEnabled, true);
   assert.equal(map.options.tilt, 0);
   assert.equal(map.options.heading, 0);
   assert.equal(map.options.mapId, undefined);
@@ -561,7 +561,7 @@ test('deployment injects configuration without logging it and publishes only all
   built = run(env);
   assert.equal(built.status, 0, built.stderr);
   assert.deepEqual((await readdir(new URL('_site/', root))).sort(),
-    ['.nojekyll', 'data', 'earth-timeline-core.js', 'earth-timeline.js', 'earth-timeline.css', 'google-maps-config.json', 'google-maps.js', 'index.html'].sort());
+    ['.nojekyll', 'data', 'earth-timeline-core.js', 'earth-timeline.js', 'earth-timeline.css', 'google-maps-config.json', 'google-maps.js', 'index.html', 'map-camera.js', 'vendor'].sort());
   const invalid = run({ ...env, GOOGLE_MAPS_BROWSER_KEY: '' });
   assert.equal(invalid.status, 1);
   assert.equal((invalid.stdout + invalid.stderr).includes(config.apiKey), false);

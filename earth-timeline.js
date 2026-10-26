@@ -46,7 +46,10 @@
       this.renderStream = null;
       this.folded = false;
       this.timelineHeight = null;
+      this.sessions = new Map();
+      this.outputSize = { width: 1920, height: 1080 };
       this.build();
+      window.addEventListener('resize', () => this.refreshViewport());
       root.tabIndex = 0;
       this.resizeObserver = new ResizeObserver(() => { if (this.opened) this.renderTracks(); });
       this.resizeObserver.observe(this.$('ET_TRACKS'));
@@ -93,7 +96,9 @@
       // Manual map navigation, switching tabs, hiding UI, or closing the panel
       // must never leave a background animation competing with the user.
       for (const event of ['pointerdown', 'wheel', 'keydown']) {
-        document.getElementById('googleMap')?.addEventListener(event, () => this.pauseForNavigation(), { capture: true, passive: true });
+        document.getElementById('mapWrap')?.addEventListener(event, e => {
+          if (!this.root.contains(e.target) && !e.target.closest('.top-navigation')) this.pauseForNavigation();
+        }, { capture: true, passive: true });
       }
       document.addEventListener('visibilitychange', () => { if (document.hidden) this.pause(); });
       window.addEventListener('blur', () => { this.drag = null; this.resizeDrag = null; this.root.classList.remove('et-resizing'); this.$('ET_MARQUEE')?.remove(); });
@@ -126,7 +131,7 @@
       this.root.innerHTML = `
         <div id="ET_RESIZE_HANDLE" class="et-resize-handle" role="separator" aria-label="타임라인 높이 조절" aria-orientation="horizontal" aria-valuemin="180" tabindex="0"><span aria-hidden="true"></span></div>
         <header class="et-header">
-          <div class="et-header-left"><div class="et-title"><span class="et-orbit">▤</span><strong>타임라인 <span>· Earth Camera</span></strong></div><select id="ET_MODE" aria-label="카메라 좌표 기준"><option value="orbit">피벗 기준 회전</option><option value="camera">카메라 위치 이동</option></select></div>
+          <div class="et-header-left"><div class="et-title"><span class="et-orbit">▤</span><strong>타임라인 <span>· Map Camera</span></strong></div><select id="ET_MODE" aria-label="카메라 좌표 기준"><option value="flat">지도 위치 · 줌</option><option value="orbit">피벗 기준 회전</option><option value="camera">카메라 위치 이동</option></select></div>
           <div class="et-transport">
             <div class="et-ease-buttons"><span id="ET_SELECTION_COUNT" role="status">0개 선택</span><button type="button" data-action="capture" class="et-key-button">◆ 키프레임 추가</button><button type="button" data-ease="both"><svg class="et-ease-icon" viewBox="-8 -7 16 14" aria-hidden="true"><path d="${this.keyShape('both')}"/></svg>Easy Ease</button><button type="button" data-ease="in"><svg class="et-ease-icon" viewBox="-8 -7 16 14" aria-hidden="true"><path d="${this.keyShape('in')}"/></svg>Ease In</button><button type="button" data-ease="out"><svg class="et-ease-icon" viewBox="-8 -7 16 14" aria-hidden="true"><path d="${this.keyShape('out')}"/></svg>Ease Out</button></div>
             <button type="button" data-action="back" title="이전 프레임 (F)" aria-label="이전 프레임">‹</button>
@@ -168,13 +173,13 @@
         <dialog id="ET_CONFIRM" aria-labelledby="ET_CONFIRM_TITLE" aria-describedby="ET_CONFIRM_MESSAGE"><form method="dialog"><strong id="ET_CONFIRM_TITLE">타임라인 변경 확인</strong><p id="ET_CONFIRM_MESSAGE"></p><div><button type="submit" value="cancel" id="ET_CONFIRM_CANCEL">취소</button><button type="submit" value="confirm" class="et-primary">확인</button></div></form></dialog>
         <dialog id="ET_RENDER" class="et-render-dialog" aria-labelledby="ET_RENDER_TITLE">
           <form method="dialog">
-            <header><div><strong id="ET_RENDER_TITLE">렌더링</strong><p>Earth Camera 타임라인 출력</p></div><button type="button" data-action="render-close" aria-label="렌더링 창 닫기">✕</button></header>
+            <header><div><strong id="ET_RENDER_TITLE">렌더링</strong><p>Map Camera 타임라인 출력 · 미리보기 구도 그대로</p></div><button type="button" data-action="render-close" aria-label="렌더링 창 닫기">✕</button></header>
             <div class="et-render-scroll">
               <div class="et-render-top"><label>이름<input id="ET_RENDER_NAME" type="text" value="GraphicRoad" maxlength="80"></label><label>위치<span class="et-destination"><button type="button" data-action="render-location">📁 위치 선택</button><output id="ET_RENDER_LOCATION">선택 안 됨</output></span></label></div>
-              <fieldset class="et-format"><legend>형식</legend><label><input type="radio" name="ET_RENDER_FORMAT" value="jpeg" checked><span>◉</span><strong>이미지 시퀀스 (JPEG)</strong><small>선택한 폴더에 프레임별 저장</small></label><label><input type="radio" name="ET_RENDER_FORMAT" value="mp4"><span>◉</span><strong>동영상 (MP4)</strong><small>브라우저 지원 시 H.264/MP4 저장</small></label></fieldset>
+              <fieldset class="et-format"><legend>형식</legend><label><input type="radio" name="ET_RENDER_FORMAT" value="jpeg" checked><span>◉</span><strong>이미지 시퀀스 (JPEG)</strong><small>선택한 폴더에 프레임별 저장</small></label><label><input type="radio" name="ET_RENDER_FORMAT" value="mp4"><span>◉</span><strong>동영상 (MP4)</strong><small>정확한 FPS로 H.264/MP4 저장</small></label></fieldset>
               <div class="et-render-grid"><label>프레임<span><input id="ET_RENDER_START" type="number" min="0" step="1" value="0"> ~ <input id="ET_RENDER_END" type="number" min="0" step="1" value="300"></span></label><label>크기<span><input id="ET_RENDER_WIDTH" type="number" min="320" max="7680" step="2" value="1920"> × <input id="ET_RENDER_HEIGHT" type="number" min="180" max="4320" step="2" value="1080"></span></label><label>저작자 표시 위치<select disabled><option>오른쪽 하단 (지도 원본 고정)</option></select></label><label>JPEG 품질<select id="ET_RENDER_QUALITY"><option value="0.8">보통</option><option value="0.92" selected>높음</option><option value="1">최고</option></select></label></div>
               <details class="et-render-advanced"><summary>고급</summary><div><label>3D 추적 데이터<select disabled><option>없음</option></select></label><label>좌표 공간<select disabled><option>전체</option></select></label><label>지도 스타일<select disabled><option>현재 지도 스타일</option></select></label><label>프레임 속도<output id="ET_RENDER_FPS">30 FPS</output></label></div></details>
-              <p class="et-render-note">Google 지도 저작권 표시는 원본 위치에 포함됩니다. 브라우저 보안상 첫 렌더에서는 <strong>현재 탭</strong> 공유를 한 번 선택해야 하며, 공유가 유지되는 동안 다음 렌더부터는 바로 시작합니다.</p>
+              <p class="et-render-note">지도 저작권 표시는 원본 위치에 포함됩니다. 브라우저 보안상 첫 렌더에서는 <strong>현재 탭</strong> 공유를 한 번 선택해야 하며, 공유가 유지되는 동안 다음 렌더부터는 바로 시작합니다.</p>
               <div id="ET_RENDER_PROGRESS_WRAP" class="et-render-progress" hidden><progress id="ET_RENDER_PROGRESS" max="1" value="0"></progress><output id="ET_RENDER_PROGRESS_TEXT">준비 중</output></div>
               <p id="ET_RENDER_ERROR" class="et-render-error" role="alert"></p>
             </div>
@@ -185,21 +190,35 @@
 
     setAvailable(available) {
       this.available = available;
-      this.button.hidden = !available;
+      this.button.hidden = false;
+      this.button.disabled = !available;
       if (!available) this.close(false);
+    }
+
+    activateMap(key) {
+      if (this.mapKey === key) return;
+      if (this.mapKey) this.sessions.set(this.mapKey, {
+        project: this.project, time: this.time, undoStack: this.undoStack, redoStack: this.redoStack,
+        channel: this.channel, selectedTime: this.selectedTime, selection: this.selection
+      });
+      this.mapKey = key;
+      Object.assign(this, { project: null, time: 0, undoStack: [], redoStack: [],
+        channel: this.getProvider()?.mode === 'flat' ? 'pivotLng' : 'heading', selectedTime: null, selection: [],
+        ...(this.sessions.get(key) || {}) });
     }
 
     open() {
       if (!this.available) return;
       const camera = this.getProvider()?.getEarthCamera();
       if (!camera) {
-        window.alert('3D 카메라가 아직 준비되지 않았습니다. 지도가 표시된 후 다시 눌러 주세요.');
+        window.alert('지도가 아직 준비되지 않았습니다. 지도가 표시된 후 다시 눌러 주세요.');
         return;
       }
       this.getProvider().stopEarthAnimation();
       this.pose = C.normalizeCamera(camera);
       if (!this.project) {
-        this.project = C.createProject(this.pose);
+        this.project = C.createProject(this.pose, this.getProvider()?.mode || 'orbit');
+        this.channel = this.activeChannels()[0].key;
         this.activeChannels().forEach(item => C.upsert(this.project, item.key, 0, this.pose[item.key]));
         this.selectedTime = 0;
       }
@@ -241,6 +260,8 @@
       this.root.hidden = true;
       this.button.setAttribute('aria-expanded', 'false');
       document.body.classList.remove('earth-timeline-open', 'earth-timeline-folded');
+      this.clearRenderViewport();
+      this.getProvider()?.resize?.();
       if (returnFocus && this.available) this.button.focus();
     }
 
@@ -255,6 +276,7 @@
         button.setAttribute('aria-label', this.folded ? '타임라인 펼치기' : '타임라인 접기');
         button.title = this.folded ? '타임라인 펼치기' : '타임라인 접기';
       }
+      this.refreshViewport();
       if (this.folded) this.pause();
       else if (this.opened) requestAnimationFrame(() => { this.renderTracks(); this.renderGraph(); });
     }
@@ -263,6 +285,7 @@
       const maximum = Math.max(180, Math.floor(window.innerHeight * .7));
       this.timelineHeight = Math.max(180, Math.min(maximum, Math.round(height)));
       document.documentElement.style.setProperty('--earth-timeline-height', `${this.timelineHeight}px`);
+      this.refreshViewport();
       this.$('ET_RESIZE_HANDLE')?.setAttribute('aria-valuenow', String(this.timelineHeight));
     }
 
@@ -308,7 +331,7 @@
       this.project = source.pop();
       this.selection = [];
       this.time = Math.min(this.time, this.project.duration);
-      if (!this.activeChannels().some(item => item.key === this.channel)) this.channel = 'heading';
+      if (!this.activeChannels().some(item => item.key === this.channel)) this.channel = this.activeChannels()[0].key;
       this.selectedTime = null;
       this.render();
       this.seek(this.time);
@@ -321,7 +344,7 @@
       try {
         if (this.getProvider()?.setEarthCamera(this.pose, this.project.mode) === false) {
           this.pause();
-          this.setStatus('3D 카메라에 연결할 수 없습니다. 어스_G를 다시 선택해 주세요.');
+          this.setStatus('현재 지도 카메라에 연결할 수 없습니다. 지도를 다시 선택해 주세요.');
         }
       } catch {
         this.pause();
@@ -424,6 +447,8 @@
 
       this.root.dataset.mode = p.mode;
       this.$('ET_MODE').value = p.mode;
+      this.$('ET_MODE').disabled = p.mode === 'flat';
+      for (const option of this.$('ET_MODE').options) option.hidden = (option.value === 'flat') !== (p.mode === 'flat');
       this.$('ET_DURATION').value = p.duration;
       this.$('ET_FPS').value = p.fps;
       this.$('ET_UNDO').disabled = !this.undoStack.length;
@@ -547,8 +572,7 @@
 
     renderFormat() { return this.root.querySelector('input[name="ET_RENDER_FORMAT"]:checked')?.value || 'jpeg'; }
     renderMimeType() {
-      if (!window.MediaRecorder) return '';
-      return ['video/mp4;codecs=avc1.42E01E','video/mp4;codecs=avc1','video/mp4'].find(type => MediaRecorder.isTypeSupported(type)) || '';
+      return window.VideoEncoder && window.VideoFrame && window.Mp4Muxer ? 'video/mp4' : '';
     }
     openRender() {
       this.pause();
@@ -630,7 +654,10 @@
     }
     async captureRenderStream() {
       const activeTrack = this.renderStream?.getVideoTracks()[0];
-      if (activeTrack?.readyState === 'live') return this.renderStream;
+      if (activeTrack?.readyState === 'live') {
+        await this.bindCaptureRegion(this.renderStream);
+        return this.renderStream;
+      }
       this.renderStream = null;
       if (!navigator.mediaDevices?.getDisplayMedia) throw new Error('SCREEN_CAPTURE_UNSUPPORTED');
 
@@ -653,8 +680,19 @@
         if (this.renderStream === stream) this.renderStream = null;
         this.renderAbort?.abort();
       }, { once: true });
+      await this.bindCaptureRegion(stream);
       this.renderStream = stream;
       return stream;
+    }
+    async bindCaptureRegion(stream) {
+      const track = stream.getVideoTracks()[0];
+      // Region Capture binds the stream to this tab's map. A different shared
+      // tab cannot contain this CropTarget and is rejected by the browser.
+      if (window.CropTarget && track.cropTo) {
+        try { await track.cropTo(await CropTarget.fromElement(this.mapElement())); }
+        catch { stream.getTracks().forEach(item => item.stop()); throw new Error('CURRENT_TAB_REQUIRED'); }
+        this.regionCaptured = true;
+      } else this.regionCaptured = false;
     }
     async renderVideo(stream) {
       const video = document.createElement('video');
@@ -688,7 +726,7 @@
           }
         };
         const onPointerMove = event => {
-          const rect = document.getElementById('googleMap')?.getBoundingClientRect();
+          const rect = this.mapElement()?.getBoundingClientRect();
           if (!rect) return;
           const outside = event.clientX < rect.left || event.clientX >= rect.right ||
             event.clientY < rect.top || event.clientY >= rect.bottom;
@@ -701,12 +739,19 @@
         signal.addEventListener('abort', onAbort, { once: true });
       });
     }
+    mapElement() { return this.getProvider()?.element || document.getElementById('googleMap'); }
+    refreshViewport() {
+      if (!this.opened || this.renderAbort) return;
+      this.configureRenderViewport(this.outputSize);
+      this.getProvider()?.resize?.();
+    }
     configureRenderViewport(settings, reserveTimeline = false) {
-      const foldedHeight = Number.parseFloat(getComputedStyle(document.documentElement)
-        .getPropertyValue('--earth-timeline-folded-height')) || 52;
+      const navBottom = document.querySelector('.top-navigation')?.getBoundingClientRect().bottom || 0;
+      const timelineHeight = this.root.getBoundingClientRect().height;
       const availableWidth = window.innerWidth;
-      const availableHeight = Math.max(1, window.innerHeight - (reserveTimeline ? foldedHeight : 0));
+      const availableHeight = Math.max(1, window.innerHeight - timelineHeight - navBottom);
       const viewport = fitRenderViewport(availableWidth, availableHeight, settings.width, settings.height);
+      viewport.top += navBottom;
       const style = document.documentElement.style;
       style.setProperty('--earth-render-left', `${viewport.left}px`);
       style.setProperty('--earth-render-top', `${viewport.top}px`);
@@ -720,7 +765,7 @@
       }
     }
     renderCanvas(video, settings, canvas = document.createElement('canvas')) {
-      const rect = document.getElementById('googleMap')?.getBoundingClientRect();
+      const rect = this.mapElement()?.getBoundingClientRect();
       const scale = video.videoWidth / window.innerWidth;
       if (!rect?.width || !rect?.height || !(scale > 0)) {
         throw new Error('지도 화면 크기를 계산하지 못했습니다.');
@@ -737,6 +782,7 @@
         height: rect.height * scale
       };
 
+      if (this.regionCaptured) Object.assign(source, { x: 0, y: 0, width: video.videoWidth, height: video.videoHeight });
       canvas.width = settings.width;
       canvas.height = settings.height;
       const context = canvas.getContext('2d', { alpha: false, colorSpace: 'srgb' });
@@ -806,7 +852,17 @@
       });
     }
     async prepareRenderFrame(video, signal, settleTimeout = 2500) {
-      const steady = await this.getProvider()?.waitEarthSteady?.(settleTimeout);
+      if (this.renderViewportSize && (window.innerWidth !== this.renderViewportSize.width || window.innerHeight !== this.renderViewportSize.height)) throw new Error('렌더링 중 창 크기가 변경되었습니다. 다시 시작하세요.');
+      if (signal.aborted) throw new DOMException('중단됨', 'AbortError');
+      let cancel;
+      const aborted = new Promise((resolve, reject) => {
+        cancel = () => reject(new DOMException('중단됨', 'AbortError'));
+        signal.addEventListener('abort', cancel, { once: true });
+      });
+      let steady;
+      try { steady = await Promise.race([this.getProvider()?.waitEarthSteady?.(settleTimeout), aborted]); }
+      finally { signal.removeEventListener('abort', cancel); }
+      if (steady === false && this.project.mode === 'flat') throw new Error('지도 타일 로딩을 확인하지 못했습니다. 네트워크를 확인한 후 다시 렌더링하세요.');
       await this.settleRenderFrame(signal, steady ? 50 : 200, 2);
       await this.waitCapturedVideoFrame(video, signal);
     }
@@ -831,48 +887,48 @@
       }
     }
     async renderMp4(video, settings, signal) {
-      const mimeType = this.renderMimeType();
-      if (!mimeType) throw new Error('MP4_UNSUPPORTED');
+      if (!this.renderMimeType()) throw new Error('MP4_UNSUPPORTED');
+      const config = {
+        codec: 'avc1.640033', width: settings.width, height: settings.height,
+        bitrate: Math.min(40000000, Math.max(4000000, settings.width * settings.height * settings.fps * .18)),
+        framerate: settings.fps, latencyMode: 'realtime', avc: { format: 'avc' }
+      };
+      if (!(await VideoEncoder.isConfigSupported(config)).supported) throw new Error('MP4_UNSUPPORTED');
+      const target = new Mp4Muxer.ArrayBufferTarget();
+      const muxer = new Mp4Muxer.Muxer({ target,
+        video: { codec: 'avc', width: settings.width, height: settings.height, frameRate: settings.fps },
+        fastStart: 'in-memory', firstTimestampBehavior: 'strict'
+      });
+      let encodingError;
+      const encoder = new VideoEncoder({
+        output: (chunk, metadata) => { try { muxer.addVideoChunk(chunk, metadata); } catch (error) { encodingError = error; } },
+        error: error => { encodingError = error; }
+      });
       const canvas = document.createElement('canvas');
-      canvas.width = settings.width;
-      canvas.height = settings.height;
-      const output = canvas.captureStream(settings.fps);
-      const chunks = [];
-      const recorder = new MediaRecorder(output, {
-        mimeType,
-        videoBitsPerSecond: Math.min(40000000,
-          Math.max(4000000, settings.width * settings.height * settings.fps * .12))
-      });
-      recorder.addEventListener('dataavailable', event => {
-        if (event.data.size) chunks.push(event.data);
-      });
-      const stopped = new Promise((resolve, reject) => {
-        recorder.addEventListener('stop', resolve, { once: true });
-        recorder.addEventListener('error', () => reject(
-          recorder.error || new Error('MP4 인코딩에 실패했습니다.')), { once: true });
-      });
       const total = settings.end - settings.start + 1;
-      this.seek(settings.start / settings.fps, true);
-      await this.prepareRenderFrame(video, signal);
-      this.renderCanvas(video, settings, canvas);
-      recorder.start(1000);
-      this.updateRenderProgress(1, total);
+      encoder.configure(config);
       try {
-        for (let frame = settings.start + 1; frame <= settings.end; frame++) {
+        for (let frame = settings.start; frame <= settings.end; frame++) {
           if (signal.aborted) throw new DOMException('중단됨', 'AbortError');
+          if (encodingError) throw encodingError;
           this.seek(frame / settings.fps, true);
-          await this.prepareRenderFrame(video, signal, 1200);
+          await this.prepareRenderFrame(video, signal);
           this.renderCanvas(video, settings, canvas);
-          output.getVideoTracks()[0]?.requestFrame?.();
-          this.updateRenderProgress(frame - settings.start + 1, total);
+          const index = frame - settings.start;
+          const timestamp = Math.round(index * 1000000 / settings.fps);
+          const duration = Math.round((index + 1) * 1000000 / settings.fps) - timestamp;
+          const image = new VideoFrame(canvas, { timestamp, duration });
+          try { encoder.encode(image, { keyFrame: index % (settings.fps * 2) === 0 }); }
+          finally { image.close(); }
+          // Bound memory even when tiles load faster than the encoder.
+          if (encoder.encodeQueueSize >= 4) await encoder.flush();
+          this.updateRenderProgress(index + 1, total);
         }
-        await this.settleRenderFrame(signal, Math.ceil(1000 / settings.fps), 0);
-      } finally {
-        if (recorder.state !== 'inactive') recorder.stop();
-      }
-      await stopped;
-      output.getTracks().forEach(track => track.stop());
-      const blob = new Blob(chunks, { type: 'video/mp4' });
+        await encoder.flush();
+        if (encodingError) throw encodingError;
+        muxer.finalize();
+      } finally { if (encoder.state !== 'closed') encoder.close(); }
+      const blob = new Blob([target.buffer], { type: 'video/mp4' });
       if (!blob.size) throw new Error('MP4 파일이 비어 있습니다.');
       if (this.renderDestination.handle) {
         const writable = await this.renderDestination.handle.createWritable();
@@ -909,6 +965,7 @@
       const provider = this.getProvider();
       const returnTime = this.time;
       const returnFolded = this.folded;
+      const viewportSize = { width: window.innerWidth, height: window.innerHeight };
       let video = null;
       this.setFolded(true);
       this.$('ET_RENDER').close();
@@ -916,14 +973,15 @@
       try {
         const stream = await this.captureRenderStream();
         document.body.classList.add('earth-rendering');
-        this.configureRenderViewport(settings, true);
+        if (settings.width / settings.height !== this.outputSize.width / this.outputSize.height) throw new Error('미리보기 비율과 출력 비율이 다릅니다. 출력 크기를 다시 확인하세요.');
         if (!provider?.setEarthRenderMode?.(true)) {
-          throw new Error('Earth 렌더 모드를 시작하지 못했습니다.');
+          throw new Error('지도 렌더 모드를 시작하지 못했습니다.');
         }
         await this.waitForRenderPointer(signal);
         this.root.dataset.renderMessage = '렌더링 중…';
         document.body.classList.add('earth-capture-clean');
-        this.configureRenderViewport(settings);
+        // Keep the exact editing viewport: changing its size changes map coverage.
+        this.renderViewportSize = viewportSize;
         await this.settleRenderFrame(signal, 500, 3);
         video = await this.renderVideo(stream);
         await this.waitCapturedVideoFrame(video, signal);
@@ -931,6 +989,7 @@
         else await this.renderMp4(video, settings, signal);
         this.setStatus(`${settings.name} 렌더링을 완료했습니다.`);
       } catch (error) {
+        if (error?.name === 'AbortError' || error?.name === 'NotAllowedError') this.setStatus('렌더링이 취소되었습니다.');
         if (error?.name !== 'AbortError' && error?.name !== 'NotAllowedError') {
           const messages = {
             CURRENT_TAB_REQUIRED: '화면 공유에서 현재 탭을 선택하세요.',
@@ -946,11 +1005,12 @@
         if (video) video.srcObject = null;
         provider?.setEarthRenderMode?.(false);
         document.body.classList.remove('earth-capture-clean');
-        this.clearRenderViewport();
+        this.renderViewportSize = null;
         document.body.classList.remove('earth-rendering');
         delete this.root.dataset.renderMessage;
         this.renderAbort = null;
         this.setFolded(returnFolded);
+        this.refreshViewport();
         this.seek(returnTime, true);
       }
     }
@@ -990,6 +1050,11 @@
       const input = event.target;
       if (input.name === 'ET_RENDER_FORMAT') {
         this.renderDestination=null;this.$('ET_RENDER_LOCATION').textContent='선택 안 됨';this.$('ET_RENDER_ERROR').textContent='';this.$('ET_RENDER_QUALITY').disabled=input.value!=='jpeg';return;
+      }
+      if (['ET_RENDER_WIDTH', 'ET_RENDER_HEIGHT'].includes(input.id)) {
+        try { this.outputSize = this.renderSettings(); this.refreshViewport(); this.$('ET_RENDER_ERROR').textContent = ''; }
+        catch (error) { this.$('ET_RENDER_ERROR').textContent = error.message; }
+        return;
       }
       if (input.id === 'ET_ZOOM') {
         this.zoom = Number(input.value);
@@ -1088,6 +1153,7 @@
     }
 
     async newProject(mode = this.project.mode) {
+      if (this.getProvider()?.mode === 'flat' && mode !== 'flat') return;
       this.pause();
       if (!await this.confirmAction('현재 타임라인을 새로 만듭니다. 기존 키프레임이 초기화됩니다. 계속할까요?')) { this.render(); return; }
       this.remember();
@@ -1095,7 +1161,7 @@
       this.pose = C.copy(this.project.base);
       this.activeChannels().forEach(item => C.upsert(this.project, item.key, 0, this.pose[item.key]));
       this.selection = [];
-      this.time = 0; this.selectedTime = 0; this.channel = 'heading';
+      this.time = 0; this.selectedTime = 0; this.channel = this.activeChannels()[0].key;
       this.setStatus('현재 카메라를 시작 키프레임으로 만들었습니다.');
       this.render();
     }
@@ -1188,6 +1254,10 @@
     }
 
     onKey(event) {
+      if (this.renderAbort) {
+        if (event.key === 'Escape') { event.preventDefault(); this.renderAbort.abort(); }
+        return;
+      }
       if (this.$('ET_CONFIRM')?.open) return;
       if (this.$('ET_RENDER')?.open && event.key === 'Escape') { event.preventDefault(); this.closeRender(); return; }
       if (event.key === 'Enter' && event.target.type === 'number') {
@@ -1240,6 +1310,7 @@
     }
 
     onGlobalKey(event) {
+      if (this.renderAbort && event.key === 'Escape') { event.preventDefault(); this.renderAbort.abort(); return; }
       if (!this.opened || this.renderAbort || this.$('ET_CONFIRM')?.open || this.root.contains(event.target) || event.altKey) return;
       if (/INPUT|SELECT|TEXTAREA/.test(event.target?.tagName) || event.target?.isContentEditable) return;
       const key = event.key.toLowerCase();
@@ -1264,9 +1335,10 @@
       try { project = C.validateProject(JSON.parse(await file.text())); }
       catch { this.setStatus('올바른 타임라인 JSON이 아닙니다. 기존 프로젝트는 유지됩니다.'); return; }
       if (!this.opened || !this.available) return;
+      if ((project.mode === 'flat') !== (this.getProvider()?.mode === 'flat')) { this.setStatus('현재 지도와 다른 카메라 방식의 프로젝트입니다. 해당 지도로 전환한 후 불러오세요.'); return; }
       if (!await this.confirmAction('현재 타임라인을 불러온 프로젝트로 바꿀까요? 저장하지 않은 변경은 사라집니다.')) return;
       this.pause(); this.remember(); this.project = project; this.selection = [];
-      this.time = 0; this.channel = 'heading'; this.selectedTime = project.tracks.heading[0]?.time ?? null;
+      this.time = 0; this.channel = this.activeChannels()[0].key; this.selectedTime = project.tracks[this.channel][0]?.time ?? null;
       this.render();
       if (this.opened && this.available) this.seek(0);
       this.setStatus('프로젝트를 불러왔습니다. 재생 버튼으로 카메라 움직임을 확인하세요.');

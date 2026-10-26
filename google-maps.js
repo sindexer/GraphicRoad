@@ -157,7 +157,7 @@
           // Avoid seams between separately composited HTML raster tiles.
           // Google falls back to raster on devices without WebGL support.
           options.renderingType = RenderingType.VECTOR;
-          options.isFractionalZoomEnabled = false;
+          options.isFractionalZoomEnabled = true;
         }
         const map = new GoogleMap(element, options);
         record = { map, element, satellite: definition.mapTypeId === 'satellite', zoomCeiling: definition.maxZoom || 22, coverageSequence: 0 };

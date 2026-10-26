@@ -12,14 +12,15 @@
     { key: 'tilt', label: 'Rotation X', group: 'rotation', unit: '°', min: 0, max: 90, step: 1 },
     { key: 'roll', label: 'Rotation Z', group: 'rotation', unit: '°', min: -36000, max: 36000, step: 1 },
     { key: 'range', label: 'Focus Distance', group: 'lens', unit: 'm', min: 1, max: 63170000, step: 100 },
+    { key: 'zoom', label: 'Zoom', group: 'flat', unit: '', min: 0, max: 22, step: 0.01 },
     { key: 'fov', label: 'Zoom (FOV)', group: 'lens', unit: '°', min: 5, max: 80, step: 1 }
   ]);
   const PRESETS = Object.freeze({ linear: [0, 0, 1, 1], smooth: [0.42, 0, 0.58, 1], in: [0.42, 0, 1, 1], out: [0, 0, 0.58, 1] });
-  const defaults = { pivotLat: 38.1, pivotLng: 129, pivotAlt: 0, cameraLat: 38.1, cameraLng: 129, cameraAlt: 3500000, heading: 0, tilt: 35, roll: 0, range: 3500000, fov: 35 };
+  const defaults = { pivotLat: 38.1, pivotLng: 129, pivotAlt: 0, cameraLat: 38.1, cameraLng: 129, cameraAlt: 3500000, heading: 0, tilt: 35, roll: 0, range: 3500000, fov: 35, zoom: 15 };
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
   const copy = value => JSON.parse(JSON.stringify(value));
   const channel = key => CHANNELS.find(item => item.key === key);
-  const channelsForMode = mode => CHANNELS.filter(item => item.group !== (mode === 'camera' ? 'pivot' : 'camera'));
+  const channelsForMode = mode => CHANNELS.filter(item => mode === 'flat' ? ['pivotLat', 'pivotLng', 'zoom'].includes(item.key) : item.group !== 'flat' && item.group !== (mode === 'camera' ? 'pivot' : 'camera'));
   const snap = (time, fps, duration) => clamp(Math.round(time * fps) / fps, 0, duration);
   const wrap = value => ((value + 180) % 360 + 360) % 360 - 180;
 
@@ -108,20 +109,20 @@
 
   function validateProject(input) {
     const invalid = () => { throw new Error('지원하지 않거나 손상된 타임라인 파일입니다.'); };
-    if (!input || input.version !== 1 || !['orbit', 'camera'].includes(input.mode) ||
+    if (!input || input.version !== 1 || !['orbit', 'camera', 'flat'].includes(input.mode) ||
         ![24, 25, 30, 60].includes(input.fps) || !Number.isFinite(input.duration) || input.duration < 1 || input.duration > 600 ||
         !input.base || !input.tracks || Array.isArray(input.tracks)) return invalid();
     const project = createProject(input.base, input.mode);
     project.fps = input.fps;
     project.duration = snap(input.duration, input.fps, 600);
     for (const definition of CHANNELS) {
-      const value = input.base[definition.key];
+      const value = input.base[definition.key] ?? (definition.key === 'zoom' ? defaults.zoom : undefined);
       if (!Number.isFinite(value) || value < definition.min || value > definition.max) return invalid();
     }
     if (Object.keys(input.tracks).some(key => !channel(key))) return invalid();
     let total = 0;
     for (const definition of CHANNELS) {
-      const track = input.tracks[definition.key];
+      const track = input.tracks[definition.key] ?? (definition.key === 'zoom' ? [] : undefined);
       if (!Array.isArray(track) || (total += track.length) > 2000) return invalid();
       for (const frame of track) {
         if (!frame || !Number.isFinite(frame.time) || frame.time < 0 || frame.time > project.duration ||

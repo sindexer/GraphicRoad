@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
 
+const cameraSource = await readFile(new URL('../map-camera.js', import.meta.url), 'utf8');
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const hostSource = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)]
   .map(match => match[1]).find(script => script.includes('const STYLE_WHITE'));
@@ -64,7 +65,8 @@ function environment() {
     URL, URLSearchParams, Map, Set,
     GraphicRoadEarthTimeline: { Controller: class {
       constructor({ button }) { this.button = button; this.closed = 0; }
-      setAvailable(value) { this.available = value; this.button.hidden = !value; if (!value) this.close(); }
+      setAvailable(value) { this.available = value; this.button.hidden = false; this.button.disabled = !value; if (!value) this.close(); }
+      activateMap(key) { this.mapKey = key; }
       close() { this.closed++; }
       pause() { this.paused = true; }
       pauseForNavigation() { this.pause(); }
@@ -75,6 +77,7 @@ function environment() {
     }
   });
   context.window = context;
+  vm.runInContext(cameraSource, context);
   vm.runInContext(hostSource, context);
   vm.runInContext(`
     map = { getCenter: () => new naver.maps.LatLng(37.5, 127), getZoom: () => 15 };
@@ -122,8 +125,8 @@ test('Naver restores controls, retained boundary choices and the latest Google c
   assert.equal(env.element('THEME_SELECT').value, 'WHITE');
 });
 
-test('timeline is placed left of Google Map, enabled only after Earth loads, and closes on switching', async () => {
-  assert.match(html, /id="EARTH_TIMELINE_TOGGLE"[^>]*hidden>타임라인<\/button>\s*<input id="ARCGISMAP"[^>]*>\s*<input id="GOOGLEMAP"/);
+test('timeline is always visible, enables on every loaded map and pauses during switching', async () => {
+  assert.match(html, /id="EARTH_TIMELINE_TOGGLE"[^>]*>타임라인<\/button>\s*<input id="ARCGISMAP"[^>]*>\s*<input id="GOOGLEMAP"/);
   const env = environment();
   await env.select('GOOGLE_EARTH');
   assert.equal(env.element('EARTH_TIMELINE_TOGGLE').hidden, false);
@@ -132,17 +135,18 @@ test('timeline is placed left of Google Map, enabled only after Earth loads, and
   env.context.setUiVisible(false);
   assert.ok(timeline.closed > 0);
   await env.select('GOOGLE_SATELLITE');
-  assert.equal(timeline.available, false);
-  assert.equal(env.element('EARTH_TIMELINE_TOGGLE').hidden, true);
-  assert.equal(env.document.body.classList.contains('earth-map-active'), false);
+  assert.equal(timeline.available, true);
+  assert.equal(env.element('EARTH_TIMELINE_TOGGLE').hidden, false);
+  assert.equal(env.document.body.classList.contains('earth-map-active'), true);
   let finish;
   env.googleStub.activate = () => new Promise(resolve => { finish = resolve; });
   const pending = env.select('GOOGLE_EARTH');
-  assert.equal(env.element('EARTH_TIMELINE_TOGGLE').hidden, true);
+  assert.equal(env.element('EARTH_TIMELINE_TOGGLE').disabled, true);
+  assert.equal(env.element('EARTH_TIMELINE_TOGGLE').hidden, false);
   await env.select('NORMAL');
   finish(true);
   await pending;
-  assert.equal(env.element('EARTH_TIMELINE_TOGGLE').hidden, true);
+  assert.equal(env.element('EARTH_TIMELINE_TOGGLE').hidden, false);
 });
 
 test('failed Google load restores the previous Naver selection and usable buttons', async () => {

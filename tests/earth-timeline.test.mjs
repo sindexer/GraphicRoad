@@ -136,7 +136,7 @@ function editor() {
     performance: { now: () => 0 }, setTimeout, clearTimeout, Blob, URL,
     requestAnimationFrame(callback) { callbacks.set(++id, callback); return id; },
     cancelAnimationFrame(id) { callbacks.delete(id); },
-    document: { activeElement: null, body: { classList: { add: name => classes.add(name), remove: name => classes.delete(name) } } },
+    document: { activeElement: null, documentElement: { style: { removeProperty() {} } }, body: { classList: { add: name => classes.add(name), remove: name => classes.delete(name) } } },
     confirm: () => true
   });
   env.window = env;
@@ -322,7 +322,7 @@ test('toolbar has one capture action, a render dialog and no obsolete project co
   assert.match(uiSource,/value="jpeg"/);
   assert.match(uiSource,/value="mp4"/);
   assert.match(uiSource,/showDirectoryPicker/);
-  assert.match(uiSource,/MediaRecorder\.isTypeSupported/);
+  assert.match(uiSource,/VideoEncoder\.isConfigSupported/);
   assert.match(uiSource,/setEarthRenderMode\?\.\(true\)/);
   assert.match(uiSource,/waitEarthSteady/);
   assert.match(uiSource,/requestVideoFrameCallback/);
@@ -338,8 +338,8 @@ test('toolbar has one capture action, a render dialog and no obsolete project co
   assert.match(uiSource,/data-action="fold"[^>]*id="ET_FOLD"/);
   assert.doesNotMatch(uiSource,/data-action="close" class="et-close"/);
   assert.match(uiSource,/setFolded\(true\).*captureRenderStream/s);
-  assert.match(uiSource,/configureRenderViewport\(settings\)/);
-  assert.match(uiSource,/classList\.add\('earth-capture-clean'\).*configureRenderViewport\(settings\)/s);
+  assert.match(uiSource,/configureRenderViewport\(this\.outputSize\)/);
+  assert.doesNotMatch(uiSource,/classList\.add\('earth-capture-clean'\).*?this\.configureRenderViewport\(settings\)/s);
   assert.match(uiSource,/outputScale\s*=\s*Math\.min/);
   assert.match(uiSource,/activeTrack\?\.readyState === 'live'/);
   assert.doesNotMatch(uiSource,/beginEarthRender|endEarthRender|isolatedRender/);

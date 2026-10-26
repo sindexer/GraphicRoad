@@ -1,0 +1,37 @@
+<!doctype html><html lang="ko"><meta charset="utf-8"><title>GraphicRoad render QA</title>
+<link rel="stylesheet" href="../../earth-timeline.css">
+<style>html,body{margin:0;height:100%;font-family:Arial;background:#15171b;color:#fff}.top-navigation{height:48px;display:flex;gap:16px;align-items:center;padding:0 12px}#googleMap{position:absolute;inset:48px 0 0}#scene{width:100%;height:100%}#RESULT{position:fixed;z-index:9999;left:5px;top:52px;max-width:480px;background:#131b26;padding:10px;white-space:pre-wrap}video{width:480px}#RESULT:empty{display:none}</style>
+<script src="../../earth-timeline-core.js"></script><script src="../../vendor/mp4-muxer.js"></script><script src="../../earth-timeline.js"></script>
+<div id="mapWrap"><nav class="top-navigation"><strong>RENDER QA · synthetic calibration scene</strong><button id="EARTH_TIMELINE_TOGGLE">타임라인</button><button id="RUN">JPEG + MP4 검수 시작</button></nav><div id="googleMap"><canvas id="scene" width="960" height="540"></canvas></div><section id="EARTH_TIMELINE" hidden></section></div><output id="RESULT"></output>
+<script>
+const C=GraphicRoadTimelineCore, canvas=document.getElementById('scene'),ctx=canvas.getContext('2d');
+let pose=C.normalizeCamera({pivotLat:37.5,pivotLng:127,zoom:12});
+function draw(){ctx.fillStyle='#153c51';ctx.fillRect(0,0,960,540);ctx.strokeStyle='#467384';ctx.lineWidth=1;
+ for(let x=0;x<960;x+=60){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,540);ctx.stroke();}for(let y=0;y<540;y+=60){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(960,y);ctx.stroke();}
+ ctx.fillStyle='#efb85a';ctx.beginPath();ctx.arc(480+(pose.pivotLng-127)*10000,270,60+(pose.zoom-12)*20,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle='#fff';ctx.font='24px Arial';ctx.fillText('16:9 / calibration circle / DOM source pixels',24,38);ctx.font='18px Arial';ctx.fillText(`lat ${pose.pivotLat.toFixed(5)} lng ${pose.pivotLng.toFixed(5)} zoom ${pose.zoom.toFixed(3)}`,24,72);
+ ctx.fillStyle='#00e6c5';ctx.fillRect(0,0,10,10);ctx.fillStyle='#f752a8';ctx.fillRect(950,530,10,10);ctx.fillStyle='#fff';ctx.fillText('Attribution retained · QA fixture',650,522);
+}
+draw();const provider={mode:'flat',get element(){return document.getElementById('googleMap');},getEarthCamera:()=>pose,setEarthCamera(p){pose=p;draw();return true;},stopEarthAnimation(){},subscribeEarthCamera(){return()=>{};}};
+const e=new GraphicRoadEarthTimeline.Controller({button:document.getElementById('EARTH_TIMELINE_TOGGLE'),root:document.getElementById('EARTH_TIMELINE'),getProvider:()=>provider});e.setAvailable(true);
+const save=(name,blob)=>fetch('/__qa/'+name,{method:'POST',body:blob}).then(r=>{if(!r.ok)throw Error('QA output save failed');});
+document.getElementById('RUN').onclick=async()=>{const result=document.getElementById('RESULT');result.textContent='검수 중…';try{
+ e.open();e.project.duration=1;for(const key of ['pivotLng','zoom'])C.upsert(e.project,key,1,key==='zoom'?14:127.01);e.regionCaptured=true;
+ const videoSource=canvas;videoSource.videoWidth=960;videoSource.videoHeight=540;
+ const controller=new AbortController(),settings={width:1920,height:1080,fps:30,start:0,end:29,name:'calibration',quality:.92};
+ const report={scene:'synthetic calibration, not a real map',jpeg:[],mp4:{},preview:{}};
+ const rect=provider.element.getBoundingClientRect();report.preview={width:rect.width,height:rect.height,ratio:rect.width/rect.height};
+ e.seek(0);const reference=e.renderCanvas(videoSource,settings);await save('reference.png',await e.canvasBlob(reference,'image/png'));
+ e.prepareRenderFrame=async()=>{await new Promise(r=>requestAnimationFrame(r));};
+ e.renderDestination={handle:{getFileHandle:async name=>({createWritable:async()=>({write:async blob=>{const bitmap=await createImageBitmap(blob);report.jpeg.push({name,width:bitmap.width,height:bitmap.height});bitmap.close();if(['000000','000015','000029'].some(n=>name.includes(n)))await save(name,blob);},close:async()=>{}})})}};
+ await e.renderJpegSequence(videoSource,settings,controller.signal);
+ let mp4;e.renderDestination={handle:{createWritable:async()=>({write:async blob=>{mp4=blob;await save('calibration.mp4',blob);},close:async()=>{}})}};
+ await e.renderMp4(videoSource,settings,controller.signal);
+ const playback=document.createElement('video');playback.muted=true;playback.controls=true;playback.src=URL.createObjectURL(mp4);document.body.appendChild(playback);
+ await new Promise((resolve,reject)=>{playback.onloadedmetadata=resolve;playback.onerror=reject;});
+ report.mp4={width:playback.videoWidth,height:playback.videoHeight,duration:playback.duration,bytes:mp4.size};
+ for(const time of [.001,.5,.965]){const presented=new Promise(resolve=>{playback.requestVideoFrameCallback?.(resolve);setTimeout(resolve,500);});const sought=new Promise(resolve=>playback.onseeked=resolve);playback.currentTime=time;await sought;await presented;const decoded=document.createElement('canvas');decoded.width=1920;decoded.height=1080;decoded.getContext('2d').drawImage(playback,0,0);await save(`mp4-${Math.round(time*1000)}.png`,await e.canvasBlob(decoded,'image/png'));}
+ report.pass=report.jpeg.length===30&&report.jpeg.every(f=>f.width===1920&&f.height===1080)&&report.mp4.width===1920&&report.mp4.height===1080&&Math.abs(report.mp4.duration-1)<.04&&Math.abs(report.preview.ratio-16/9)<1e-4;
+ await save('report.json',new Blob([JSON.stringify(report,null,2)],{type:'application/json'}));result.textContent=JSON.stringify({...report,jpeg:report.jpeg.length+' frames'},null,2);
+ }catch(error){result.textContent='FAIL '+error.stack;await save('error.txt',new Blob([error.stack]));}};
+</script></html>
