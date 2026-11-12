@@ -319,7 +319,9 @@ test('toolbar has one capture action, a render dialog and no obsolete project co
   assert.doesNotMatch(uiSource,/id="ET_(PAN|TIME|SCRUB)"|data-action="(?:save|load|new)"/);
   assert.match(uiSource,/data-action="render-open"/);
   assert.match(uiSource,/id="ET_RENDER"/);
-  assert.match(uiSource,/value="jpeg"/);
+  assert.match(uiSource,/value="png" checked/);
+  assert.doesNotMatch(uiSource,/jpeg|\.jpg|ET_RENDER_QUALITY/i);
+  assert.match(uiSource,/canvasBlob\(canvas, 'image\/png'\)/);
   assert.match(uiSource,/value="mp4"/);
   assert.match(uiSource,/showDirectoryPicker/);
   assert.match(uiSource,/VideoEncoder\.isConfigSupported/);
@@ -453,4 +455,15 @@ test('a reused screen share is re-cropped only after a capture sink is attached'
   const reusePath = uiSource.match(/activeTrack\?\.readyState === 'live'\) \{([\s\S]*?)\n      \}/)[1];
   assert.doesNotMatch(reusePath, /bindCaptureRegion/);
   assert.match(uiSource, /video = await this\.renderVideo\(stream\);\s*if \(this\.renderStreamReused\) await this\.bindCaptureRegion\(stream\);/);
+});
+
+test('the clean capture enlarges the map to the output size and keeps the preview framing', () => {
+  // The editing preview is much smaller than 1920x1080; capturing it as-is
+  // upscaled every frame. The capture uses the whole window instead.
+  assert.match(uiSource, /classList\.add\('earth-capture-clean'\)[\s\S]*?enlargeRenderViewport\(settings, previewWidth\)[\s\S]*?renderVideo\(stream\)/);
+  assert.match(uiSource, /const previewWidth = this\.mapElement\(\)\?\.getBoundingClientRect\(\)\.width;[\s\S]*?this\.setFolded\(true\)/);
+  assert.match(uiSource, /Math\.min\(fit\.width, settings\.width \/ \(window\.devicePixelRatio \|\| 1\)\)/);
+  assert.match(uiSource, /renderZoomOffset = this\.project\.mode === 'flat' \? Math\.log2\(renderScale\) : 0/);
+  assert.match(uiSource, /zoom: this\.pose\.zoom \+ this\.renderZoomOffset/);
+  assert.match(uiSource, /finally \{[\s\S]*?this\.renderZoomOffset = 0;[\s\S]*?this\.refreshViewport\(\);[\s\S]*?this\.seek\(returnTime, true\)/);
 });

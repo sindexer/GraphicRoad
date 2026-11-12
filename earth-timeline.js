@@ -176,8 +176,8 @@
             <header><div><strong id="ET_RENDER_TITLE">렌더링</strong><p>Map Camera 타임라인 출력 · 미리보기 구도 그대로</p></div><button type="button" data-action="render-close" aria-label="렌더링 창 닫기">✕</button></header>
             <div class="et-render-scroll">
               <div class="et-render-top"><label>이름<input id="ET_RENDER_NAME" type="text" value="GraphicRoad" maxlength="80"></label><label>위치<span class="et-destination"><button type="button" data-action="render-location">📁 위치 선택</button><output id="ET_RENDER_LOCATION">선택 안 됨</output></span></label></div>
-              <fieldset class="et-format"><legend>형식</legend><label><input type="radio" name="ET_RENDER_FORMAT" value="jpeg" checked><span>◉</span><strong>이미지 시퀀스 (JPEG)</strong><small>선택한 폴더에 프레임별 저장</small></label><label><input type="radio" name="ET_RENDER_FORMAT" value="mp4"><span>◉</span><strong>동영상 (MP4)</strong><small>정확한 FPS로 H.264/MP4 저장</small></label></fieldset>
-              <div class="et-render-grid"><label>프레임<span><input id="ET_RENDER_START" type="number" min="0" step="1" value="0"> ~ <input id="ET_RENDER_END" type="number" min="0" step="1" value="300"></span></label><label>크기<span><input id="ET_RENDER_WIDTH" type="number" min="320" max="7680" step="2" value="1920"> × <input id="ET_RENDER_HEIGHT" type="number" min="180" max="4320" step="2" value="1080"></span></label><label>저작자 표시 위치<select disabled><option>오른쪽 하단 (지도 원본 고정)</option></select></label><label>JPEG 품질<select id="ET_RENDER_QUALITY"><option value="0.8">보통</option><option value="0.92" selected>높음</option><option value="1">최고</option></select></label></div>
+              <fieldset class="et-format"><legend>형식</legend><label><input type="radio" name="ET_RENDER_FORMAT" value="png" checked><span>◉</span><strong>이미지 시퀀스 (PNG)</strong><small>선택한 폴더에 프레임별 무손실 저장</small></label><label><input type="radio" name="ET_RENDER_FORMAT" value="mp4"><span>◉</span><strong>동영상 (MP4)</strong><small>정확한 FPS로 H.264/MP4 저장</small></label></fieldset>
+              <div class="et-render-grid"><label>프레임<span><input id="ET_RENDER_START" type="number" min="0" step="1" value="0"> ~ <input id="ET_RENDER_END" type="number" min="0" step="1" value="300"></span></label><label>크기<span><input id="ET_RENDER_WIDTH" type="number" min="320" max="7680" step="2" value="1920"> × <input id="ET_RENDER_HEIGHT" type="number" min="180" max="4320" step="2" value="1080"></span></label><label>저작자 표시 위치<select disabled><option>오른쪽 하단 (지도 원본 고정)</option></select></label></div>
               <details class="et-render-advanced"><summary>고급</summary><div><label>3D 추적 데이터<select disabled><option>없음</option></select></label><label>좌표 공간<select disabled><option>전체</option></select></label><label>지도 스타일<select disabled><option>현재 지도 스타일</option></select></label><label>프레임 속도<output id="ET_RENDER_FPS">30 FPS</output></label></div></details>
               <p class="et-render-note">지도 저작권 표시는 원본 위치에 포함됩니다. 브라우저 보안상 첫 렌더에서는 <strong>현재 탭</strong> 공유를 한 번 선택해야 하며, 공유가 유지되는 동안 다음 렌더부터는 바로 시작합니다.</p>
               <div id="ET_RENDER_PROGRESS_WRAP" class="et-render-progress" hidden><progress id="ET_RENDER_PROGRESS" max="1" value="0"></progress><output id="ET_RENDER_PROGRESS_TEXT">준비 중</output></div>
@@ -341,8 +341,11 @@
       this.pose = C.normalizeCamera(camera);
       this.acceptCameraUpdates = false;
       this.appliedUntil = performance.now() + 160;
+      // A flat map shows more area when its element grows; the render-only
+      // zoom offset keeps the enlarged capture framed like the preview.
+      const target = this.renderZoomOffset ? { ...this.pose, zoom: this.pose.zoom + this.renderZoomOffset } : this.pose;
       try {
-        if (this.getProvider()?.setEarthCamera(this.pose, this.project.mode) === false) {
+        if (this.getProvider()?.setEarthCamera(target, this.project.mode) === false) {
           this.pause();
           this.setStatus('현재 지도 카메라에 연결할 수 없습니다. 지도를 다시 선택해 주세요.');
         }
@@ -570,7 +573,7 @@
       this.$('ET_CURVE_HINT').textContent = next ? `${number(key.time, 3)} → ${number(next.time, 3)}초 구간의 속도 곡선입니다. 핸들을 드래그하세요.` : '트랙에서 키를 선택하세요. 다음 키가 있어야 구간 곡선을 편집할 수 있습니다.';
     }
 
-    renderFormat() { return this.root.querySelector('input[name="ET_RENDER_FORMAT"]:checked')?.value || 'jpeg'; }
+    renderFormat() { return this.root.querySelector('input[name="ET_RENDER_FORMAT"]:checked')?.value || 'png'; }
     renderMimeType() {
       return window.VideoEncoder && window.VideoFrame && window.Mp4Muxer ? 'video/mp4' : '';
     }
@@ -598,7 +601,7 @@
       const format = this.renderFormat();
       this.$('ET_RENDER_ERROR').textContent = '';
       try {
-        if (format === 'jpeg') {
+        if (format === 'png') {
           if (!window.showDirectoryPicker) throw new Error('DIRECTORY_PICKER_UNSUPPORTED');
           this.renderDestination = {
             format,
@@ -619,7 +622,7 @@
       } catch (error) {
         if (error?.name === 'AbortError') return;
         const messages = {
-          MP4_UNSUPPORTED: '이 브라우저는 MP4 녹화를 지원하지 않습니다. JPEG 시퀀스를 선택하세요.',
+          MP4_UNSUPPORTED: '이 브라우저는 MP4 녹화를 지원하지 않습니다. PNG 시퀀스를 선택하세요.',
           DIRECTORY_PICKER_UNSUPPORTED: '이 브라우저는 폴더 저장을 지원하지 않습니다. 최신 Chrome 또는 Edge를 사용하세요.'
         };
         this.$('ET_RENDER_ERROR').textContent = messages[error?.message] || '저장 위치를 선택하지 못했습니다.';
@@ -635,7 +638,6 @@
         end: integer('ET_RENDER_END'),
         width: integer('ET_RENDER_WIDTH'),
         height: integer('ET_RENDER_HEIGHT'),
-        quality: Number(this.$('ET_RENDER_QUALITY').value),
         fps: this.project.fps
       };
       if (!Number.isFinite(settings.start) || !Number.isFinite(settings.end) ||
@@ -753,13 +755,33 @@
       this.configureRenderViewport(this.outputSize);
       this.getProvider()?.resize?.();
     }
-    configureRenderViewport(settings, reserveTimeline = false) {
+    configureRenderViewport(settings) {
       const navBottom = document.querySelector('.top-navigation')?.getBoundingClientRect().bottom || 0;
       const timelineHeight = this.root.getBoundingClientRect().height;
       const availableWidth = window.innerWidth;
       const availableHeight = Math.max(1, window.innerHeight - timelineHeight - navBottom);
       const viewport = fitRenderViewport(availableWidth, availableHeight, settings.width, settings.height);
       viewport.top += navBottom;
+      this.setRenderViewport(viewport);
+      return viewport;
+    }
+    // The navigation bar and timeline are hidden during a clean capture, so the
+    // map can use the whole window. A bigger map element is captured with more
+    // pixels instead of upscaling the small editing preview to the output size.
+    // The preview framing is kept: 3D cameras frame by FOV and are unchanged by
+    // a same-ratio resize; flat maps get the matching zoom offset in apply().
+    // previewWidth is the map the user framed while editing, before the
+    // render folded the timeline; the returned scale is relative to it.
+    enlargeRenderViewport(settings, previewWidth) {
+      if (!(previewWidth > 0)) return 1;
+      const fit = fitRenderViewport(window.innerWidth, window.innerHeight, settings.width, settings.height);
+      const width = Math.min(fit.width, settings.width / (window.devicePixelRatio || 1));
+      const height = width * settings.height / settings.width;
+      this.setRenderViewport({ left: (window.innerWidth - width) / 2, top: (window.innerHeight - height) / 2, width, height });
+      this.getProvider()?.resize?.();
+      return width / previewWidth;
+    }
+    setRenderViewport(viewport) {
       const style = document.documentElement.style;
       style.setProperty('--earth-render-left', `${viewport.left}px`);
       style.setProperty('--earth-render-top', `${viewport.top}px`);
@@ -878,15 +900,15 @@
       this.$('ET_RENDER_PROGRESS').value = done / total;
       this.$('ET_RENDER_PROGRESS_TEXT').textContent = `${done} / ${total} 프레임`;
     }
-    async renderJpegSequence(video, settings, signal) {
+    async renderPngSequence(video, settings, signal) {
       const total = settings.end - settings.start + 1;
       for (let frame = settings.start; frame <= settings.end; frame++) {
         if (signal.aborted) throw new DOMException('중단됨', 'AbortError');
         this.seek(frame / settings.fps, true);
         await this.prepareRenderFrame(video, signal);
         const canvas = this.renderCanvas(video, settings);
-        const blob = await this.canvasBlob(canvas, 'image/jpeg', settings.quality);
-        const filename = `${settings.name}_${String(frame).padStart(6, '0')}.jpg`;
+        const blob = await this.canvasBlob(canvas, 'image/png');
+        const filename = `${settings.name}_${String(frame).padStart(6, '0')}.png`;
         const file = await this.renderDestination.handle.getFileHandle(filename, { create: true });
         const writable = await file.createWritable();
         await writable.write(blob);
@@ -974,6 +996,7 @@
       const returnTime = this.time;
       const returnFolded = this.folded;
       const viewportSize = { width: window.innerWidth, height: window.innerHeight };
+      const previewWidth = this.mapElement()?.getBoundingClientRect().width;
       let video = null;
       this.setFolded(true);
       this.$('ET_RENDER').close();
@@ -988,13 +1011,15 @@
         await this.waitForRenderPointer(signal);
         this.root.dataset.renderMessage = '렌더링 중…';
         document.body.classList.add('earth-capture-clean');
-        // Keep the exact editing viewport: changing its size changes map coverage.
         this.renderViewportSize = viewportSize;
+        const renderScale = this.enlargeRenderViewport(settings, previewWidth);
+        this.renderZoomOffset = this.project.mode === 'flat' ? Math.log2(renderScale) : 0;
+        this.seek(this.time, true);
         await this.settleRenderFrame(signal, 500, 3);
         video = await this.renderVideo(stream);
         if (this.renderStreamReused) await this.bindCaptureRegion(stream);
         await this.waitCapturedVideoFrame(video, signal);
-        if (settings.format === 'jpeg') await this.renderJpegSequence(video, settings, signal);
+        if (settings.format === 'png') await this.renderPngSequence(video, settings, signal);
         else await this.renderMp4(video, settings, signal);
         this.setStatus(`${settings.name} 렌더링을 완료했습니다.`);
       } catch (error) {
@@ -1003,7 +1028,7 @@
           const messages = {
             CURRENT_TAB_REQUIRED: '화면 공유에서 현재 탭을 선택하세요.',
             SCREEN_CAPTURE_UNSUPPORTED: '이 브라우저는 화면 캡처를 지원하지 않습니다.',
-            MP4_UNSUPPORTED: '이 브라우저는 MP4 녹화를 지원하지 않습니다. JPEG 시퀀스를 사용하세요.'
+            MP4_UNSUPPORTED: '이 브라우저는 MP4 녹화를 지원하지 않습니다. PNG 시퀀스를 사용하세요.'
           };
           const message = messages[error?.message] || error?.message || '렌더링에 실패했습니다.';
           this.setStatus(message);
@@ -1015,6 +1040,7 @@
         provider?.setEarthRenderMode?.(false);
         document.body.classList.remove('earth-capture-clean');
         this.renderViewportSize = null;
+        this.renderZoomOffset = 0;
         document.body.classList.remove('earth-rendering');
         delete this.root.dataset.renderMessage;
         this.renderAbort = null;
@@ -1058,7 +1084,7 @@
     onChange(event) {
       const input = event.target;
       if (input.name === 'ET_RENDER_FORMAT') {
-        this.renderDestination=null;this.$('ET_RENDER_LOCATION').textContent='선택 안 됨';this.$('ET_RENDER_ERROR').textContent='';this.$('ET_RENDER_QUALITY').disabled=input.value!=='jpeg';return;
+        this.renderDestination=null;this.$('ET_RENDER_LOCATION').textContent='선택 안 됨';this.$('ET_RENDER_ERROR').textContent='';return;
       }
       if (['ET_RENDER_WIDTH', 'ET_RENDER_HEIGHT'].includes(input.id)) {
         try { this.outputSize = this.renderSettings(); this.refreshViewport(); this.$('ET_RENDER_ERROR').textContent = ''; }
