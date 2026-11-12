@@ -446,3 +446,11 @@ test('changing the camera basis requires confirmation and creates matching start
   assert.equal(e.project.mode, 'orbit');
   assert.equal(JSON.stringify(e.project), original);
 });
+
+test('a reused screen share is re-cropped only after a capture sink is attached', () => {
+  // Chrome never settles cropTo() on a reused track whose previous sink was
+  // detached, which froze the second render of a page session.
+  const reusePath = uiSource.match(/activeTrack\?\.readyState === 'live'\) \{([\s\S]*?)\n      \}/)[1];
+  assert.doesNotMatch(reusePath, /bindCaptureRegion/);
+  assert.match(uiSource, /video = await this\.renderVideo\(stream\);\s*if \(this\.renderStreamReused\) await this\.bindCaptureRegion\(stream\);/);
+});

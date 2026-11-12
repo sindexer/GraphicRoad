@@ -655,9 +655,12 @@
     async captureRenderStream() {
       const activeTrack = this.renderStream?.getVideoTracks()[0];
       if (activeTrack?.readyState === 'live') {
-        await this.bindCaptureRegion(this.renderStream);
+        // Re-crop only after renderVideo() attaches a sink: Chrome never
+        // settles cropTo() on a reused share whose last sink was detached.
+        this.renderStreamReused = true;
         return this.renderStream;
       }
+      this.renderStreamReused = false;
       this.renderStream = null;
       if (!navigator.mediaDevices?.getDisplayMedia) throw new Error('SCREEN_CAPTURE_UNSUPPORTED');
 
@@ -690,7 +693,11 @@
       // tab cannot contain this CropTarget and is rejected by the browser.
       if (window.CropTarget && track.cropTo) {
         try { await track.cropTo(await CropTarget.fromElement(this.mapElement())); }
-        catch { stream.getTracks().forEach(item => item.stop()); throw new Error('CURRENT_TAB_REQUIRED'); }
+        catch {
+          stream.getTracks().forEach(item => item.stop());
+          if (this.renderStream === stream) this.renderStream = null;
+          throw new Error('CURRENT_TAB_REQUIRED');
+        }
         this.regionCaptured = true;
       } else this.regionCaptured = false;
     }
@@ -985,6 +992,7 @@
         this.renderViewportSize = viewportSize;
         await this.settleRenderFrame(signal, 500, 3);
         video = await this.renderVideo(stream);
+        if (this.renderStreamReused) await this.bindCaptureRegion(stream);
         await this.waitCapturedVideoFrame(video, signal);
         if (settings.format === 'jpeg') await this.renderJpegSequence(video, settings, signal);
         else await this.renderMp4(video, settings, signal);
